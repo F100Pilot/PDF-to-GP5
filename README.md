@@ -28,16 +28,11 @@ Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --port 8000
+.venv/bin/uvicorn app.main:app --port 8000 --workers 1
 # http://localhost:8000
 ```
 
-Docker:
-
-```bash
-docker build -t pdf-to-gp5 .
-docker run --rm -p 8000:8000 --read-only --tmpfs /tmp pdf-to-gp5
-```
+Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
 ## API
 
@@ -62,7 +57,7 @@ curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8000/api/conv
 - Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429).
 - Cabeçalhos: CSP estrita sem scripts inline, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
 - Erros internos nunca são expostos ao cliente; nomes de ficheiro e metadados GP5 são sanitizados.
-- Documentação OpenAPI desativada por defeito. Container sem root. `pip-audit` no CI.
+- Documentação OpenAPI desativada por defeito. `pip-audit` no CI.
 
 Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se configure `uvicorn --proxy-headers --forwarded-allow-ips=<ip do proxy>`.
 
