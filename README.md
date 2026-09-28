@@ -12,7 +12,7 @@ Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (
 
 - 4–8 cordas (baixo, guitarra 6/7/8 cordas); afinação lida das etiquetas (`e B G D A D` → Drop D) ou escolhida manualmente.
 - Técnicas: hammer-on/pull-off (`h`/`p`), slides (`/`, `\`, `s`), bend (`b`, `7b9`, `7b9r7`), vibrato (`~`), nota abafada (`x`), ghost note (`(5)`).
-- Tabs gravadas: setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
+- Tabs gravadas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
 - Vários sistemas e páginas são concatenados numa única pista.
 
 ### Metadados

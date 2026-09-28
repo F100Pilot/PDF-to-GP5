@@ -98,3 +98,26 @@ def test_roundtrip_stroke():
     measure = ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 0, stroke="down"), ScoreNote(2, 1, stroke="down")])])
     beat = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats[0]
     assert beat.effect.stroke.direction == gp.BeatStrokeDirection.down
+
+
+@pytest.mark.parametrize(
+    ("pre", "release", "expected"),
+    [
+        (False, False, gp.BendType.bend),
+        (False, True, gp.BendType.bendRelease),
+        (True, False, gp.BendType.prebend),
+        (True, True, gp.BendType.prebendRelease),
+    ],
+)
+def test_bend_types(pre, release, expected):
+    note = ScoreNote(2, 10, bend_semitones=2, bend_pre=pre, bend_release=release)
+    bend = (
+        _roundtrip(_score([ScoreMeasure([ScoreBeat(32, [note])])]))
+        .tracks[0]
+        .measures[0]
+        .voices[0]
+        .beats[0]
+        .notes[0]
+        .effect.bend
+    )
+    assert bend.type == expected and bend.value == 100

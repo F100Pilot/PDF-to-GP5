@@ -33,6 +33,7 @@ class TabEvent:
     vibrato: bool = False
     bend_semitones: int = 0
     bend_release: bool = False
+    bend_pre: bool = False  # string bent before picking (straight arrow), or bend held on a tie
     link: Link | None = None
     let_ring: bool = False
     palm_mute: bool = False
@@ -50,6 +51,7 @@ class RhythmMark:
     x: float
     units: int | None
     is_rest: bool = False
+    vibrato: bool = False  # under a vibrato line (matters for stem-only tied notes)
 
 
 @dataclass
@@ -83,6 +85,7 @@ class ScoreNote:
     slide: bool = False  # slide to the next note on this string
     bend_semitones: int = 0
     bend_release: bool = False
+    bend_pre: bool = False
     let_ring: bool = False
     palm_mute: bool = False
     stroke: str | None = None
@@ -96,6 +99,7 @@ class ScoreBeat:
     notes: list[ScoreNote] = field(default_factory=list)
     # Printed stem without a fret: continues (ties) the notes sounding before it.
     tie_previous: bool = False
+    tie_vibrato: bool = False
 
     @property
     def is_rest(self) -> bool:

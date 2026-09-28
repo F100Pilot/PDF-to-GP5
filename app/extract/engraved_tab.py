@@ -8,12 +8,12 @@ inferred later from horizontal spacing.
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..model import Link, TabEvent, TabSystem
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
-from .rhythm_marks import read_rhythm
+from .rhythm_marks import glyph_ys, read_rhythm
 
 MIN_STRINGS, MAX_STRINGS = 4, 8
 _LEGATO_LETTERS = {"H": Link.HAMMER, "P": Link.PULL}
@@ -242,6 +242,112 @@ def _apply_strums(arrows: list[tuple[float, str]], events: list[TabEvent], spaci
                     event.stroke = stroke
 
 
+# Bend amount printed above the arrow, in semitones.
+_BEND_AMOUNTS = {"¼": 1, "½": 1, "1/2": 1, "1": 2, "full": 2, "1½": 3, "11/2": 3, "2": 4}
+_WIGGLES = {chr(c) for c in range(0xEAA0, 0xEAC0)}  # SMuFL wiggle lines (vibrato, trill)
+
+
+def _bend_amount(page: Page, head: Segment, spacing: float) -> int:
+    xc = (head.x0 + head.x1) / 2
+    label = "".join(
+        c.text
+        for c in sorted(page.chars, key=lambda c: c.x0)
+        if abs(c.xc - xc) <= 0.8 * spacing and head.top - 2 * spacing <= c.top and c.bottom <= head.top + 0.3 * spacing
+    )
+    return _BEND_AMOUNTS.get(label.strip().lower(), 2)
+
+
+def _apply_bends(page: Page, staff: list[_StaffLine], spacing: float, events: list[TabEvent]) -> None:
+    """Bend arrows drawn as a stroke ending in a filled arrowhead.
+
+    Up arrow from a note: bend (curved) or pre-bend (straight, from the note's top);
+    a curve may also come in from the left onto a tied note (a held bend).
+    Down arrow: release of the bend that starts where the arrow starts.
+    """
+    top, bottom = staff[0].y, staff[-1].y
+    heads = [
+        c
+        for c in page.curves
+        if 0.3 * spacing <= c.x1 - c.x0 <= 0.8 * spacing
+        and 0.3 * spacing <= c.bottom - c.top <= 0.8 * spacing
+        and top - 4 * spacing <= c.top <= bottom
+        and staff[0].x0 <= c.x0 <= staff[0].x1
+    ]
+    strokes = [
+        s
+        for s in (*page.curves, *page.segments)
+        if max(s.x1 - s.x0, s.bottom - s.top) >= 0.8 * spacing and (s.bottom - s.top) >= 0.5 * spacing
+    ]
+    y_of = {n: line.y for n, line in enumerate(staff, start=1)}
+    releases: list[Segment] = []
+    for head in heads:  # bends first: a release refers to a bend that may be drawn later
+        xc = (head.x0 + head.x1) / 2
+        up = next(
+            (
+                s
+                for s in strokes
+                if abs(s.top - head.bottom) <= 0.2 * spacing and s.x0 - 0.2 * spacing <= xc <= s.x1 + 0.2 * spacing
+            ),
+            None,
+        )
+        if up is None:
+            down = next(
+                (
+                    s
+                    for s in strokes
+                    if abs(s.bottom - head.top) <= 0.2 * spacing and s.x0 - 0.2 * spacing <= xc <= s.x1 + 0.2 * spacing
+                ),
+                None,
+            )
+            if down is not None:
+                releases.append(down)
+            continue
+        straight = up.x1 - up.x0 < 0.2 * spacing
+        origin_x = (up.x0 + up.x1) / 2 if straight else up.x0
+        candidates = [
+            e
+            for e in events
+            if e.fret is not None
+            and y_of[e.string] - 1.2 * spacing <= up.bottom <= y_of[e.string] + 0.5 * spacing
+            and (
+                abs(origin_x - e.x) <= 0.5 * spacing if straight else -1.5 * spacing <= origin_x - e.x <= 1.8 * spacing
+            )
+        ]
+        if candidates:
+            note = min(candidates, key=lambda e: abs(origin_x - e.x))
+            note.bend_semitones = _bend_amount(page, head, spacing)
+            note.bend_pre = straight
+    for down in releases:
+        bent = [e for e in events if e.bend_semitones and abs(e.x - down.x0) <= 1.8 * spacing]
+        if bent:
+            min(bent, key=lambda e: abs(e.x - down.x0)).bend_release = True
+
+
+def _apply_vibrato(
+    page: Page, staves: list[list[_StaffLine]], staff: list[_StaffLine], spacing: float, events: list[TabEvent]
+) -> list[tuple[float, float]]:
+    """Wavy lines above the staff give vibrato to the notes they span; returns their x ranges."""
+    ranges: list[tuple[float, float]] = []
+    wiggles = sorted((c for c in page.chars if c.text in _WIGGLES), key=lambda c: (round(c.top), c.x0))
+    groups: list[list[Char]] = []
+    for char in wiggles:
+        if groups and abs(groups[-1][-1].top - char.top) < 1 and char.x0 - groups[-1][-1].x1 < spacing:
+            groups[-1].append(char)
+        else:
+            groups.append([char])
+    top = staff[0].y
+    for group in groups:
+        y = glyph_ys(group[0])[1]  # music-font glyph drawn about one em above its box
+        owner = min(staves, key=lambda st: abs(st[0].y - y) if st[0].y >= y - spacing else float("inf"))
+        if owner is not staff or not (0 <= top - y <= 5 * spacing):
+            continue
+        for event in events:
+            if group[0].x0 - 0.5 * spacing <= event.x <= group[-1].x1:
+                event.vibrato = True
+        ranges.append((group[0].x0 - 0.5 * spacing, group[-1].x1))
+    return ranges
+
+
 def _labels(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[str]:
     """Read tuning letters printed left of the staff, if present for every string."""
     labels: list[str] = []
@@ -289,10 +395,13 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
     systems: list[TabSystem] = []
     placed: list[tuple[TabSystem, list[_StaffLine], float]] = []
     verticals = [s for s in page.segments if s.is_vertical]
-    for staff in _staves(_staff_lines(page.segments, page.width)):
+    staves = _staves(_staff_lines(page.segments, page.width))
+    for staff in staves:
         spacing = (staff[-1].y - staff[0].y) / (len(staff) - 1)
         events = _numbers_on_staff(page.chars, staff, spacing, page.curves)
         _apply_legato_marks(page.chars, staff, spacing, events)
+        _apply_bends(page, staff, spacing, events)
+        vibrato_ranges = _apply_vibrato(page, staves, staff, spacing, events)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
         arrows = _strum_arrows(page, staff, spacing)
@@ -322,7 +431,10 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             labels=_labels(page.chars, staff, spacing),
             source="engraved",
             bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
-            rhythm=read_rhythm(page, top, bottom, x0, x1, spacing),
+            rhythm=[
+                replace(m, vibrato=True) if not m.is_rest and any(a <= m.x <= b for a, b in vibrato_ranges) else m
+                for m in read_rhythm(page, top, bottom, x0, x1, spacing)
+            ],
         )
         systems.append(system)
         placed.append((system, staff, spacing))

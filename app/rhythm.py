@@ -97,6 +97,7 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             stroke=e.stroke,
             bend_semitones=e.bend_semitones,
             bend_release=e.bend_release,
+            bend_pre=e.bend_pre,
             link=e.link,
         )
         for e in sorted(events, key=lambda e: e.string)
@@ -114,8 +115,9 @@ def _ties(notes: list[ScoreNote]) -> list[ScoreNote]:
 class _TiePrevious(list):
     """Marker for a (notes, length) item that continues the notes sounding before it."""
 
-
-TIE_PREVIOUS = _TiePrevious()
+    def __init__(self, vibrato: bool = False) -> None:
+        super().__init__()
+        self.vibrato = vibrato
 
 
 def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> list[ScoreMeasure]:
@@ -128,8 +130,8 @@ def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> l
         while length > 0:
             take = min(measure_units - filled, length)
             for part in split_units(take):
-                if notes is TIE_PREVIOUS:
-                    current.append(ScoreBeat(part, tie_previous=True))
+                if isinstance(notes, _TiePrevious):
+                    current.append(ScoreBeat(part, tie_previous=True, tie_vibrato=notes.vibrato))
                 else:
                     current.append(ScoreBeat(part, notes if first else _ties(notes)))
                 first = False
@@ -230,7 +232,9 @@ def _notated_items(
         used.add(index)
         entries.append((col.x, _to_notes(col.events), stems[index].units or 0))
     # A stem without a fret continues the previous notes (editors may hide tied frets).
-    entries.extend((stem.x, TIE_PREVIOUS, stem.units or 0) for i, stem in enumerate(stems) if i not in used)
+    entries.extend(
+        (stem.x, _TiePrevious(stem.vibrato), stem.units or 0) for i, stem in enumerate(stems) if i not in used
+    )
     entries.extend((m.x, [], m.units or 0) for m in marks if m.is_rest)
     if sum(length for _, _, length in entries) != units:
         return None
@@ -320,6 +324,8 @@ def fill_tied_continuations(measures: list[ScoreMeasure]) -> None:
         for beat in measure.beats:
             if beat.tie_previous:
                 beat.notes = _ties(sounding)
+                for note in beat.notes:
+                    note.vibrato = beat.tie_vibrato
                 beat.tie_previous = False
             if beat.notes:
                 sounding = beat.notes
@@ -344,6 +350,10 @@ def resolve_links(measures: list[ScoreMeasure], parentheses: ParenthesesMode = "
                         note.tie = True
                     else:
                         note.ghost = True
+                if note.tie and note.bend_semitones:
+                    note.bend_pre = True  # a bend marked on a tied note is held, not re-bent
+                elif note.tie and prev is not None and prev.bend_semitones and not prev.bend_release:
+                    note.bend_semitones, note.bend_pre = prev.bend_semitones, True  # hold the bend
                 if note.link is not None and prev is not None and not prev.dead:
                     if note.link in (Link.HAMMER, Link.PULL):
                         prev.hammer = True

@@ -13,6 +13,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Opção "Notas entre parêntesis": ligadura (como no PDF) ou nota normal (visível na tab, volta a tocar).
 - Tracks alinhadas pelos números de compasso impressos: compassos não lidos são preenchidos com pausa no sítio certo (com aviso a indicar quais), em vez de desalinhar o resto da música.
 - Setas de rasgueado (↑/↓) nas tabs gravadas convertidas em efeito de palhetada (brush) no GP5.
+- Bends nas tabs gravadas: bend (seta curva), pre-bend (seta reta), release (seta descendente) e bend mantido em notas ligadas, com a quantidade indicada (½, 1, 1½, 2).
+- Vibrato (linha ondulada) aplicado às notas abrangidas, incluindo notas ligadas só com haste.
 ### Corrigido
 - Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).
 - Ritmo: mínimas (hastes curtas), colcheias com bandeirola, notas pontuadas e hastes sem traste (continuação ligada) passam a ser lidas; símbolos musicais localizados apesar do desvio das caixas de texto da fonte.

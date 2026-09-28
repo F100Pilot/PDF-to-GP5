@@ -133,3 +133,13 @@ def test_parentheses_as_normal_notes_when_requested():
     measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], options, [])
     notes = [n for b in measures[0].beats for n in b.notes if n.parenthesized]
     assert notes and all(not n.tie and not n.ghost for n in notes)
+
+
+def test_tie_after_unreleased_bend_holds_it():
+    events = [
+        TabEvent(x=2, string=2, fret=15, bend_semitones=2),
+        TabEvent(x=10, string=2, fret=15, parenthesized=True),
+    ]
+    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
+    tied = next(n for b in measures[0].beats for n in b.notes if n.parenthesized)
+    assert tied.tie and tied.bend_semitones == 2 and tied.bend_pre

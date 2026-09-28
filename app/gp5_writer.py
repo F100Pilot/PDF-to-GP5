@@ -45,7 +45,14 @@ def sanitize_text(value: str, max_length: int = 100) -> str:
 def _bend(note: ScoreNote) -> gp.BendEffect:
     # BendPoint values are quarter tones (PyGuitarPro scales them on write).
     peak = note.bend_semitones * 2
-    if note.bend_release:
+    if note.bend_pre:
+        if note.bend_release:
+            points = [gp.BendPoint(0, peak), gp.BendPoint(4, peak), gp.BendPoint(8, 0), gp.BendPoint(12, 0)]
+            bend_type = gp.BendType.prebendRelease
+        else:
+            points = [gp.BendPoint(0, peak), gp.BendPoint(12, peak)]
+            bend_type = gp.BendType.prebend
+    elif note.bend_release:
         points = [
             gp.BendPoint(0, 0),
             gp.BendPoint(3, peak),

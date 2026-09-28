@@ -169,3 +169,40 @@ def test_strum_arrow_is_not_a_bar_line_and_sets_stroke():
     systems = extract_engraved_systems(_staff_page([arrow], [head]))
     assert [round(b) for b in systems[0].bars] == [50, 300, 550]
     assert {(e.fret, e.stroke) for e in systems[0].events} == {(3, None), (5, "down")}
+
+
+def _bend_page(arrow_segments, chars=()):
+    """Staff at y 100..150 (string 1 at 100); one note "10" on string 2 at x 100."""
+    from app.extract.pdf_reader import Char, Page, Segment
+
+    lines = [Segment(50, 550, 100 + 10 * i, 100 + 10 * i) for i in range(6)]
+    bars = [Segment(x, x, 100, 150) for x in (50, 550)]
+    note = [Char("1", 95, 100, 106, 114), Char("0", 100, 105, 106, 114)]
+    return Page(1, 600, 800, [*note, *chars], [*lines, *bars], list(arrow_segments))
+
+
+def test_bend_arrow_with_amount():
+    from app.extract.pdf_reader import Char, Segment
+
+    curve, head = Segment(108, 118, 88, 107), Segment(114, 120, 82, 88)
+    label = Char("½", 115, 119, 74, 81)
+    event = extract_engraved_systems(_bend_page([curve, head], [label]))[0].events[0]
+    assert (event.fret, event.bend_semitones, event.bend_pre, event.bend_release) == (10, 1, False, False)
+
+
+def test_prebend_and_release():
+    from app.extract.pdf_reader import Segment
+
+    straight, up_head = Segment(100, 100, 88, 106), Segment(97, 103, 82, 88)
+    release, down_head = Segment(100, 160, 84, 98), Segment(157, 163, 98, 104)
+    event = extract_engraved_systems(_bend_page([release, down_head, straight, up_head]))[0].events[0]
+    assert (event.bend_semitones, event.bend_pre, event.bend_release) == (2, True, True)
+
+
+def test_vibrato_wiggle_line_above_staff():
+    from app.extract.pdf_reader import Char
+
+    # Music-font glyph boxes sit about one em below the drawn wiggle (drawn at y ~ 90).
+    wiggles = [Char("", x, x + 5, 99, 109) for x in range(90, 130, 5)]
+    event = extract_engraved_systems(_bend_page([], wiggles))[0].events[0]
+    assert event.vibrato
