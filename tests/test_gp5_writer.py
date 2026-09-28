@@ -1,0 +1,61 @@
+import io
+
+import guitarpro as gp
+import pytest
+
+from app.gp5_writer import SongInfo, sanitize_text, write_gp5
+from app.model import Score, ScoreBeat, ScoreMeasure, ScoreNote
+from app.tunings import TUNINGS
+
+
+def _score(measures, numerator=4, denominator=4, tuning="drop_d"):
+    return Score(6, list(TUNINGS[tuning]), measures, numerator, denominator)
+
+
+INFO = SongInfo(title="Song", artist="Me", tempo=97)
+
+
+def _roundtrip(score, info=INFO):
+    return gp.parse(io.BytesIO(write_gp5(score, info)))
+
+
+def test_roundtrip_metadata_tuning_and_notes():
+    measure = ScoreMeasure(
+        [
+            ScoreBeat(8, [ScoreNote(1, 0, hammer=True), ScoreNote(6, 0)]),
+            ScoreBeat(8, [ScoreNote(1, 2)]),
+            ScoreBeat(8, [ScoreNote(3, 7, bend_semitones=2), ScoreNote(4, 0, dead=True)]),
+            ScoreBeat(8),
+        ]
+    )
+    song = _roundtrip(_score([measure]))
+    assert song.versionTuple == (5, 1, 0)
+    assert (song.title, song.artist, song.tempo) == ("Song", "Me", 97)
+    track = song.tracks[0]
+    assert [s.value for s in track.strings] == list(TUNINGS["drop_d"])
+    beats = track.measures[0].voices[0].beats
+    assert [b.duration.value for b in beats] == [4, 4, 4, 4]
+    assert beats[3].status == gp.BeatStatus.rest
+    first = {n.string: n for n in beats[0].notes}
+    assert first[1].effect.hammer and first[6].value == 0
+    third = {n.string: n for n in beats[2].notes}
+    assert third[3].effect.bend.value == 100
+    assert third[4].type == gp.NoteType.dead
+
+
+def test_roundtrip_odd_time_signature_and_dotted():
+    measure = ScoreMeasure([ScoreBeat(12, [ScoreNote(2, 1)]), ScoreBeat(12, [ScoreNote(2, 3)])])
+    song = _roundtrip(_score([measure], numerator=6, denominator=8))
+    header = song.measureHeaders[0]
+    assert (header.timeSignature.numerator, header.timeSignature.denominator.value) == (6, 8)
+    assert all(b.duration.isDotted and b.duration.value == 4 for b in song.tracks[0].measures[0].voices[0].beats)
+
+
+def test_empty_score_rejected():
+    with pytest.raises(ValueError):
+        write_gp5(_score([]), SongInfo())
+
+
+def test_sanitize_text_strips_control_and_unencodable():
+    assert sanitize_text("Ol\u00e1\x00\x1b[31m \u6f22 Song") == "Ol\u00e1[31m  Song"
+    assert len(sanitize_text("a" * 500)) == 100

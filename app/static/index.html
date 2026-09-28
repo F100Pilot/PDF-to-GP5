@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF para GP5</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>PDF → Guitar Pro 5</h1>
+      <p class="lead">Converte tablaturas em PDF (texto ou exportadas de editores) para ficheiros <code>.gp5</code>.
+        O ficheiro é processado em memória e não é guardado.</p>
+    </header>
+
+    <form id="form" novalidate>
+      <label id="drop" class="drop" for="file">
+        <input id="file" name="file" type="file" accept="application/pdf,.pdf" required>
+        <span id="drop-text">Arraste um PDF para aqui ou clique para escolher</span>
+      </label>
+
+      <fieldset>
+        <legend>Metadados</legend>
+        <div class="grid">
+          <label>Título <input name="title" maxlength="100" autocomplete="off"></label>
+          <label>Artista <input name="artist" maxlength="100" autocomplete="off"></label>
+          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" value="120" required></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Instrumento</legend>
+        <div class="grid">
+          <label>Afinação
+            <select name="tuning" id="tuning">
+              <option value="auto">Automática (do PDF)</option>
+            </select>
+          </label>
+          <label>Som
+            <select name="instrument" id="instrument">
+              <option value="auto">Automático</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Ritmo</legend>
+        <div class="grid">
+          <label>Compasso
+            <span class="timesig">
+              <input name="numerator" type="number" min="1" max="16" value="4" required aria-label="Numerador">
+              <span aria-hidden="true">/</span>
+              <select name="denominator" aria-label="Denominador">
+                <option>2</option><option selected>4</option><option>8</option><option>16</option>
+              </select>
+            </span>
+          </label>
+          <label>Modo
+            <select name="rhythm_mode" id="rhythm_mode">
+              <option value="auto">Automático</option>
+              <option value="spacing">Pelo espaçamento</option>
+              <option value="fixed">Duração fixa</option>
+            </select>
+          </label>
+          <label>Duração fixa
+            <select name="fixed_value">
+              <option value="4">Semínima (1/4)</option>
+              <option value="8" selected>Colcheia (1/8)</option>
+              <option value="16">Semicolcheia (1/16)</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Tablaturas raramente indicam ritmo. “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
+      </fieldset>
+
+      <button id="submit" type="submit">Converter</button>
+    </form>
+
+    <section id="status" role="status" aria-live="polite" hidden></section>
+
+    <section id="result" hidden>
+      <h2>Resultado</h2>
+      <dl id="summary" class="summary"></dl>
+      <a id="download" class="button" download>Descarregar .gp5</a>
+      <div id="warnings-box" hidden>
+        <h3>Avisos</h3>
+        <ul id="warnings"></ul>
+      </div>
+      <h3>Pré-visualização</h3>
+      <p class="hint">Confirme as notas antes de usar. Legenda: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
+      <pre id="preview"></pre>
+    </section>
+
+    <footer>
+      <p>Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados.</p>
+    </footer>
+  </main>
+</body>
+</html>
