@@ -75,6 +75,19 @@ def test_links_are_moved_to_origin_note():
     assert not notes[2].hammer and not notes[2].slide
 
 
+def test_shift_slide_and_slide_in_out_reach_the_notes():
+    events = [
+        TabEvent(x=2, string=3, fret=5, slide_in="below"),
+        TabEvent(x=6, string=3, fret=7, link=Link.SHIFT_SLIDE),
+        TabEvent(x=10, string=3, fret=9, slide_out="down"),
+    ]
+    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
+    notes = [n for b in measures[0].beats for n in b.notes if not n.tie]
+    assert notes[0].slide_shift and not notes[0].slide and notes[0].slide_in == "below"
+    assert not notes[1].slide_shift
+    assert notes[2].slide_out == "down"
+
+
 def test_chord_columns_merge_and_duplicates_warn():
     events = [
         TabEvent(x=2.0, string=1, fret=0),

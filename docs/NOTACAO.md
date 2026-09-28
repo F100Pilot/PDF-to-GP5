@@ -89,10 +89,10 @@ Colunas:
 | Hammer-on | ✅ `h` | ✅ `H` | ✅ | — | Gravada: letra H por cima |
 | Pull-off | ✅ `p` | ✅ `P` | ✅ | Happen To Me | |
 | Ligado só com arco (sem H/P) | ⛔ | ⬜ | ✅ | — | Arco entre notas de trastes diferentes |
-| Slide legato | ✅ `/` `\` `s` | ⬜ | ✅ | — | Gravada: linha oblíqua entre notas |
-| Slide com ataque (shift) | ⬜ | ⬜ | ✅ | — | "sl." / "S" |
-| Slide de entrada (de baixo / de cima) | ⬜ | ⬜ | ✅ | — | `/5`, `\5` |
-| Slide de saída (para baixo / para cima) | ⬜ | ⬜ | ✅ | — | `5\`, `5/` |
+| Slide legato | ✅ `/` `\` `s` | ✅ | ✅ | Happen To Me (Guitar 2, 3) | Gravada: linha oblíqua entre notas com arco por cima |
+| Slide com ataque (shift) | ⬜ | ✅ | ✅ | — | Gravada: linha oblíqua entre notas sem arco. Texto: "sl." / "S" |
+| Slide de entrada (de baixo / de cima) | ⬜ | ✅ | ✅ | — | `/5`, `\5`; gravada: traço curto antes da nota |
+| Slide de saída (para baixo / para cima) | ⬜ | ✅ | ✅ | Happen To Me (Guitar 2, 3) | `5\`, `5/`; gravada: traço curto depois da nota |
 | Bend (½, 1, 1½, 2) | ✅ `7b9` | ✅ | ✅ | Happen To Me (Guitar 4) | |
 | Bend + release | ✅ `7b9r7` | ✅ | ✅ | Happen To Me (Guitar 4) | |
 | Pre-bend | ⬜ `pb` | ✅ | ✅ | Happen To Me (Guitar 4) | Seta reta |

@@ -144,3 +144,17 @@ def test_roundtrip_markers_lyrics_and_velocity():
     )
     notes = [m.voices[0].beats[0].notes[0].velocity for m in song.tracks[0].measures]
     assert notes == [47, gp.Velocities.default]
+
+
+def test_roundtrip_slides():
+    measure = ScoreMeasure(
+        [
+            ScoreBeat(8, [ScoreNote(3, 7, slide_shift=True, slide_in="below")]),
+            ScoreBeat(8, [ScoreNote(3, 9, slide=True)]),
+            ScoreBeat(16, [ScoreNote(3, 12, slide_out="down")]),
+        ]
+    )
+    beats = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats
+    assert set(beats[0].notes[0].effect.slides) == {gp.SlideType.shiftSlideTo, gp.SlideType.intoFromBelow}
+    assert beats[1].notes[0].effect.slides == [gp.SlideType.legatoSlideTo]
+    assert beats[2].notes[0].effect.slides == [gp.SlideType.outDownwards]

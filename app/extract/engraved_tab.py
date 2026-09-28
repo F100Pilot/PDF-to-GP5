@@ -243,6 +243,66 @@ def _apply_strums(arrows: list[tuple[float, str]], events: list[TabEvent], spaci
                     event.stroke = stroke
 
 
+def _note_beside(
+    events: list[TabEvent], staff: list[_StaffLine], spacing: float, x: float, y: float, *, left: bool
+) -> TabEvent | None:
+    """The fret number whose edge is next to point (x, y): left of it or right of it."""
+    best: tuple[float, TabEvent] | None = None
+    for event in events:
+        if event.fret is None or abs(staff[event.string - 1].y - y) > 0.6 * spacing:
+            continue
+        half = len(str(event.fret)) * 0.33 * spacing  # fret digits are about 0.6-0.7 spaces wide
+        gap = x - (event.x + half) if left else (event.x - half) - x
+        if -0.3 * spacing <= gap <= 0.8 * spacing and (best is None or gap < best[0]):
+            best = (gap, event)
+    return best[1] if best else None
+
+
+def _apply_slides(page: Page, staff: list[_StaffLine], spacing: float, events: list[TabEvent]) -> None:
+    """Slides drawn as short oblique strokes beside fret numbers.
+
+    Between two notes on one string: slide to the second note, legato when a slur
+    arc spans both, otherwise a shift slide. Only after a note: slide out (down for
+    a falling stroke). Only before a note: slide in (from below for a rising stroke).
+    """
+    top, bottom = staff[0].y, staff[-1].y
+    for seg in page.segments:
+        if seg.rising is None:
+            continue
+        width, height = seg.x1 - seg.x0, seg.bottom - seg.top
+        if not (0.3 * spacing <= width <= 8 * spacing and 0.15 * spacing <= height <= 1.2 * spacing):
+            continue
+        if (
+            seg.x0 < staff[0].x0
+            or seg.x1 > staff[0].x1
+            or seg.bottom < top - 0.5 * spacing
+            or seg.top > bottom + spacing
+        ):
+            continue
+        left_y, right_y = (seg.bottom, seg.top) if seg.rising else (seg.top, seg.bottom)
+        before = _note_beside(events, staff, spacing, seg.x0, left_y, left=True)
+        after = _note_beside(events, staff, spacing, seg.x1, right_y, left=False)
+        if before is not None and after is not None:
+            if before.string != after.string:
+                continue
+            string_y = staff[before.string - 1].y
+            # The slur may arch over a chord at the target, so only its ends are checked.
+            slurred = any(
+                abs(c.x0 - before.x) <= 0.8 * spacing
+                and abs(c.x1 - after.x) <= 0.8 * spacing
+                and top - 3 * spacing <= c.top
+                and c.bottom <= string_y
+                for c in page.curves
+            )
+            after.link = Link.SLIDE_UP if slurred else Link.SHIFT_SLIDE
+        elif width > 2.5 * spacing:
+            continue  # a long stroke with a note on one side only is not a slide in/out
+        elif before is not None:
+            before.slide_out = "up" if seg.rising else "down"
+        elif after is not None:
+            after.slide_in = "below" if seg.rising else "above"
+
+
 # Bend amount printed above the arrow, in semitones.
 _BEND_AMOUNTS = {"¼": 1, "½": 1, "1/2": 1, "1": 2, "full": 2, "1½": 3, "11/2": 3, "2": 4}
 _WIGGLES = {chr(c) for c in range(0xEAA0, 0xEAC0)}  # SMuFL wiggle lines (vibrato, trill)
@@ -402,6 +462,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         events = _numbers_on_staff(page.chars, staff, spacing, page.curves)
         _apply_legato_marks(page.chars, staff, spacing, events)
         _apply_bends(page, staff, spacing, events)
+        _apply_slides(page, staff, spacing, events)
         vibrato_ranges = _apply_vibrato(page, staves, staff, spacing, events)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1

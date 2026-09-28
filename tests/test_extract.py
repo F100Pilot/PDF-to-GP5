@@ -211,3 +211,51 @@ def test_vibrato_wiggle_line_above_staff():
 def test_ascii_section_label_above_tab_block():
     systems, _ = _systems(ascii_tab_pdf([STANDARD], extra_lines=["[Chorus]"]))
     assert systems[0].sections == [(systems[0].start_x, "Chorus")]
+
+
+def _slide_page(segments, curves=()):
+    """Staff at y 100..150 (string 3 at 120); "7" at x 100..106 and "12" at x 130..142 on string 3."""
+    from app.extract.pdf_reader import Char, Page, Segment
+
+    lines = [Segment(50, 550, 100 + 10 * i, 100 + 10 * i) for i in range(6)]
+    bars = [Segment(x, x, 100, 150) for x in (50, 550)]
+    notes = [Char("7", 100, 106, 116, 124), Char("1", 130, 136, 116, 124), Char("2", 136, 142, 116, 124)]
+    return Page(1, 600, 800, notes, [*lines, *bars, *segments], list(curves))
+
+
+def _slide_events(page):
+    return {e.fret: e for e in extract_engraved_systems(page)[0].events}
+
+
+def test_engraved_legato_slide_between_notes_and_slide_out():
+    from app.extract.pdf_reader import Segment
+    from app.model import Link
+
+    between = Segment(108, 127, 117, 123, rising=True)
+    out = Segment(145, 153, 121, 128, rising=False)
+    slur = Segment(103, 136, 110, 112)
+    events = _slide_events(_slide_page([between, out], [slur]))
+    assert events[12].link is Link.SLIDE_UP and events[12].slide_out == "down"
+    assert events[7].link is None and events[7].slide_out is None
+
+
+def test_engraved_slide_without_slur_is_a_shift_slide():
+    from app.extract.pdf_reader import Segment
+    from app.model import Link
+
+    events = _slide_events(_slide_page([Segment(108, 127, 117, 123, rising=True)]))
+    assert events[12].link is Link.SHIFT_SLIDE
+
+
+def test_engraved_slide_into_note_from_below():
+    from app.extract.pdf_reader import Segment
+
+    events = _slide_events(_slide_page([Segment(90, 98, 119, 125, rising=True)]))
+    assert events[7].slide_in == "below" and events[12].link is None
+
+
+def test_engraved_long_stroke_beside_one_note_is_ignored():
+    from app.extract.pdf_reader import Segment
+
+    events = _slide_events(_slide_page([Segment(145, 190, 121, 128, rising=False)]))
+    assert events[12].slide_out is None

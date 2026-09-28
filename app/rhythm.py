@@ -96,6 +96,8 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             bend_release=e.bend_release,
             bend_pre=e.bend_pre,
             link=e.link,
+            slide_in=e.slide_in,
+            slide_out=e.slide_out,
         )
         for e in sorted(events, key=lambda e: e.string)
     ]
@@ -371,6 +373,8 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
                 if note.link is not None and prev is not None and not prev.dead:
                     if note.link in (Link.HAMMER, Link.PULL):
                         prev.hammer = True
+                    elif note.link is Link.SHIFT_SLIDE:
+                        prev.slide_shift = True
                     else:
                         prev.slide = True
                 last[note.string] = note

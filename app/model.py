@@ -17,6 +17,7 @@ class Link(str, Enum):
     PULL = "p"
     SLIDE_UP = "/"
     SLIDE_DOWN = "\\"
+    SHIFT_SLIDE = "sl"  # slide where the second note is picked again
 
 
 @dataclass
@@ -39,6 +40,8 @@ class TabEvent:
     palm_mute: bool = False
     stroke: str | None = None  # "down" (low to high strings) or "up"; strum arrows
     velocity: int | None = None  # MIDI velocity from the dynamic in force (None = default)
+    slide_in: str | None = None  # "below" or "above": slide into the note from an unpitched start
+    slide_out: str | None = None  # "down" or "up": slide away from the note to no target
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,10 @@ class ScoreNote:
     vibrato: bool = False
     tie: bool = False
     hammer: bool = False  # legato to the next note on this string
-    slide: bool = False  # slide to the next note on this string
+    slide: bool = False  # legato slide to the next note on this string
+    slide_shift: bool = False  # shift slide (next note picked again)
+    slide_in: str | None = None  # "below" / "above"
+    slide_out: str | None = None  # "down" / "up"
     bend_semitones: int = 0
     bend_release: bool = False
     bend_pre: bool = False

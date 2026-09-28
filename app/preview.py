@@ -14,14 +14,18 @@ def _cell(note: ScoreNote | None) -> str:
     if note.dead:
         return "x"
     text = f"({note.fret})" if note.ghost or note.tie else str(note.fret)
+    if note.slide_in:
+        text = ("/" if note.slide_in == "below" else "\\") + text
     if note.bend_semitones:
         text += "b"
     if note.vibrato:
         text += "~"
     if note.hammer:
         text += "h"
-    if note.slide:
+    if note.slide or note.slide_shift:
         text += "/"
+    if note.slide_out:
+        text += "\\" if note.slide_out == "down" else "/"
     return text
 
 

@@ -45,6 +45,7 @@ class Segment:
     x1: float
     top: float
     bottom: float
+    rising: bool | None = None  # straight oblique stroke: True when it goes up left to right
 
     @property
     def is_horizontal(self) -> bool:
@@ -119,6 +120,17 @@ def _document_info(metadata: dict) -> dict[str, str]:
     return info
 
 
+def _rising(line: dict) -> bool | None:
+    """Direction of a straight oblique line (points are (x, top)); None if axis-aligned."""
+    points = line.get("pts") or []
+    if len(points) != 2:
+        return None
+    (xa, ya), (xb, yb) = sorted((float(x), float(y)) for x, y in points)
+    if abs(xb - xa) < 0.5 or abs(yb - ya) < 0.5:
+        return None
+    return yb < ya
+
+
 def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, str]]:
     """Pages plus the document's Title/Author metadata (if any)."""
     try:
@@ -144,9 +156,9 @@ def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, st
                 if c.get("text") and not c["text"].isspace()
             ]
             segments = [
-                Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"]))
-                for o in (*page.lines, *page.rects)
-            ]
+                Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"]), _rising(o))
+                for o in page.lines
+            ] + [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.rects]
             curves = [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.curves]
             pages.append(Page(index, float(page.width), float(page.height), chars, segments, curves))
     return pages, info

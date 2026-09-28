@@ -76,6 +76,23 @@ def _bend(note: ScoreNote) -> gp.BendEffect:
     return gp.BendEffect(type=bend_type, value=note.bend_semitones * _BEND_UNITS_PER_SEMITONE, points=points)
 
 
+_SLIDE_IN = {"below": gp.SlideType.intoFromBelow, "above": gp.SlideType.intoFromAbove}
+_SLIDE_OUT = {"down": gp.SlideType.outDownwards, "up": gp.SlideType.outUpwards}
+
+
+def _slides(note: ScoreNote) -> list[gp.SlideType]:
+    slides: list[gp.SlideType] = []
+    if note.slide:
+        slides.append(gp.SlideType.legatoSlideTo)
+    elif note.slide_shift:
+        slides.append(gp.SlideType.shiftSlideTo)
+    if note.slide_in in _SLIDE_IN:
+        slides.append(_SLIDE_IN[note.slide_in])
+    if note.slide_out in _SLIDE_OUT:
+        slides.append(_SLIDE_OUT[note.slide_out])
+    return slides
+
+
 def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
     if note.dead:
         note_type = gp.NoteType.dead
@@ -89,7 +106,7 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
         letRing=note.let_ring,
         palmMute=note.palm_mute,
         hammer=note.hammer,
-        slides=[gp.SlideType.legatoSlideTo] if note.slide else [],
+        slides=_slides(note),
         bend=_bend(note) if note.bend_semitones and not note.dead else None,
     )
     velocity = note.velocity or gp.Velocities.default
