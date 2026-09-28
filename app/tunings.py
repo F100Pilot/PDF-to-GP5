@@ -12,12 +12,12 @@ TUNINGS: dict[str, tuple[int, ...]] = {
     "open_d": (62, 57, 54, 50, 45, 38),
     "dadgad": (62, 57, 55, 50, 45, 38),
     "standard_7": (64, 59, 55, 50, 45, 40, 35),
-    "standard_8": (64, 59, 55, 50, 45, 40, 35, 30),
     "bass_4": (43, 38, 33, 28),
     "bass_5": (43, 38, 33, 28, 23),
 }
 
-DEFAULT_BY_STRING_COUNT: dict[int, str] = {4: "bass_4", 5: "bass_5", 6: "standard", 7: "standard_7", 8: "standard_8"}
+# Guitar Pro 5 stores at most 7 strings per track.
+DEFAULT_BY_STRING_COUNT: dict[int, str] = {4: "bass_4", 5: "bass_5", 6: "standard", 7: "standard_7"}
 
 _PITCH_CLASS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 

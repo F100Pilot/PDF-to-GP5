@@ -314,3 +314,10 @@ def test_tracks_are_aligned_by_printed_bar_numbers(client):
     song = gp.parse(io.BytesIO(base64.b64decode(response.json()["gp5_base64"])))
     frets = [[n.value for b in m.voices[0].beats for n in b.notes] for m in song.tracks[1].measures]
     assert frets == [[7], [7], [], [], [9], [9]]
+
+
+def test_eight_string_tab_is_rejected_with_clear_message(client):
+    eight = [*TAB, "B|---------------|", "F#|--------------|"]
+    response = _post(client, ascii_tab_pdf([eight]))
+    assert response.status_code == 422
+    assert "7" in response.json()["detail"]

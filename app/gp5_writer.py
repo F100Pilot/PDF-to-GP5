@@ -105,6 +105,7 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
 # (normal + effects), so at most 7 tracks.
 _MELODIC_CHANNELS = [c for c in range(16) if c != 9]
 MAX_TRACKS = len(_MELODIC_CHANNELS) // 2
+MAX_STRINGS = 7  # the GP5 track header has room for 7 string tunings
 
 
 def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
@@ -134,6 +135,8 @@ def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
         raise ValueError("A partitura não tem compassos.")
     if len(scores) > MAX_TRACKS:
         raise ValueError(f"Máximo de {MAX_TRACKS} tracks.")
+    if any(s.string_count > MAX_STRINGS for s in scores):
+        raise ValueError(f"O formato GP5 suporta no máximo {MAX_STRINGS} cordas.")
     if len({len(s.measures) for s in scores}) != 1:
         raise ValueError("As tracks têm números de compassos diferentes.")
     song = gp.Song()

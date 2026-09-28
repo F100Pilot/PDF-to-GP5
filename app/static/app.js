@@ -26,7 +26,7 @@
   const TUNING_LABELS = {
     auto: "Automática (do PDF)", standard: "Standard (EADGBE)", drop_d: "Drop D", eb_standard: "Mib (½ tom abaixo)",
     d_standard: "Ré standard", drop_c: "Drop C", open_g: "Open G", open_d: "Open D",
-    dadgad: "DADGAD", standard_7: "7 cordas standard", standard_8: "8 cordas standard",
+    dadgad: "DADGAD", standard_7: "7 cordas standard",
     bass_4: "Baixo 4 cordas", bass_5: "Baixo 5 cordas", custom: "Personalizada",
   };
   const INSTRUMENT_LABELS = {

@@ -10,7 +10,7 @@ from .extract.ascii_tab import extract_ascii_systems
 from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
 from .extract.pdf_reader import PdfReadError, read_document
-from .gp5_writer import MAX_TRACKS, SongInfo, write_gp5
+from .gp5_writer import MAX_STRINGS, MAX_TRACKS, SongInfo, write_gp5
 from .model import Score, ScoreBeat, ScoreMeasure, TabSystem
 from .preview import render_preview
 from .rhythm import ParenthesesMode, RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
@@ -135,6 +135,8 @@ def _tuning_name(tuning: list[int]) -> str:
 def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions, name: str) -> tuple[Score, dict]:
     warnings = list(parsed.warnings)
     string_count, kept = _main_staves(parsed.systems, warnings)
+    if string_count > MAX_STRINGS:
+        raise ConversionError(f"A tablatura tem {string_count} cordas; o formato GP5 suporta no máximo {MAX_STRINGS}.")
     labels = next((s.labels for s in kept if s.labels), [])
     try:
         tuning, tuning_warnings = resolve_tuning(track.tuning, string_count, labels)

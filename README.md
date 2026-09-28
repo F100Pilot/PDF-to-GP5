@@ -15,6 +15,8 @@ Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (
 - Tabs gravadas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
 - Vários sistemas e páginas são concatenados numa única pista.
 
+O estado detalhado de cada nota e técnica (implementado, parcial, por implementar, sem suporte em GP5) está em [`docs/NOTACAO.md`](docs/NOTACAO.md).
+
 ### Metadados
 
 Título, artista, BPM e compasso são detetados automaticamente quando os campos ficam vazios (texto em destaque no topo da página, linhas `Title:`/`Artist:`/`Tempo:`, indicação de metrónomo `♩ = 118`, glifos de compasso, metadados do PDF). Valores preenchidos pelo utilizador têm prioridade.

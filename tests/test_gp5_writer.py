@@ -121,3 +121,9 @@ def test_bend_types(pre, release, expected):
         .effect.bend
     )
     assert bend.type == expected and bend.value == 100
+
+
+def test_more_than_seven_strings_rejected():
+    score = Score(8, [64, 59, 55, 50, 45, 40, 35, 30], [ScoreMeasure([ScoreBeat(32)])], 4, 4)
+    with pytest.raises(ValueError):
+        write_gp5(score, SongInfo())
