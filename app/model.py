@@ -42,6 +42,8 @@ class TabEvent:
     velocity: int | None = None  # MIDI velocity from the dynamic in force (None = default)
     slide_in: str | None = None  # "below" or "above": slide into the note from an unpitched start
     slide_out: str | None = None  # "down" or "up": slide away from the note to no target
+    harmonic: str | None = None  # "natural"
+    tapped: bool = False  # right-hand tap
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,8 @@ class ScoreNote:
     slide_shift: bool = False  # shift slide (next note picked again)
     slide_in: str | None = None  # "below" / "above"
     slide_out: str | None = None  # "down" / "up"
+    harmonic: str | None = None  # "natural"
+    tapped: bool = False
     bend_semitones: int = 0
     bend_release: bool = False
     bend_pre: bool = False

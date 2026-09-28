@@ -259,3 +259,47 @@ def test_engraved_long_stroke_beside_one_note_is_ignored():
 
     events = _slide_events(_slide_page([Segment(145, 190, 121, 128, rising=False)]))
     assert events[12].slide_out is None
+
+
+TECHNIQUES = [
+    "e|-/5---7\\---------------------|",
+    "B|-7pb9---7pb9r7---------------|",
+    "G|-<12>---5h7t12p7-------------|",
+    "D|-----------------------------|",
+    "A|-----------------------------|",
+    "E|-----------------------------|",
+]
+
+
+def test_ascii_slide_in_out_prebend_harmonic_and_tapping():
+    systems, warnings = _systems(ascii_tab_pdf([TECHNIQUES]))
+    assert warnings == []
+    events = _events_by_string(systems[0])
+    slide_in, slide_out = events[1]
+    assert (slide_in.fret, slide_in.slide_in, slide_in.link) == (5, "below", None)
+    assert (slide_out.fret, slide_out.slide_out) == (7, "down")
+    prebend, prebend_release = events[2]
+    assert (prebend.fret, prebend.bend_pre, prebend.bend_semitones, prebend.bend_release) == (7, True, 2, False)
+    assert (prebend_release.bend_pre, prebend_release.bend_release) == (True, True)
+    harmonic, first, hammer, tap, pull = events[3]
+    assert (harmonic.fret, harmonic.harmonic) == (12, "natural")
+    assert first.harmonic is None and not first.tapped
+    assert hammer.link.value == "h" and not hammer.tapped
+    assert (tap.fret, tap.tapped) == (12, True)
+    assert (pull.fret, pull.link.value, pull.tapped) == (7, "p", False)
+
+
+def test_ascii_palm_mute_and_let_ring_lines_above_tab():
+    tab = [
+        "e|-0-0-0-0--0-0-0-0-----|",
+        "B|----------------------|",
+        "G|----------------------|",
+        "D|----------------------|",
+        "A|----------------------|",
+        "E|----------------------|",
+    ]
+    marks = "   PM-----| let ring------"
+    systems, warnings = _systems(ascii_tab_pdf([tab], extra_lines=[marks]))
+    assert warnings == []
+    notes = _events_by_string(systems[0])[1]
+    assert [(e.palm_mute, e.let_ring) for e in notes] == [(True, False)] * 4 + [(False, True)] * 4

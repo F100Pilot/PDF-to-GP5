@@ -158,3 +158,13 @@ def test_roundtrip_slides():
     assert set(beats[0].notes[0].effect.slides) == {gp.SlideType.shiftSlideTo, gp.SlideType.intoFromBelow}
     assert beats[1].notes[0].effect.slides == [gp.SlideType.legatoSlideTo]
     assert beats[2].notes[0].effect.slides == [gp.SlideType.outDownwards]
+
+
+def test_roundtrip_natural_harmonic_and_tapping():
+    measure = ScoreMeasure(
+        [ScoreBeat(16, [ScoreNote(3, 12, harmonic="natural")]), ScoreBeat(16, [ScoreNote(3, 12, tapped=True)])]
+    )
+    beats = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats
+    assert isinstance(beats[0].notes[0].effect.harmonic, gp.NaturalHarmonic)
+    assert beats[0].effect.slapEffect == gp.SlapEffect.none
+    assert beats[1].effect.slapEffect == gp.SlapEffect.tapping

@@ -98,6 +98,8 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             link=e.link,
             slide_in=e.slide_in,
             slide_out=e.slide_out,
+            harmonic=e.harmonic,
+            tapped=e.tapped,
         )
         for e in sorted(events, key=lambda e: e.string)
     ]

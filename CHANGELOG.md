@@ -16,6 +16,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Bends nas tabs gravadas: bend (seta curva), pre-bend (seta reta), release (seta descendente) e bend mantido em notas ligadas, com a quantidade indicada (½, 1, 1½, 2).
 - Vibrato (linha ondulada) aplicado às notas abrangidas, incluindo notas ligadas só com haste.
 - Fechar a página da aplicação encerra o servidor local (scripts de arranque; `python -m app --close-with-browser`); recarregar a página não o encerra.
+- Tabs em texto: slide de entrada (`/5`, `\5`) e de saída (`5\`, `5/`), pre-bend (`7pb9`, `7pb9r7`), harmónico natural (`<12>`), tapping (`t12`) e linhas de palm mute / let ring por cima da tab (`PM----|`, `let ring---`).
 - Slides nas tabs gravadas: slide entre notas (legato com arco, shift sem arco), slide de entrada e slide de saída.
 - `docs/NOTACAO.md`: registo de todas as notas e técnicas, com o estado de implementação de cada uma.
 - Secções (Intro, Verse, Chorus…) convertidas em marcadores do GP5 (tabs gravadas e em texto).

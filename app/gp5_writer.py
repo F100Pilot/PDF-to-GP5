@@ -108,6 +108,7 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
         hammer=note.hammer,
         slides=_slides(note),
         bend=_bend(note) if note.bend_semitones and not note.dead else None,
+        harmonic=gp.NaturalHarmonic() if note.harmonic == "natural" else None,
     )
     velocity = note.velocity or gp.Velocities.default
     return gp.Note(beat, value=note.fret, string=note.string, type=note_type, effect=effect, velocity=velocity)
@@ -125,6 +126,8 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
     if stroke:
         direction = gp.BeatStrokeDirection.down if stroke == "down" else gp.BeatStrokeDirection.up
         gp_beat.effect.stroke = gp.BeatStroke(direction, gp.Duration.thirtySecond)
+    if any(n.tapped for n in beat.notes):
+        gp_beat.effect.slapEffect = gp.SlapEffect.tapping
     return gp_beat
 
 

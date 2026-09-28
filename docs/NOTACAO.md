@@ -91,12 +91,12 @@ Colunas:
 | Ligado só com arco (sem H/P) | ⛔ | ⬜ | ✅ | — | Arco entre notas de trastes diferentes |
 | Slide legato | ✅ `/` `\` `s` | ✅ | ✅ | Happen To Me (Guitar 2, 3) | Gravada: linha oblíqua entre notas com arco por cima |
 | Slide com ataque (shift) | ⬜ | ✅ | ✅ | — | Gravada: linha oblíqua entre notas sem arco. Texto: "sl." / "S" |
-| Slide de entrada (de baixo / de cima) | ⬜ | ✅ | ✅ | — | `/5`, `\5`; gravada: traço curto antes da nota |
-| Slide de saída (para baixo / para cima) | ⬜ | ✅ | ✅ | Happen To Me (Guitar 2, 3) | `5\`, `5/`; gravada: traço curto depois da nota |
+| Slide de entrada (de baixo / de cima) | ✅ `/5` `\5` | ✅ | ✅ | — | `/5`, `\5`; gravada: traço curto antes da nota |
+| Slide de saída (para baixo / para cima) | ✅ `5\` `5/` | ✅ | ✅ | Happen To Me (Guitar 2, 3) | `5\`, `5/`; gravada: traço curto depois da nota |
 | Bend (½, 1, 1½, 2) | ✅ `7b9` | ✅ | ✅ | Happen To Me (Guitar 4) | |
 | Bend + release | ✅ `7b9r7` | ✅ | ✅ | Happen To Me (Guitar 4) | |
-| Pre-bend | ⬜ `pb` | ✅ | ✅ | Happen To Me (Guitar 4) | Seta reta |
-| Pre-bend + release | ⬜ | ✅ | ✅ | Happen To Me (Guitar 4) | |
+| Pre-bend | ✅ `7pb9` | ✅ | ✅ | Happen To Me (Guitar 4) | Seta reta |
+| Pre-bend + release | ✅ `7pb9r7` | ✅ | ✅ | Happen To Me (Guitar 4) | |
 | Bend mantido (em nota ligada) | ⛔ | ✅ | ✅ | Happen To Me (Guitar 4) | |
 | Bend + release + bend | ⬜ | ⬜ | ✅ | — | |
 | Vibrato | ✅ `~` | ✅ | ✅ | Happen To Me (Guitar 4) | Gravada: linha ondulada |
@@ -108,12 +108,12 @@ Colunas:
 
 | Notação | Texto | Gravada | GP5 | Visto em | Notas |
 |---|---|---|---|---|---|
-| Palm mute (P.M.) | ⬜ `PM---` | ✅ | ✅ | Happen To Me | Texto: linha própria por cima da tab |
-| Let ring | ⬜ | ✅ | ✅ | Happen To Me | |
+| Palm mute (P.M.) | ✅ `PM---` | ✅ | ✅ | Happen To Me | Texto: linha própria por cima da tab (`PM----|`, `P.M. - - -`, `PM PM`) |
+| Let ring | ✅ `let ring---` | ✅ | ✅ | Happen To Me | Texto: linha própria por cima da tab (também `l.r.`) |
 | Rasgueado ↑ ↓ (brush) | ⬜ | ✅ | ✅ | Happen To Me (Acoustic) | Seta para cima = downstroke (a confirmar em GP) |
 | Palhetada para baixo ⊓ / para cima V | ⬜ | ⬜ | ✅ | — | |
 | Tremolo picking | ⬜ | ⬜ | ✅ | — | Traços na haste |
-| Tapping `T` | ⬜ | ⬜ | ✅ | — | |
+| Tapping `T` | ✅ `t12` | ⬜ | ✅ | — | Texto: `t`/`T` antes do traste |
 | Slap `S` / Pop `P` (baixo) | ⬜ | ⬜ | ✅ | — | Atenção: `P` também = pull-off |
 | Rasgueado flamenco (rasg.) | ⬜ | ⬜ | ✅ | — | |
 | Arpejo (linha ondulada vertical) | ⬜ | ⬜ | 🟡 | — | Aproximar por brush |
@@ -124,7 +124,7 @@ Colunas:
 
 | Notação | Texto | Gravada | GP5 | Visto em | Notas |
 |---|---|---|---|---|---|
-| Natural `<12>` / N.H. | ⬜ | ⬜ | ✅ | — | |
+| Natural `<12>` / N.H. | ✅ `<12>` | ⬜ | ✅ | — | |
 | Artificial (A.H.) | ⬜ | ⬜ | ✅ | — | |
 | Tapped (T.H.) | ⬜ | ⬜ | ✅ | — | |
 | Pinch (P.H.) | ⬜ | ⬜ | ✅ | — | |

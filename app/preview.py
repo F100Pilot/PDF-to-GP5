@@ -14,6 +14,10 @@ def _cell(note: ScoreNote | None) -> str:
     if note.dead:
         return "x"
     text = f"({note.fret})" if note.ghost or note.tie else str(note.fret)
+    if note.harmonic:
+        text = f"<{note.fret}>"
+    if note.tapped:
+        text = "t" + text
     if note.slide_in:
         text = ("/" if note.slide_in == "below" else "\\") + text
     if note.bend_semitones:
