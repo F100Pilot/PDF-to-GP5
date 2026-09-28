@@ -72,3 +72,23 @@ def test_roundtrip_let_ring_palm_mute_and_tie():
     first, second = beats[0].notes[0], beats[1].notes[0]
     assert first.effect.letRing and first.effect.palmMute
     assert second.type == gp.NoteType.tie and second.effect.letRing
+
+
+def test_multi_track_song_structure():
+    guitar = _score([ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 0)])])])
+    bass = Score(
+        4, list(TUNINGS["bass_4"]), [ScoreMeasure([ScoreBeat(32, [ScoreNote(4, 3)])])], 4, 4, name="Bass", instrument=33
+    )
+    song = _roundtrip([guitar, bass])
+    assert [t.name for t in song.tracks] == ["Guitar", "Bass"]
+    assert [len(t.strings) for t in song.tracks] == [6, 4]
+    assert song.tracks[1].measures[0].voices[0].beats[0].notes[0].value == 3
+
+
+def test_tracks_must_have_equal_measure_counts_and_limit():
+    one = _score([ScoreMeasure([ScoreBeat(32)])])
+    two = _score([ScoreMeasure([ScoreBeat(32)]), ScoreMeasure([ScoreBeat(32)])])
+    with pytest.raises(ValueError):
+        write_gp5([one, two], SongInfo())
+    with pytest.raises(ValueError):
+        write_gp5([one] * 8, SongInfo())

@@ -105,9 +105,13 @@ class ScoreMeasure:
 
 @dataclass
 class Score:
+    """One track: its strings, tuning and measures (all tracks share the time signature)."""
+
     string_count: int
     tuning: list[int]  # MIDI values, string 1 first
     measures: list[ScoreMeasure]
     numerator: int
     denominator: int
     warnings: list[str] = field(default_factory=list)
+    name: str = "Guitar"
+    instrument: int = 25  # General MIDI program

@@ -23,6 +23,7 @@ def _bool(name: str) -> bool:
 @dataclass(frozen=True)
 class Settings:
     max_upload_bytes: int = _int("MAX_UPLOAD_MB", 10) * 1024 * 1024
+    max_total_upload_bytes: int = _int("MAX_TOTAL_UPLOAD_MB", 40) * 1024 * 1024  # all PDFs of one song
     max_pages: int = _int("MAX_PAGES", 40)
     max_events: int = _int("MAX_EVENTS", 50_000)
     conversion_timeout_s: int = _int("CONVERSION_TIMEOUT_S", 30)

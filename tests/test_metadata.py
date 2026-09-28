@@ -3,7 +3,13 @@ import io
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-from app.extract.metadata import _detect_tempo, _detect_time_signature, detect_metadata
+from app.extract.metadata import (
+    _detect_tempo,
+    _detect_time_signature,
+    detect_metadata,
+    detect_part_name,
+    track_name_from_filename,
+)
 from app.extract.pdf_reader import Char, Page, read_document
 
 
@@ -77,3 +83,18 @@ def test_time_signature_glyphs():
     assert _detect_time_signature(page) == (12, 8)
     assert _detect_time_signature(Page(1, 600, 800, [_glyph("", 50, 100)], [])) == (4, 4)
     assert _detect_time_signature(Page(1, 600, 800, [_glyph("", 50, 100)], [])) is None  # lone digit
+
+
+def test_part_name_from_page_text():
+    data = _pdf([("Happen To Me", 24, "c"), ("Russell Dickerson", 14, "c"), ("Electric Guitar 2", 10, "l")])
+    pages, info = read_document(data, 5)
+    assert detect_part_name(pages, detect_metadata(pages, info)) == "Electric Guitar 2"
+
+
+def test_track_name_from_filename():
+    assert (
+        track_name_from_filename("Russell_Dickerson_-_Happen_To_Me_-_Bass.pdf", "Happen To Me", "Russell Dickerson")
+        == "Bass"
+    )
+    assert track_name_from_filename("Happen To Me.pdf", "Happen To Me", None) is None
+    assert track_name_from_filename("C:\\tabs\\Song - Lead Guitar.PDF", "Song", None) == "Lead Guitar"

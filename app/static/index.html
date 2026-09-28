@@ -24,11 +24,16 @@
 
     <form id="form" novalidate>
       <label id="drop" class="drop" for="file">
-        <input id="file" name="file" type="file" accept="application/pdf,.pdf" required>
-        <span id="drop-text">Arraste um PDF para aqui ou clique para escolher</span>
+        <input id="file" type="file" accept="application/pdf,.pdf" multiple>
+        <span id="drop-text">Arraste os PDFs da música (um por track) ou clique para escolher</span>
       </label>
 
       <p id="inspect-status" class="hint" role="status" aria-live="polite" hidden></p>
+
+      <fieldset id="tracks-box" hidden>
+        <legend>Tracks <span class="hint">(ordem no ficheiro GP5)</span></legend>
+        <ol id="tracks" class="tracks"></ol>
+      </fieldset>
 
       <fieldset id="meta" hidden>
         <legend>Metadados <span class="hint">(detetados no PDF — pode corrigir)</span></legend>
@@ -36,22 +41,6 @@
           <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
           <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
           <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Não detetado (120)"></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Instrumento</legend>
-        <div class="grid">
-          <label>Afinação
-            <select name="tuning" id="tuning">
-              <option value="auto">Automática (do PDF)</option>
-            </select>
-          </label>
-          <label>Som
-            <select name="instrument" id="instrument">
-              <option value="auto">Automático</option>
-            </select>
-          </label>
         </div>
       </fieldset>
 
@@ -79,6 +68,12 @@
               <option value="16">Semicolcheia (1/16)</option>
             </select>
           </label>
+          <label>Notas entre parêntesis
+            <select name="parentheses">
+              <option value="tie" selected>Ligadura (como no PDF)</option>
+              <option value="note">Nota normal (volta a tocar)</option>
+            </select>
+          </label>
         </div>
         <p class="hint">Se o PDF tiver a notação rítmica (hastes e colcheias por baixo da tab), as durações são lidas diretamente. Caso contrário: “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
       </fieldset>
@@ -96,16 +91,8 @@
         <h3>Avisos</h3>
         <ul id="warnings"></ul>
       </div>
-      <details id="systems-box">
-        <summary>Linhas de tab detetadas</summary>
-        <table class="systems">
-          <thead><tr><th>#</th><th>Página</th><th>Notas</th><th>Compassos</th></tr></thead>
-          <tbody id="systems"></tbody>
-        </table>
-      </details>
-      <h3>Pré-visualização</h3>
-      <p class="hint">Confirme as notas antes de usar. Legenda: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
-      <pre id="preview"></pre>
+      <div id="track-results"></div>
+      <p class="hint">Confirme as notas antes de usar. Legenda da pré-visualização: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
     </section>
 
     <footer>

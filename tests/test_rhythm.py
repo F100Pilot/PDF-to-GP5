@@ -125,3 +125,11 @@ def test_parentheses_become_tie_when_repeating_fret_else_ghost():
     ghost = next(n for n in notes if n.string == 3)
     assert tie.tie and not tie.ghost
     assert ghost.ghost and not ghost.tie
+
+
+def test_parentheses_as_normal_notes_when_requested():
+    events = [TabEvent(x=2, string=4, fret=0), TabEvent(x=6, string=4, fret=0, parenthesized=True)]
+    options = RhythmOptions(mode="spacing", parentheses="note")
+    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], options, [])
+    notes = [n for b in measures[0].beats for n in b.notes if n.parenthesized]
+    assert notes and all(not n.tie and not n.ghost for n in notes)

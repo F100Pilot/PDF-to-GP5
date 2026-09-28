@@ -153,3 +153,41 @@ def detect_metadata(pages: list[Page], info: dict[str, str] | None = None) -> So
         numerator=signature[0] if signature else None,
         denominator=signature[1] if signature else None,
     )
+
+
+_PART_NAME = re.compile(
+    r"\b(?:(?:electric|acoustic|classical|lead|rhythm|solo|clean|distortion)\s+)?"
+    r"(?:guitar|bass|guitarra|baixo|viol[aã]o|ukulele|banjo)(?:\s*\d+)?\b",
+    re.IGNORECASE,
+)
+
+
+def detect_part_name(pages: list[Page], metadata: SongMetadata) -> str | None:
+    """Instrument/part label printed near the top of page 1 (e.g. "Electric Guitar", "Bass")."""
+    if not pages:
+        return None
+    page = pages[0]
+    for line in group_lines(page.chars):
+        if line.top > 0.3 * page.height:
+            break
+        text = line_text(line)
+        if text in (metadata.title, metadata.artist) or len(text) > 40:
+            continue
+        match = _PART_NAME.search(text)
+        if match:
+            return match.group(0).strip().title()
+    return None
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def track_name_from_filename(filename: str, title: str | None, artist: str | None) -> str | None:
+    """Part name from a file like "Artist - Song - Bass.pdf": what remains after removing song/artist."""
+    stem = re.sub(r"\.pdf$", "", filename.replace("\\", "/").rsplit("/", 1)[-1], flags=re.IGNORECASE)
+    stem = stem.replace("_", " ")
+    known = {_normalize(value) for value in (title, artist) if value}
+    parts = [p.strip() for p in re.split(r"\s+-\s+|\s*[–—]\s*", stem) if p.strip()]
+    remaining = [p for p in parts if _normalize(p) not in known]
+    return " - ".join(remaining)[:40] or None

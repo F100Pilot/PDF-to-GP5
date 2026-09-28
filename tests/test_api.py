@@ -170,7 +170,7 @@ def test_empty_staves_do_not_vote_and_become_rests(client):
     assert response.status_code == 200, response.text
     report = response.json()["report"]
     assert report["measures"] == 4 and report["warnings"] == []
-    assert [d["measures"] for d in report["systems_detail"]] == [2, 2]
+    assert [d["measures"] for d in report["tracks"][0]["systems_detail"]] == [2, 2]
 
 
 def test_metadata_is_detected_when_fields_are_left_empty(client):
@@ -198,7 +198,9 @@ def test_inspect_returns_detected_metadata_only(client):
         "artist": "The Band",
         "tempo": 96,
         "time_signature": None,
-        "pages": 1,
+        "part_name": None,
+        "strings": 6,
+        "tuning": "standard",
     }
 
 
@@ -215,3 +217,81 @@ def test_changelog_endpoint(client):
     assert body["version"] == __version__
     assert body["releases"][0]["version"] == __version__
     assert all(r["version"] != "Unreleased" for r in body["releases"])
+
+
+BASS = ["G|-------------|", "D|-------------|", "A|-3---5---7---|", "E|-------------|"]
+
+
+def _post_many(client, pdfs, path="/api/convert", **form):
+    files = [("file", (name, data, "application/pdf")) for name, data in pdfs]
+    return client.post(path, files=files, data=form)
+
+
+def test_multi_track_song(client):
+    guitar = ascii_tab_pdf([TAB, TAB], extra_lines=["Title: Riff Song", "Tempo: 100"])
+    bass = ascii_tab_pdf([[line.replace("|", "|--", 1) for line in BASS]])
+    response = _post_many(client, [("Riff Song - Lead.pdf", guitar), ("Riff Song - Bass.pdf", bass)])
+    assert response.status_code == 200, response.text
+    body = response.json()
+    report = body["report"]
+    assert [t["name"] for t in report["tracks"]] == ["Lead", "Bass"]
+    assert [t["strings"] for t in report["tracks"]] == [6, 4]
+    assert report["measures"] == 2 and report["tempo"] == 100
+    assert any("Bass:" in w and "pausa" in w for w in report["warnings"])  # bass padded to 2 bars
+    song = gp.parse(io.BytesIO(base64.b64decode(body["gp5_base64"])))
+    assert [t.name for t in song.tracks] == ["Lead", "Bass"]
+    assert [len(t.measures) for t in song.tracks] == [2, 2]
+    assert song.tracks[1].channel.instrument == 33
+    channels = [c for t in song.tracks for c in (t.channel.channel, t.channel.effectChannel)]
+    assert len(set(channels)) == 4 and 9 not in channels
+
+
+def test_per_track_options(client):
+    pdf = ascii_tab_pdf([TAB])
+    response = _post_many(
+        client,
+        [("a.pdf", pdf), ("b.pdf", pdf)],
+        track_name=["Rhythm", "Lead"],
+        tuning=["drop_d", "standard"],
+        instrument=["distortion", "clean"],
+    )
+    assert response.status_code == 200, response.text
+    tracks = response.json()["report"]["tracks"]
+    assert [(t["name"], t["tuning"], t["instrument"]) for t in tracks] == [
+        ("Rhythm", "drop_d", "distortion"),
+        ("Lead", "standard", "clean"),
+    ]
+
+
+def test_per_track_option_count_must_match(client):
+    pdf = ascii_tab_pdf([TAB])
+    response = _post_many(client, [("a.pdf", pdf)] * 3, tuning=["standard", "drop_d"])
+    assert response.status_code == 422
+
+
+def test_too_many_tracks(client):
+    pdf = ascii_tab_pdf([TAB])
+    assert _post_many(client, [("a.pdf", pdf)] * 8).status_code == 422
+
+
+def test_error_names_the_failing_track(client):
+    response = _post_many(client, [("ok.pdf", ascii_tab_pdf([TAB])), ("scan.pdf", blank_pdf())])
+    assert response.status_code == 422
+    assert response.json()["detail"].startswith("Track 2 (scan.pdf):")
+
+
+def test_parentheses_option(client):
+    pdf = ascii_tab_pdf([["e|-0---(0)---0---|", *TAB[1:]]])
+    tie = _post(client, pdf).json()["gp5_base64"]
+    note = _post(client, pdf, parentheses="note").json()["gp5_base64"]
+    types = [
+        [
+            n.type
+            for b in gp.parse(io.BytesIO(base64.b64decode(data))).tracks[0].measures[0].voices[0].beats
+            for n in b.notes
+        ]
+        for data in (tie, note)
+    ]
+    assert gp.NoteType.tie in types[0]
+    assert gp.NoteType.tie not in types[1]
+    assert _post(client, pdf, parentheses="maybe").status_code == 422

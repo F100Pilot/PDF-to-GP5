@@ -8,6 +8,11 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 ## [Unreleased]
 ### Adicionado
 - Banner "Novidades" na entrada da aplicação com as alterações das versões ainda não vistas pelo utilizador.
+- Várias tracks: carregar vários PDFs (um por track, até 7) e obter um único GP5; nome, afinação e som por track, ordem ajustável; tracks mais curtas completadas com pausas (com aviso).
+- Nome da track detetado no PDF ("Bass", "Electric Guitar"…) ou no nome do ficheiro ("Artista - Música - Bass.pdf" → "Bass").
+- Opção "Notas entre parêntesis": ligadura (como no PDF) ou nota normal (visível na tab, volta a tocar).
+### Alterado
+- API: `file` pode repetir-se (um por track); `track_name`, `tuning` e `instrument` aceitam um valor por PDF; o relatório tem a lista `tracks`. `/api/inspect` devolve `part_name`, `strings` e `tuning`.
 
 ## [0.5.0] - 2026-09-28
 ### Adicionado

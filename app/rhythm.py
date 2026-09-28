@@ -22,6 +22,9 @@ from .model import Link, RhythmMark, ScoreBeat, ScoreMeasure, ScoreNote, TabEven
 REPRESENTABLE_UNITS = (48, 32, 24, 16, 12, 8, 6, 4, 3, 2, 1)
 
 RhythmMode = Literal["auto", "spacing", "fixed"]
+# How to read a fret in parentheses: "tie" keeps the editor's meaning (sustain, or a
+# ghost note when the fret differs); "note" makes it a normal, re-picked note.
+ParenthesesMode = Literal["tie", "note"]
 WHOLE_NOTE_UNITS = 32
 
 
@@ -31,6 +34,7 @@ class RhythmOptions:
     fixed_value: int = 8  # note value used in fixed mode (4, 8 or 16)
     numerator: int = 4
     denominator: int = 4
+    parentheses: ParenthesesMode = "tie"
 
     @property
     def measure_units(self) -> int:
@@ -276,7 +280,7 @@ def _spacing_measures(
     return measures
 
 
-def resolve_links(measures: list[ScoreMeasure]) -> None:
+def resolve_links(measures: list[ScoreMeasure], parentheses: ParenthesesMode = "tie") -> None:
     """Resolve marks that depend on the previous note on the same string.
 
     * hammer/pull/slide marks move onto the note they start from;
@@ -288,7 +292,7 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
         for beat in measure.beats:
             for note in beat.notes:
                 prev = last.get(note.string)
-                if note.parenthesized:
+                if note.parenthesized and parentheses == "tie":
                     if prev is not None and not prev.dead and prev.fret == note.fret:
                         note.tie = True
                     else:
@@ -328,5 +332,5 @@ def build_measures(
         beat_units = 32 // options.fixed_value
         items = [(_to_notes(c.events), beat_units) for _, columns in per_system for c in columns]
         measures = _sequence(items, units)
-    resolve_links(measures)
+    resolve_links(measures, options.parentheses)
     return measures

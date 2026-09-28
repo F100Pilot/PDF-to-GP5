@@ -14,7 +14,7 @@ import logging
 import multiprocessing as mp
 from multiprocessing.connection import Connection
 
-from .converter import ConversionError, ConversionOptions, ConversionResult, convert, inspect
+from .converter import ConversionError, ConversionOptions, ConversionResult, convert_many, inspect
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +44,13 @@ def _reply(conn: Connection, **payload: object) -> None:
     conn.send_bytes(json.dumps(payload).encode("utf-8"))
 
 
-def _worker(conn: Connection, pdf: bytes, options: ConversionOptions, memory_mb: int, job: str) -> None:
+def _worker(conn: Connection, pdfs: list[bytes], options: ConversionOptions, memory_mb: int, job: str) -> None:
     try:
         _limit_memory(memory_mb)
         if job == "inspect":
-            _reply(conn, status="ok", gp5="", report=inspect(pdf, options))
+            _reply(conn, status="ok", gp5="", report=inspect(pdfs[0], options))
             return
-        result = convert(pdf, options)
+        result = convert_many(pdfs, options)
         _reply(conn, status="ok", gp5=base64.b64encode(result.gp5).decode("ascii"), report=result.report)
     except ConversionError as exc:
         _reply(conn, status="error", message=str(exc))
@@ -78,13 +78,18 @@ def _decode_reply(raw: bytes) -> ConversionResult:
 
 
 def run_isolated(
-    pdf: bytes, options: ConversionOptions, timeout_s: int, memory_mb: int, job: str = "convert"
+    pdfs: bytes | list[bytes], options: ConversionOptions, timeout_s: int, memory_mb: int, job: str = "convert"
 ) -> ConversionResult:
-    """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5."""
+    """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5.
+
+    ``pdfs`` is one PDF per track (inspect uses the first).
+    """
     if job not in ("convert", "inspect"):
         raise ValueError(f"unknown job {job!r}")
+    if isinstance(pdfs, bytes):
+        pdfs = [pdfs]
     receiver, sender = _CTX.Pipe(duplex=False)
-    process = _CTX.Process(target=_worker, args=(sender, pdf, options, memory_mb, job), daemon=True)
+    process = _CTX.Process(target=_worker, args=(sender, pdfs, options, memory_mb, job), daemon=True)
     process.start()
     sender.close()
     try:

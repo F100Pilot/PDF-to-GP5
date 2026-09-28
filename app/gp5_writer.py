@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import guitarpro as gp
@@ -32,8 +33,6 @@ class SongInfo:
     title: str = ""
     artist: str = ""
     tempo: int = 120
-    instrument: int = 25  # General MIDI program
-    track_name: str = "Guitar"
 
 
 def sanitize_text(value: str, max_length: int = 100) -> str:
@@ -91,30 +90,23 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
     return gp_beat
 
 
-def build_song(score: Score, info: SongInfo) -> gp.Song:
-    song = gp.Song()
-    song.title = sanitize_text(info.title)
-    song.artist = sanitize_text(info.artist)
-    song.tempo = info.tempo
-    song.measureHeaders = []
+# MIDI channels on port 1 without the percussion channel (index 9): two per track
+# (normal + effects), so at most 7 tracks.
+_MELODIC_CHANNELS = [c for c in range(16) if c != 9]
+MAX_TRACKS = len(_MELODIC_CHANNELS) // 2
 
-    track = song.tracks[0]
-    track.name = sanitize_text(info.track_name, 40) or "Guitar"
-    track.strings = [gp.GuitarString(number, value) for number, value in enumerate(score.tuning, start=1)]
-    track.channel.instrument = info.instrument
+
+def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
+    track = gp.Track(song, number=number)
+    track.name = sanitize_text(score.name, 40) or f"Track {number}"
+    track.strings = [gp.GuitarString(n, value) for n, value in enumerate(score.tuning, start=1)]
+    track.channel.channel = _MELODIC_CHANNELS[2 * (number - 1)]
+    track.channel.effectChannel = _MELODIC_CHANNELS[2 * (number - 1) + 1]
+    track.channel.instrument = score.instrument
     max_fret = max((n.fret for m in score.measures for b in m.beats for n in b.notes), default=0)
     track.fretCount = max(24, max_fret)
     track.measures = []
-
-    start = gp.Duration.quarterTime
-    for number, measure in enumerate(score.measures, start=1):
-        header = gp.MeasureHeader(
-            number=number,
-            start=start,
-            timeSignature=gp.TimeSignature(numerator=score.numerator, denominator=gp.Duration(value=score.denominator)),
-        )
-        song.addMeasureHeader(header)
-        start += header.length
+    for header, measure in zip(song.measureHeaders, score.measures, strict=True):
         gp_measure = gp.Measure(track, header)
         voice = gp_measure.voices[0]
         voice.beats.extend(_make_beat(voice, b) for b in measure.beats)
@@ -122,12 +114,39 @@ def build_song(score: Score, info: SongInfo) -> gp.Song:
         second = gp_measure.voices[1]
         second.beats.append(gp.Beat(second, status=gp.BeatStatus.empty))
         track.measures.append(gp_measure)
+    return track
+
+
+def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
+    """Build a song with one track per score; all scores must have the same number of measures."""
+    if not scores or not scores[0].measures:
+        raise ValueError("A partitura não tem compassos.")
+    if len(scores) > MAX_TRACKS:
+        raise ValueError(f"Máximo de {MAX_TRACKS} tracks.")
+    if len({len(s.measures) for s in scores}) != 1:
+        raise ValueError("As tracks têm números de compassos diferentes.")
+    song = gp.Song()
+    song.title = sanitize_text(info.title)
+    song.artist = sanitize_text(info.artist)
+    song.tempo = info.tempo
+    song.measureHeaders = []
+    first = scores[0]
+    start = gp.Duration.quarterTime
+    for number in range(1, len(first.measures) + 1):
+        header = gp.MeasureHeader(
+            number=number,
+            start=start,
+            timeSignature=gp.TimeSignature(numerator=first.numerator, denominator=gp.Duration(value=first.denominator)),
+        )
+        song.addMeasureHeader(header)
+        start += header.length
+    song.tracks = [_build_track(song, number, score) for number, score in enumerate(scores, start=1)]
     return song
 
 
-def write_gp5(score: Score, info: SongInfo) -> bytes:
-    if not score.measures:
-        raise ValueError("A partitura não tem compassos.")
+def write_gp5(scores: Score | Sequence[Score], info: SongInfo) -> bytes:
+    if isinstance(scores, Score):
+        scores = [scores]
     buffer = io.BytesIO()
-    gp.write(build_song(score, info), buffer, version=GP5_VERSION)
+    gp.write(build_song(scores, info), buffer, version=GP5_VERSION)
     return buffer.getvalue()

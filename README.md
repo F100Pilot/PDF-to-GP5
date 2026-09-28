@@ -50,10 +50,17 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
 
-Campos (multipart): `file` (obrigatório), `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `tuning`, `instrument`, `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16). Campos omitidos ou `auto` são detetados no PDF.
+Campos (multipart):
+- `file` (obrigatório; repetir para várias tracks, até 7, pela ordem das tracks).
+- Por track (um valor por PDF, ou um só valor para todos): `track_name`, `tuning`, `instrument`.
+- Da música: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `parentheses` (`tie` = ligadura, `note` = nota normal).
+
+Campos omitidos ou `auto` são detetados nos PDFs.
 
 ```bash
 curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8000/api/convert/gp5
+curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_name=Baixo \
+     -o musica.gp5 http://localhost:8000/api/convert/gp5
 ```
 
 ## Segurança
@@ -72,7 +79,8 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 
 | Variável | Por defeito |
 |---|---|
-| `MAX_UPLOAD_MB` | 10 |
+| `MAX_UPLOAD_MB` (por PDF) | 10 |
+| `MAX_TOTAL_UPLOAD_MB` (todos os PDFs) | 40 |
 | `MAX_PAGES` | 40 |
 | `MAX_EVENTS` | 50000 |
 | `CONVERSION_TIMEOUT_S` | 30 |
@@ -86,7 +94,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 
 - Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
-- Uma única pista por ficheiro (sistemas com número de cordas diferente do maioritário são ignorados, com aviso).
+- Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
 - Repetições, letras, acordes por extenso e marcações de palm-mute não são convertidos.
 
 ## Versões
