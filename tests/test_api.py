@@ -69,8 +69,7 @@ def test_convert_with_every_form_field_as_browser_sends_it(client):
         "tempo": "120",
         "tuning": "auto",
         "instrument": "distortion",
-        "numerator": "3",
-        "denominator": "4",
+        "time_signature": "3/4",
         "rhythm_mode": "fixed",
         "fixed_value": "8",
     }
@@ -114,9 +113,11 @@ def test_corrupt_pdf(client):
         {"tuning": "nope"},
         {"instrument": "kazoo"},
         {"tempo": "5"},
-        {"denominator": "3"},
+        {"time_signature": "3/5"},
+        {"time_signature": "0/4"},
+        {"time_signature": "17/4"},
+        {"time_signature": "four"},
         {"fixed_value": "5"},
-        {"numerator": "0"},
         {"rhythm_mode": "x"},
         {"title": "x" * 101},
     ],
@@ -170,3 +171,19 @@ def test_empty_staves_do_not_vote_and_become_rests(client):
     report = response.json()["report"]
     assert report["measures"] == 4 and report["warnings"] == []
     assert [d["measures"] for d in report["systems_detail"]] == [2, 2]
+
+
+def test_metadata_is_detected_when_fields_are_left_empty(client):
+    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
+    report = _post(client, pdf).json()["report"]
+    assert (report["title"], report["artist"], report["tempo"]) == ("Riff Song", "The Band", 96)
+    assert report["auto"] == {"title": True, "artist": True, "tempo": True, "time_signature": False}
+    assert report["time_signature"] == "4/4"
+
+
+def test_user_values_override_detection(client):
+    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Tempo: 96"])
+    response = _post(client, pdf, title="Mine", tempo="140", time_signature="3/4")
+    report = response.json()["report"]
+    assert (report["title"], report["tempo"], report["time_signature"]) == ("Mine", 140, "3/4")
+    assert response.json()["filename"] == "Mine.gp5"

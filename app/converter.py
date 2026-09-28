@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .extract.ascii_tab import extract_ascii_systems
 from .extract.engraved_tab import extract_engraved_systems
-from .extract.pdf_reader import PdfReadError, read_pages
+from .extract.metadata import SongMetadata, detect_metadata
+from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import SongInfo, write_gp5
 from .model import Score, TabSystem
 from .preview import render_preview
-from .rhythm import RhythmOptions, build_measures
+from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures
 from .tunings import TUNINGS, resolve_tuning
 
 INSTRUMENTS: dict[str, int] = {
@@ -30,12 +31,17 @@ class ConversionError(Exception):
 
 @dataclass(frozen=True)
 class ConversionOptions:
+    """User choices; empty/None values mean "detect from the PDF"."""
+
     title: str = ""
     artist: str = ""
-    tempo: int = 120
+    tempo: int | None = None
+    numerator: int | None = None
+    denominator: int | None = None
     tuning: str = "auto"
     instrument: str = "auto"
-    rhythm: RhythmOptions = field(default_factory=RhythmOptions)
+    rhythm_mode: RhythmMode = "auto"
+    fixed_value: int = 8
     max_pages: int = 40
     max_events: int = 50_000
 
@@ -46,9 +52,13 @@ class ConversionResult:
     report: dict
 
 
-def _find_systems(pdf: bytes, options: ConversionOptions, warnings: list[str]) -> list[TabSystem]:
+DEFAULT_TEMPO = 120
+DEFAULT_TIME_SIGNATURE = (4, 4)
+
+
+def _find_systems(pdf: bytes, options: ConversionOptions, warnings: list[str]) -> tuple[list[TabSystem], SongMetadata]:
     try:
-        pages = read_pages(pdf, options.max_pages)
+        pages, info = read_document(pdf, options.max_pages)
     except PdfReadError as exc:
         raise ConversionError(str(exc)) from exc
     if not any(page.chars for page in pages):
@@ -66,12 +76,24 @@ def _find_systems(pdf: bytes, options: ConversionOptions, warnings: list[str]) -
             "Não foi encontrada tablatura no PDF. São suportadas tablaturas em texto (ex.: e|--0--2--|) "
             "e tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar)."
         )
-    return systems
+    return systems, detect_metadata(pages, info)
 
 
 def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
     warnings: list[str] = []
-    systems = _find_systems(pdf, options, warnings)
+    systems, detected = _find_systems(pdf, options, warnings)
+    title = options.title.strip() or detected.title or ""
+    artist = options.artist.strip() or detected.artist or ""
+    tempo = options.tempo or detected.tempo or DEFAULT_TEMPO
+    if options.numerator and options.denominator:
+        numerator, denominator = options.numerator, options.denominator
+    elif detected.numerator and detected.denominator:
+        numerator, denominator = detected.numerator, detected.denominator
+    else:
+        numerator, denominator = DEFAULT_TIME_SIGNATURE
+    rhythm = RhythmOptions(
+        mode=options.rhythm_mode, fixed_value=options.fixed_value, numerator=numerator, denominator=denominator
+    )
 
     event_count = sum(len(s.events) for s in systems)
     if event_count > options.max_events:
@@ -95,7 +117,13 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
     warnings.extend(tuning_warnings)
 
     system_measures: list[int] = []
-    measures = build_measures(kept, options.rhythm, warnings, system_measures)
+    rhythm_stats = RhythmStats()
+    measures = build_measures(kept, rhythm, warnings, system_measures, rhythm_stats)
+    if rhythm_stats.notated and rhythm_stats.estimated:
+        warnings.append(
+            f"Ritmo lido da partitura em {rhythm_stats.notated} compasso(s); "
+            f"{rhythm_stats.estimated} compasso(s) estimados pelo espaçamento."
+        )
     note_count = sum(len(b.notes) for m in measures for b in m.beats if not all(n.tie for n in b.notes))
     if note_count == 0:
         raise ConversionError("A tablatura foi encontrada mas não contém notas.")
@@ -104,8 +132,8 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
         string_count=string_count,
         tuning=tuning,
         measures=measures,
-        numerator=options.rhythm.numerator,
-        denominator=options.rhythm.denominator,
+        numerator=numerator,
+        denominator=denominator,
         warnings=warnings,
     )
     if options.instrument == "auto":
@@ -113,15 +141,27 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
     else:
         program = INSTRUMENTS[options.instrument]
     info = SongInfo(
-        title=options.title,
-        artist=options.artist,
-        tempo=options.tempo,
+        title=title,
+        artist=artist,
+        tempo=tempo,
         instrument=program,
         track_name="Bass" if program == INSTRUMENTS["bass"] else "Guitar",
     )
     gp5 = write_gp5(score, info)
     tuning_name = next((name for name, midi in TUNINGS.items() if list(midi) == tuning), "custom")
     report = {
+        "title": title,
+        "artist": artist,
+        "tempo": tempo,
+        "time_signature": f"{numerator}/{denominator}",
+        "auto": {
+            "title": not options.title.strip() and bool(detected.title),
+            "artist": not options.artist.strip() and bool(detected.artist),
+            "tempo": not options.tempo and detected.tempo is not None,
+            "time_signature": not (options.numerator and options.denominator) and detected.numerator is not None,
+        },
+        "rhythm_from_notation": rhythm_stats.notated,
+        "rhythm_estimated": rhythm_stats.estimated,
         "systems": len(kept),
         "sources": sorted({s.source for s in kept}),
         "pages": sorted({s.page for s in kept}),

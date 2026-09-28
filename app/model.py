@@ -38,6 +38,19 @@ class TabEvent:
     palm_mute: bool = False
 
 
+@dataclass(frozen=True)
+class RhythmMark:
+    """A printed rhythm symbol: a note stem (with beams/flags/dots) or a rest.
+
+    ``units`` is the duration in 32nd notes, or None when the symbol was found
+    but cannot be expressed (e.g. inside a tuplet).
+    """
+
+    x: float
+    units: int | None
+    is_rest: bool = False
+
+
 @dataclass
 class TabSystem:
     """One tablature staff (a line of tab) as found on a page."""
@@ -54,6 +67,7 @@ class TabSystem:
     # Printed number of the bar starting at bars[i] (engraved tabs only), used to
     # detect multi-bar rests. len == len(bars) - 1 when present.
     bar_numbers: list[int | None] = field(default_factory=list)
+    rhythm: list[RhythmMark] = field(default_factory=list)  # engraved tabs with rhythm notation
 
 
 @dataclass

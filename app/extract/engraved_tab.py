@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from ..model import Link, TabEvent, TabSystem
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
+from .rhythm_marks import read_rhythm
 
 MIN_STRINGS, MAX_STRINGS = 4, 8
 _LEGATO_LETTERS = {"H": Link.HAMMER, "P": Link.PULL}
@@ -279,6 +280,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             labels=_labels(page.chars, staff, spacing),
             source="engraved",
             bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
+            rhythm=read_rhythm(page, top, bottom, x0, x1, spacing),
         )
         systems.append(system)
         placed.append((system, staff, spacing))

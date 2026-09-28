@@ -16,12 +16,13 @@ import itertools
 from dataclasses import dataclass
 from typing import Literal
 
-from .model import Link, ScoreBeat, ScoreMeasure, ScoreNote, TabEvent, TabSystem
+from .model import Link, RhythmMark, ScoreBeat, ScoreMeasure, ScoreNote, TabEvent, TabSystem
 
 # Durations Guitar Pro can express on a single beat (plain or dotted), in 32nds.
 REPRESENTABLE_UNITS = (48, 32, 24, 16, 12, 8, 6, 4, 3, 2, 1)
 
 RhythmMode = Literal["auto", "spacing", "fixed"]
+WHOLE_NOTE_UNITS = 32
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,14 @@ class RhythmOptions:
     @property
     def measure_units(self) -> int:
         return self.numerator * 32 // self.denominator
+
+
+@dataclass
+class RhythmStats:
+    """How many bars with notes got their durations from printed rhythm vs. spacing."""
+
+    notated: int = 0
+    estimated: int = 0
 
 
 @dataclass
@@ -184,8 +193,42 @@ def _bar_span(numbers: list[int | None], index: int, next_number: int | None) ->
     return 1
 
 
+def _notated_items(
+    cols: list[_Column], marks: list[RhythmMark], units: int, tolerance: float
+) -> list[tuple[list[ScoreNote], int]] | None:
+    """Durations from printed stems/rests, or None if they don't account for the bar exactly.
+
+    A note without a stem is a whole note (editors draw none for it).
+    """
+    stems = [m for m in marks if not m.is_rest]
+    if any(m.units is None for m in marks):
+        return None
+    entries: list[tuple[float, list[ScoreNote], int]] = []
+    used: set[int] = set()
+    for col in cols:
+        index = min(range(len(stems)), key=lambda i: abs(stems[i].x - col.x), default=None)
+        if index is None or abs(stems[index].x - col.x) > tolerance:
+            entries.append((col.x, _to_notes(col.events), WHOLE_NOTE_UNITS))
+            continue
+        if index in used:
+            return None
+        used.add(index)
+        entries.append((col.x, _to_notes(col.events), stems[index].units or 0))
+    if len(used) != len(stems):
+        return None  # a stem without a note: something was not read
+    entries.extend((m.x, [], m.units or 0) for m in marks if m.is_rest)
+    if sum(length for _, _, length in entries) != units:
+        return None
+    return [(notes, length) for _, notes, length in sorted(entries, key=lambda e: e[0])]
+
+
 def _spacing_measures(
-    system: TabSystem, columns: list[_Column], units: int, warnings: list[str], next_number: int | None = None
+    system: TabSystem,
+    columns: list[_Column],
+    units: int,
+    warnings: list[str],
+    next_number: int | None = None,
+    stats: RhythmStats | None = None,
 ) -> list[ScoreMeasure]:
     unit_width = system.char_width
     bounds = sorted(system.bars)
@@ -200,6 +243,16 @@ def _spacing_measures(
         if not cols:
             if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
                 measures.extend(_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number)))
+            continue
+        marks = [m for m in system.rhythm if start <= m.x < end]
+        notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None
+        if stats is not None:
+            if notated is not None:
+                stats.notated += 1
+            else:
+                stats.estimated += 1
+        if notated is not None:
+            measures.extend(_sequence(notated, units))
             continue
         if len(cols) > units:
             warnings.append(
@@ -253,6 +306,7 @@ def build_measures(
     options: RhythmOptions,
     warnings: list[str],
     system_measures: list[int] | None = None,
+    stats: RhythmStats | None = None,
 ) -> list[ScoreMeasure]:
     """Build all measures; ``system_measures`` (if given) receives the bar count per system."""
     units = options.measure_units
@@ -264,7 +318,9 @@ def build_measures(
     if use_spacing:
         for index, (system, columns) in enumerate(per_system):
             following = systems[index + 1].bar_numbers if index + 1 < len(systems) else []
-            system_bars = _spacing_measures(system, columns, units, warnings, following[0] if following else None)
+            system_bars = _spacing_measures(
+                system, columns, units, warnings, following[0] if following else None, stats
+            )
             measures.extend(system_bars)
             if system_measures is not None:
                 system_measures.append(len(system_bars))

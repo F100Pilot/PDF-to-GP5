@@ -33,6 +33,11 @@
     }
   }
 
+  fetch("/api/health")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((health) => { document.getElementById("version").textContent = `Versão ${health.version}`; })
+    .catch(() => {});
+
   fetch("/api/options")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((opts) => {
@@ -72,8 +77,14 @@
   function renderSummary(report) {
     const summary = document.getElementById("summary");
     summary.replaceChildren();
+    const auto = (key) => (report.auto && report.auto[key] ? " (auto)" : "");
+    const rhythm = report.rhythm_from_notation
+      ? `lido em ${report.rhythm_from_notation}/${report.rhythm_from_notation + report.rhythm_estimated} compassos`
+      : "estimado";
     const items = [
-      ["Compassos", report.measures], ["Notas", report.notes], ["Cordas", report.strings],
+      ["Título", (report.title || "—") + auto("title")], ["Artista", (report.artist || "—") + auto("artist")],
+      ["BPM", report.tempo + auto("tempo")], ["Compasso", report.time_signature + auto("time_signature")],
+      ["Ritmo", rhythm], ["Compassos", report.measures], ["Notas", report.notes], ["Cordas", report.strings],
       ["Afinação", TUNING_LABELS[report.tuning] || report.tuning], ["Linhas de tab", report.systems],
       ["Formato", report.sources.map((s) => (s === "ascii" ? "texto" : "gravada")).join(", ")],
     ];
@@ -126,7 +137,11 @@
     result.hidden = true;
     showStatus("A converter…", false);
     try {
-      const response = await fetch("/api/convert", { method: "POST", body: new FormData(form) });
+      const body = new FormData(form);
+      for (const key of ["title", "artist", "tempo"]) {
+        if (!String(body.get(key) || "").trim()) body.delete(key); // empty = detect from the PDF
+      }
+      const response = await fetch("/api/convert", { method: "POST", body });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const detail = typeof payload.detail === "string" ? payload.detail : "Pedido inválido.";

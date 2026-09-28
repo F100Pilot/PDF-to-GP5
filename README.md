@@ -15,9 +15,13 @@ Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (
 - Tabs gravadas: notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
 - Vários sistemas e páginas são concatenados numa única pista.
 
+### Metadados
+
+Título, artista, BPM e compasso são detetados automaticamente quando os campos ficam vazios (texto em destaque no topo da página, linhas `Title:`/`Artist:`/`Tempo:`, indicação de metrónomo `♩ = 118`, glifos de compasso, metadados do PDF). Valores preenchidos pelo utilizador têm prioridade.
+
 ### Ritmo
 
-Tablaturas quase nunca codificam ritmo. Há dois modos:
+Se a tab gravada tiver notação rítmica (hastes, barras, pausas — "tab com hastes" do MuseScore/Guitar Pro), as durações são lidas diretamente. Compassos com tercinas, ou cuja notação não some a métrica, usam a estimativa abaixo. Sem notação, há dois modos:
 
 - **Pelo espaçamento** (por defeito quando há barras de compasso): as posições das notas dentro de cada compasso são quantizadas para a grelha (colcheias → semicolcheias → fusas) que melhor encaixa. Durações não representáveis numa só figura são divididas com ligaduras.
 - **Duração fixa**: todas as notas têm a mesma figura e os compassos são refeitos a partir da métrica.
@@ -44,7 +48,7 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
 
-Campos (multipart): `file` (obrigatório), `title`, `artist`, `tempo` (20–400), `tuning`, `instrument`, `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `numerator` (1–16), `denominator` (2/4/8/16).
+Campos (multipart): `file` (obrigatório), `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `tuning`, `instrument`, `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16). Campos omitidos ou `auto` são detetados no PDF.
 
 ```bash
 curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8000/api/convert/gp5
@@ -82,6 +86,10 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
 - Uma única pista por ficheiro (sistemas com número de cordas diferente do maioritário são ignorados, com aviso).
 - Repetições, letras, acordes por extenso e marcações de palm-mute não são convertidos.
+
+## Versões
+
+[Semantic Versioning](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH`, definida em `app/__init__.py`, visível na interface e em `/api/health`, com tag git `vX.Y.Z` por versão. Alterações em `CHANGELOG.md`.
 
 ## Desenvolvimento
 

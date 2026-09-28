@@ -24,9 +24,9 @@
       <fieldset>
         <legend>Metadados</legend>
         <div class="grid">
-          <label>Título <input name="title" maxlength="100" autocomplete="off"></label>
-          <label>Artista <input name="artist" maxlength="100" autocomplete="off"></label>
-          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" value="120" required></label>
+          <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Automático (do PDF)"></label>
+          <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Automático (do PDF)"></label>
+          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Automático (do PDF)"></label>
         </div>
       </fieldset>
 
@@ -50,13 +50,11 @@
         <legend>Ritmo</legend>
         <div class="grid">
           <label>Compasso
-            <span class="timesig">
-              <input name="numerator" type="number" min="1" max="16" value="4" required aria-label="Numerador">
-              <span aria-hidden="true">/</span>
-              <select name="denominator" aria-label="Denominador">
-                <option>2</option><option selected>4</option><option>8</option><option>16</option>
-              </select>
-            </span>
+            <select name="time_signature">
+              <option value="auto" selected>Automático (do PDF)</option>
+              <option>2/4</option><option>3/4</option><option>4/4</option><option>5/4</option>
+              <option>6/8</option><option>7/8</option><option>9/8</option><option>12/8</option><option>2/2</option>
+            </select>
           </label>
           <label>Modo
             <select name="rhythm_mode" id="rhythm_mode">
@@ -73,7 +71,7 @@
             </select>
           </label>
         </div>
-        <p class="hint">Tablaturas raramente indicam ritmo. “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
+        <p class="hint">Se o PDF tiver a notação rítmica (hastes e colcheias por baixo da tab), as durações são lidas diretamente. Caso contrário: “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
       </fieldset>
 
       <button id="submit" type="submit">Converter</button>
@@ -103,6 +101,7 @@
 
     <footer>
       <p>Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados.</p>
+      <p id="version"></p>
     </footer>
   </main>
 </body>

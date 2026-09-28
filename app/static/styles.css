@@ -69,8 +69,6 @@ input, select {
   color: var(--text);
   min-width: 0;
 }
-.timesig { display: flex; align-items: center; gap: 6px; }
-.timesig input, .timesig select { flex: 1; }
 button, .button {
   display: inline-block;
   margin-top: 20px;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass, field
 
 import pdfplumber
@@ -85,12 +86,38 @@ def _normalize(text: str) -> str:
 
 def read_pages(data: bytes, max_pages: int) -> list[Page]:
     """Load positioned characters and line segments from every page."""
+    return read_document(data, max_pages)[0]
+
+
+# Values PDF producers write when the author left the field empty.
+_PLACEHOLDERS = {"untitled", "anonymous", "unknown", "author", "title", "user", "admin", "none"}
+_GENERATOR_PREFIX = re.compile(r"^\s*microsoft\s+(?:word|excel|powerpoint)\s*-\s*", re.IGNORECASE)
+
+
+def _document_info(metadata: dict) -> dict[str, str]:
+    """Keep only short plain-text Title/Author entries from the PDF info dictionary."""
+    info: dict[str, str] = {}
+    for key in ("Title", "Author"):
+        value = metadata.get(key)
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="ignore")
+        if not isinstance(value, str):
+            continue
+        value = _GENERATOR_PREFIX.sub("", value).strip()
+        if value and value.lower() not in _PLACEHOLDERS:
+            info[key] = value[:200]
+    return info
+
+
+def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, str]]:
+    """Pages plus the document's Title/Author metadata (if any)."""
     try:
         pdf = pdfplumber.open(io.BytesIO(data))
     except Exception as exc:  # pdfminer raises many unrelated exception types
         raise PdfReadError("O ficheiro não é um PDF válido ou está corrompido.") from exc
     pages: list[Page] = []
     with pdf:
+        info = _document_info(pdf.metadata or {})
         if len(pdf.pages) > max_pages:
             raise PdfReadError(f"O PDF tem {len(pdf.pages)} páginas; o máximo é {max_pages}.")
         for index, page in enumerate(pdf.pages, start=1):
@@ -105,7 +132,7 @@ def read_pages(data: bytes, max_pages: int) -> list[Page]:
             ]
             curves = [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.curves]
             pages.append(Page(index, float(page.width), float(page.height), chars, segments, curves))
-    return pages
+    return pages, info
 
 
 def group_lines(chars: list[Char]) -> list[TextLine]:
