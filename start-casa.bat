@@ -40,7 +40,7 @@ echo.
 echo [2/3] A instalar/atualizar as dependencias...
 %PY% --version >nul 2>nul
 if errorlevel 1 goto :no_python
-%PY% -m pip install --user --disable-pip-version-check -q -r requirements.txt
+%PY% -m pip install --user --disable-pip-version-check --no-warn-script-location -q -r requirements.txt
 if errorlevel 1 goto :pip_failed
 
 echo.
