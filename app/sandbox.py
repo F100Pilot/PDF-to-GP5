@@ -14,7 +14,7 @@ import logging
 import multiprocessing as mp
 from multiprocessing.connection import Connection
 
-from .converter import ConversionError, ConversionOptions, ConversionResult, convert
+from .converter import ConversionError, ConversionOptions, ConversionResult, convert, inspect
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,12 @@ def _reply(conn: Connection, **payload: object) -> None:
     conn.send_bytes(json.dumps(payload).encode("utf-8"))
 
 
-def _worker(conn: Connection, pdf: bytes, options: ConversionOptions, memory_mb: int) -> None:
+def _worker(conn: Connection, pdf: bytes, options: ConversionOptions, memory_mb: int, job: str) -> None:
     try:
         _limit_memory(memory_mb)
+        if job == "inspect":
+            _reply(conn, status="ok", gp5="", report=inspect(pdf, options))
+            return
         result = convert(pdf, options)
         _reply(conn, status="ok", gp5=base64.b64encode(result.gp5).decode("ascii"), report=result.report)
     except ConversionError as exc:
@@ -74,9 +77,14 @@ def _decode_reply(raw: bytes) -> ConversionResult:
         raise ConversionError(GENERIC_ERROR) from exc
 
 
-def run_isolated(pdf: bytes, options: ConversionOptions, timeout_s: int, memory_mb: int) -> ConversionResult:
+def run_isolated(
+    pdf: bytes, options: ConversionOptions, timeout_s: int, memory_mb: int, job: str = "convert"
+) -> ConversionResult:
+    """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5."""
+    if job not in ("convert", "inspect"):
+        raise ValueError(f"unknown job {job!r}")
     receiver, sender = _CTX.Pipe(duplex=False)
-    process = _CTX.Process(target=_worker, args=(sender, pdf, options, memory_mb), daemon=True)
+    process = _CTX.Process(target=_worker, args=(sender, pdf, options, memory_mb, job), daemon=True)
     process.start()
     sender.close()
     try:

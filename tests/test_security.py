@@ -11,6 +11,7 @@ from app.security import RateLimiter, looks_like_pdf, safe_filename
         (("", "C:\\evil\\tab.PDF"), "tab.gp5"),
         (('a"; rm -rf /', ""), "a_ rm -rf.gp5"),
         (("AC/DC - Riff", ""), "AC_DC - Riff.gp5"),
+        (("Song (Live)", ""), "Song (Live).gp5"),
         (("\u6f22\u5b57", ""), "tablatura.gp5"),
         (("", ""), "tablatura.gp5"),
     ],

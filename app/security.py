@@ -127,7 +127,7 @@ def looks_like_pdf(head: bytes) -> bool:
     return PDF_MAGIC in head[:1024]
 
 
-_UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
+_UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ ()-]+")
 
 
 def safe_filename(title: str, upload_name: str, default: str = "tablatura", max_length: int = 80) -> str:

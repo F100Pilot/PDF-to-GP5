@@ -21,12 +21,14 @@
         <span id="drop-text">Arraste um PDF para aqui ou clique para escolher</span>
       </label>
 
-      <fieldset>
-        <legend>Metadados</legend>
+      <p id="inspect-status" class="hint" role="status" aria-live="polite" hidden></p>
+
+      <fieldset id="meta" hidden>
+        <legend>Metadados <span class="hint">(detetados no PDF — pode corrigir)</span></legend>
         <div class="grid">
-          <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Automático (do PDF)"></label>
-          <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Automático (do PDF)"></label>
-          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Automático (do PDF)"></label>
+          <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
+          <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
+          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Não detetado (120)"></label>
         </div>
       </fieldset>
 
@@ -50,7 +52,7 @@
         <legend>Ritmo</legend>
         <div class="grid">
           <label>Compasso
-            <select name="time_signature">
+            <select name="time_signature" id="time_signature">
               <option value="auto" selected>Automático (do PDF)</option>
               <option>2/4</option><option>3/4</option><option>4/4</option><option>5/4</option>
               <option>6/8</option><option>7/8</option><option>9/8</option><option>12/8</option><option>2/2</option>

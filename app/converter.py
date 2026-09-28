@@ -182,3 +182,24 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
         ],
     }
     return ConversionResult(gp5=gp5, report=report)
+
+
+def inspect(pdf: bytes, options: ConversionOptions) -> dict:
+    """Detect song metadata only, so the user can review it before converting."""
+    try:
+        pages, info = read_document(pdf, options.max_pages)
+    except PdfReadError as exc:
+        raise ConversionError(str(exc)) from exc
+    if not any(page.chars for page in pages):
+        raise ConversionError(
+            "O PDF não contém texto extraível (provavelmente é uma digitalização/imagem). "
+            "PDFs digitalizados exigem OCR, que não é suportado."
+        )
+    meta = detect_metadata(pages, info)
+    return {
+        "title": meta.title,
+        "artist": meta.artist,
+        "tempo": meta.tempo,
+        "time_signature": f"{meta.numerator}/{meta.denominator}" if meta.numerator and meta.denominator else None,
+        "pages": len(pages),
+    }

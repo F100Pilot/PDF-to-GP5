@@ -45,6 +45,7 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 |---|---|---|
 | `GET` | `/api/health` | estado |
 | `GET` | `/api/options` | afinações, instrumentos, limites |
+| `POST` | `/api/inspect` | JSON: título, artista, BPM e compasso detetados (sem converter) |
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
 

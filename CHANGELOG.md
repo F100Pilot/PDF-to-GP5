@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-PT/1.1.0/);
 versões segundo [Semantic Versioning](https://semver.org/lang/pt-BR/).
 Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar entre versões menores.
 
+## [0.5.0] - 2026-09-28
+### Adicionado
+- `POST /api/inspect`: deteta título, artista, BPM e compasso sem converter.
+### Alterado
+- Interface: ao escolher o PDF é feita logo a inspeção; a secção Metadados só aparece depois, preenchida com os valores detetados (editáveis) e o compasso detetado pré-selecionado.
+- Parêntesis permitidos no nome do ficheiro descarregado.
+
 ## [0.4.0] - 2026-09-28
 ### Adicionado
 - Ritmo lido da notação rítmica das tabs gravadas (hastes, barras de colcheia, bandeirolas, pontos, pausas); compassos cuja notação não soma a métrica são estimados pelo espaçamento, com aviso.

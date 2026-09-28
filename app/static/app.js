@@ -62,7 +62,56 @@
     dropText.textContent = file ? `${file.name} (${(file.size / 1024).toFixed(0)} KB)` : "Arraste um PDF para aqui ou clique para escolher";
   }
 
-  fileInput.addEventListener("change", updateDropText);
+  const meta = document.getElementById("meta");
+  const inspectStatus = document.getElementById("inspect-status");
+  const timeSignature = document.getElementById("time_signature");
+  let inspection = 0; // ignores answers for a file that is no longer selected
+
+  function setField(name, value) {
+    form.elements[name].value = value === null || value === undefined ? "" : String(value);
+  }
+
+  function selectTimeSignature(value) {
+    if (value && ![...timeSignature.options].some((o) => o.value === value)) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      timeSignature.appendChild(option);
+    }
+    timeSignature.value = value || "auto";
+  }
+
+  async function inspectFile() {
+    const file = selectedFile();
+    const token = ++inspection;
+    meta.hidden = true;
+    result.hidden = true;
+    status.hidden = true;
+    if (!file) { inspectStatus.hidden = true; return; }
+    inspectStatus.hidden = false;
+    inspectStatus.textContent = "A analisar o PDF…";
+    let detected = {};
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/inspect", { method: "POST", body });
+      const payload = await response.json().catch(() => ({}));
+      if (token !== inspection) return;
+      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : "Pedido inválido.");
+      detected = payload;
+      inspectStatus.hidden = true;
+    } catch (error) {
+      if (token !== inspection) return;
+      inspectStatus.textContent = error instanceof Error ? error.message : "Não foi possível analisar o PDF.";
+    }
+    setField("title", detected.title);
+    setField("artist", detected.artist);
+    setField("tempo", detected.tempo);
+    selectTimeSignature(detected.time_signature);
+    meta.hidden = false;
+  }
+
+  fileInput.addEventListener("change", () => { updateDropText(); inspectFile(); });
   ["dragenter", "dragover"].forEach((type) =>
     drop.addEventListener(type, (event) => { event.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((type) =>
@@ -71,6 +120,7 @@
     if (event.dataTransfer && event.dataTransfer.files.length) {
       fileInput.files = event.dataTransfer.files;
       updateDropText();
+      inspectFile();
     }
   });
 

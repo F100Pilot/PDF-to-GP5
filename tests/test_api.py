@@ -187,3 +187,22 @@ def test_user_values_override_detection(client):
     report = response.json()["report"]
     assert (report["title"], report["tempo"], report["time_signature"]) == ("Mine", 140, "3/4")
     assert response.json()["filename"] == "Mine.gp5"
+
+
+def test_inspect_returns_detected_metadata_only(client):
+    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
+    response = client.post("/api/inspect", files={"file": ("x.pdf", pdf, "application/pdf")})
+    assert response.status_code == 200
+    assert response.json() == {
+        "title": "Riff Song",
+        "artist": "The Band",
+        "tempo": 96,
+        "time_signature": None,
+        "pages": 1,
+    }
+
+
+def test_inspect_validates_upload(client):
+    response = client.post("/api/inspect", files={"file": ("x.pdf", b"<html>", "application/pdf")})
+    assert response.status_code == 415
+    assert client.post("/api/inspect", files={"file": ("x.pdf", blank_pdf(), "application/pdf")}).status_code == 422

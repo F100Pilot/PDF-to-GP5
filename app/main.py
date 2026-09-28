@@ -114,10 +114,13 @@ def _options(form: ConvertForm) -> ConversionOptions:
 
 
 async def _run_conversion(request: Request, file: UploadFile, form: ConvertForm) -> ConversionResult:
+    return await _run_job(request, file, _options(form), "convert")
+
+
+async def _run_job(request: Request, file: UploadFile, options: ConversionOptions, job: str) -> ConversionResult:
     client = request.client.host if request.client else "unknown"
     if not rate_limiter.allow(client):
         raise HTTPException(status_code=429, detail="Demasiados pedidos. Tente novamente dentro de um minuto.")
-    options = _options(form)
 
     data = await file.read(settings.max_upload_bytes + 1)
     if len(data) > settings.max_upload_bytes:
@@ -130,7 +133,7 @@ async def _run_conversion(request: Request, file: UploadFile, form: ConvertForm)
     async with _slots:
         try:
             return await run_in_threadpool(
-                run_isolated, data, options, settings.conversion_timeout_s, settings.worker_memory_mb
+                run_isolated, data, options, settings.conversion_timeout_s, settings.worker_memory_mb, job
             )
         except ConversionTimeout:
             raise HTTPException(status_code=422, detail="O processamento do PDF excedeu o tempo limite.") from None
@@ -140,6 +143,14 @@ async def _run_conversion(request: Request, file: UploadFile, form: ConvertForm)
 
 FileField = Annotated[UploadFile, File(description="PDF com tablatura")]
 FormFields = Annotated[ConvertForm, Depends(convert_form)]
+
+
+@app.post("/api/inspect")
+async def inspect_pdf(request: Request, file: FileField) -> JSONResponse:
+    """Detect title, artist, tempo and time signature so the form can be pre-filled."""
+    options = ConversionOptions(max_pages=settings.max_pages, max_events=settings.max_events)
+    result = await _run_job(request, file, options, "inspect")
+    return JSONResponse(result.report)
 
 
 @app.post("/api/convert")
