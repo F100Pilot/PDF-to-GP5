@@ -10,8 +10,8 @@ TOP, BOTTOM = 100.0, 150.0  # 6 strings, 10pt apart
 STEM_TOP, STEM_BOTTOM = BOTTOM + 5, BOTTOM + 25
 
 
-def _stem(x: float, bottom: float = STEM_BOTTOM) -> Segment:
-    return Segment(x, x, STEM_TOP, bottom)
+def _stem(x: float, top: float = STEM_TOP) -> Segment:
+    return Segment(x, x, top, STEM_BOTTOM)  # stems share their far end; half notes start lower
 
 
 def _beam(x0: float, x1: float, level: int = 0) -> Segment:
@@ -26,7 +26,7 @@ def _read(segments=(), curves=(), chars=()) -> list[RhythmMark]:
 
 def test_beams_quarter_half_and_dotted():
     marks = _read(
-        segments=[_stem(20), _stem(40), _stem(60), _stem(80), _stem(100), _stem(120, STEM_TOP + 11)],
+        segments=[_stem(20), _stem(40), _stem(60), _stem(80), _stem(100), _stem(120, STEM_BOTTOM - 9)],
         curves=[
             _beam(20, 40),
             _beam(60, 80),
@@ -85,3 +85,30 @@ def test_mismatching_notation_falls_back_to_spacing():
     )
     assert sum(b.units for b in measures[0].beats) == 32
     assert (stats.notated, stats.estimated) == (0, 1)
+
+
+def test_stem_without_fret_ties_the_previous_notes():
+    events = [TabEvent(x=10, string=2, fret=7), TabEvent(x=10, string=3, fret=5)]
+    rhythm = [RhythmMark(10, 16), RhythmMark(50, 16)]  # second stem has no fret above it
+    measures = build_measures([_system(events, rhythm)], RhythmOptions(), [])
+    second = measures[0].beats[1]
+    assert second.units == 16 and [(n.string, n.fret, n.tie) for n in second.notes] == [(2, 7, True), (3, 5, True)]
+
+
+def _flag(x: float) -> Char:
+    # Music-font glyph box reported about one em below the drawn flag (as in MuseScore PDFs).
+    return Char("", x, x + 5, STEM_BOTTOM + 8, STEM_BOTTOM + 28)
+
+
+def _dot(x: float) -> Char:
+    return Char("", x, x + 3, STEM_TOP + 18, STEM_TOP + 38)
+
+
+def test_flags_and_dots_with_offset_glyph_boxes():
+    marks = _read(segments=[_stem(20), _stem(60), _stem(100, STEM_BOTTOM - 9)], chars=[_dot(24), _flag(60)])
+    assert [m.units for m in marks] == [12, 4, 16]  # dotted quarter, flagged eighth, half
+
+
+def test_stems_must_share_their_far_end():
+    tick = Segment(200, 200, STEM_TOP + 10, STEM_BOTTOM + 12)  # e.g. end of a "P.M." line
+    assert [m.x for m in _read(segments=[_stem(20), _stem(40), tick])] == [20, 40]

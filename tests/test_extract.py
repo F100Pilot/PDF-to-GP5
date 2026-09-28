@@ -142,3 +142,30 @@ def test_engraved_let_ring_and_palm_mute_ranges():
     assert [e.palm_mute for e in sorted(first.events, key=lambda e: e.x)] == [True, True, False, False]
     assert not any(e.let_ring for e in first.events)
     assert all(e.let_ring and not e.palm_mute for e in second.events)
+
+
+def _staff_page(extra_segments=(), chars=()):
+    from app.extract.pdf_reader import Char, Page, Segment
+
+    lines = [Segment(50, 550, 100 + 10 * i, 100 + 10 * i) for i in range(6)]
+    bars = [Segment(x, x, 100, 150) for x in (50, 300, 550)]
+    notes = [Char("3", 100, 106, 120 - 4, 120 + 4), Char("5", 350, 356, 120 - 4, 120 + 4)]
+    return Page(1, 600, 800, [*notes, *chars], [*lines, *bars, *extra_segments], [])
+
+
+def test_multi_bar_rest_bar_inside_staff_does_not_split_it():
+    from app.extract.pdf_reader import Segment
+
+    page = _staff_page([Segment(60, 280, 125, 125)])  # thick rest bar drawn as a line between strings 3 and 4
+    systems = extract_engraved_systems(page)
+    assert len(systems) == 1 and systems[0].string_count == 6
+
+
+def test_strum_arrow_is_not_a_bar_line_and_sets_stroke():
+    from app.extract.pdf_reader import Char, Segment
+
+    arrow = Segment(340, 340, 98, 158)  # spans the staff like a bar line
+    head = Char("", 336, 344, 160, 180)
+    systems = extract_engraved_systems(_staff_page([arrow], [head]))
+    assert [round(b) for b in systems[0].bars] == [50, 300, 550]
+    assert {(e.fret, e.stroke) for e in systems[0].events} == {(3, None), (5, "down")}

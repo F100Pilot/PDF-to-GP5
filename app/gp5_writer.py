@@ -87,6 +87,10 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
         status=gp.BeatStatus.rest if beat.is_rest else gp.BeatStatus.normal,
     )
     gp_beat.notes.extend(_make_note(gp_beat, n) for n in beat.notes)
+    stroke = next((n.stroke for n in beat.notes if n.stroke), None)
+    if stroke:
+        direction = gp.BeatStrokeDirection.down if stroke == "down" else gp.BeatStrokeDirection.up
+        gp_beat.effect.stroke = gp.BeatStroke(direction, gp.Duration.thirtySecond)
     return gp_beat
 
 

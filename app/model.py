@@ -36,6 +36,7 @@ class TabEvent:
     link: Link | None = None
     let_ring: bool = False
     palm_mute: bool = False
+    stroke: str | None = None  # "down" (low to high strings) or "up"; strum arrows
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,7 @@ class ScoreNote:
     bend_release: bool = False
     let_ring: bool = False
     palm_mute: bool = False
+    stroke: str | None = None
     parenthesized: bool = False  # unresolved: becomes tie or ghost
     link: Link | None = None  # unresolved link to previous note
 
@@ -92,6 +94,8 @@ class ScoreNote:
 class ScoreBeat:
     units: int  # length in 32nd notes (1..48, always a representable value)
     notes: list[ScoreNote] = field(default_factory=list)
+    # Printed stem without a fret: continues (ties) the notes sounding before it.
+    tie_previous: bool = False
 
     @property
     def is_rest(self) -> bool:

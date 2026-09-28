@@ -17,6 +17,9 @@ from .rhythm_marks import read_rhythm
 
 MIN_STRINGS, MAX_STRINGS = 4, 8
 _LEGATO_LETTERS = {"H": Link.HAMMER, "P": Link.PULL}
+# SMuFL arrowheads drawn on strum/arpeggio arrows. An arrow pointing up (towards the
+# high strings at the top of the tab) is played low-to-high: a downstroke.
+_ARROWHEADS = {"\ueb78": "down", "\ueb7c": "up"}
 # Text that opens a dashed range applying an effect to every note under it.
 _RANGE_MARKS = {"letring": "let_ring", "P.M.": "palm_mute"}
 
@@ -59,6 +62,11 @@ def _staves(lines: list[_StaffLine]) -> list[list[_StaffLine]]:
             spacing_ok = gap > 2 and (len(run) < 2 or abs(gap - (run[1].y - run[0].y)) <= 0.15 * gap)
             if same_extent and spacing_ok:
                 run.append(line)
+                continue
+            # A shorter line inside the staff (e.g. the thick bar of a multi-bar rest)
+            # must not split the staff.
+            inside = len(run) >= 2 and gap < (run[1].y - run[0].y)
+            if inside and (line.x1 - line.x0) < 0.9 * (prev.x1 - prev.x0):
                 continue
         runs.append([line])
     return [run for run in runs if MIN_STRINGS <= len(run) <= MAX_STRINGS]
@@ -205,6 +213,35 @@ def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLi
                 start = text.find(mark, start + len(mark))
 
 
+def _strum_arrows(page: Page, staff: list[_StaffLine], spacing: float) -> list[tuple[float, str]]:
+    """(x, stroke) for vertical arrows with an arrowhead glyph across the staff."""
+    top, bottom = staff[0].y, staff[-1].y
+    heads = [c for c in page.chars if c.text in _ARROWHEADS and staff[0].x0 <= c.xc <= staff[0].x1]
+    arrows: list[tuple[float, str]] = []
+    for seg in page.segments:
+        if not seg.is_vertical or seg.bottom < top or seg.top > bottom or seg.bottom - seg.top < spacing:
+            continue
+        x = (seg.x0 + seg.x1) / 2
+        head = next(
+            (c for c in heads if abs(c.xc - x) <= 0.6 * spacing and top - 3 * spacing <= c.top <= bottom + 3 * spacing),
+            None,
+        )
+        if head is not None:
+            arrows.append((x, _ARROWHEADS[head.text]))
+    return arrows
+
+
+def _apply_strums(arrows: list[tuple[float, str]], events: list[TabEvent], spacing: float) -> None:
+    """A strum arrow applies to the chord just right of it."""
+    for x, stroke in arrows:
+        following = [e for e in events if 0 < e.x - x <= 2.5 * spacing]
+        if following:
+            nearest = min(e.x for e in following)
+            for event in following:
+                if event.x - nearest <= 0.5 * spacing:
+                    event.stroke = stroke
+
+
 def _labels(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[str]:
     """Read tuning letters printed left of the staff, if present for every string."""
     labels: list[str] = []
@@ -258,10 +295,15 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         _apply_legato_marks(page.chars, staff, spacing, events)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
+        arrows = _strum_arrows(page, staff, spacing)
+        _apply_strums(arrows, events, spacing)
         bar_xs = [
             (v.x0 + v.x1) / 2
             for v in verticals
-            if v.top <= top + 0.3 * spacing and v.bottom >= bottom - 0.3 * spacing and x0 - 1 <= v.x0 <= x1 + 1
+            if v.top <= top + 0.3 * spacing
+            and v.bottom >= bottom - 0.3 * spacing
+            and x0 - 1 <= v.x0 <= x1 + 1
+            and not any(abs((v.x0 + v.x1) / 2 - ax) < 1 for ax, _ in arrows)
         ]
         digit_width = spacing * 0.6  # fret digits are roughly 0.6 staff spaces wide
         bars = shared_bars([bar_xs], 0.5 * digit_width)

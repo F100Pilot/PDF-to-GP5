@@ -94,6 +94,7 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             vibrato=e.vibrato,
             let_ring=e.let_ring,
             palm_mute=e.palm_mute,
+            stroke=e.stroke,
             bend_semitones=e.bend_semitones,
             bend_release=e.bend_release,
             link=e.link,
@@ -110,6 +111,13 @@ def _ties(notes: list[ScoreNote]) -> list[ScoreNote]:
     ]
 
 
+class _TiePrevious(list):
+    """Marker for a (notes, length) item that continues the notes sounding before it."""
+
+
+TIE_PREVIOUS = _TiePrevious()
+
+
 def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> list[ScoreMeasure]:
     """Lay out (notes, length) items across measures, tying over bar lines."""
     measures: list[ScoreMeasure] = []
@@ -120,7 +128,10 @@ def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> l
         while length > 0:
             take = min(measure_units - filled, length)
             for part in split_units(take):
-                current.append(ScoreBeat(part, notes if first else _ties(notes)))
+                if notes is TIE_PREVIOUS:
+                    current.append(ScoreBeat(part, tie_previous=True))
+                else:
+                    current.append(ScoreBeat(part, notes if first else _ties(notes)))
                 first = False
             filled += take
             length -= take
@@ -218,8 +229,8 @@ def _notated_items(
             return None
         used.add(index)
         entries.append((col.x, _to_notes(col.events), stems[index].units or 0))
-    if len(used) != len(stems):
-        return None  # a stem without a note: something was not read
+    # A stem without a fret continues the previous notes (editors may hide tied frets).
+    entries.extend((stem.x, TIE_PREVIOUS, stem.units or 0) for i, stem in enumerate(stems) if i not in used)
     entries.extend((m.x, [], m.units or 0) for m in marks if m.is_rest)
     if sum(length for _, _, length in entries) != units:
         return None
@@ -302,6 +313,20 @@ def _segment_measures(
     return _sequence(items, units)
 
 
+def fill_tied_continuations(measures: list[ScoreMeasure]) -> None:
+    """Give stem-only beats tied copies of the notes sounding just before them."""
+    sounding: list[ScoreNote] = []
+    for measure in measures:
+        for beat in measure.beats:
+            if beat.tie_previous:
+                beat.notes = _ties(sounding)
+                beat.tie_previous = False
+            if beat.notes:
+                sounding = beat.notes
+            else:
+                sounding = []  # a rest ends what was ringing
+
+
 def resolve_links(measures: list[ScoreMeasure], parentheses: ParenthesesMode = "tie") -> None:
     """Resolve marks that depend on the previous note on the same string.
 
@@ -354,5 +379,6 @@ def build_measures(
         beat_units = 32 // options.fixed_value
         items = [(_to_notes(c.events), beat_units) for _, columns in per_system for c in columns]
         measures = _sequence(items, units)
+    fill_tied_continuations(measures)
     resolve_links(measures, options.parentheses)
     return measures

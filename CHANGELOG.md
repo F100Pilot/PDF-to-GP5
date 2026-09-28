@@ -12,6 +12,11 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Nome da track detetado no PDF ("Bass", "Electric Guitar"…) ou no nome do ficheiro ("Artista - Música - Bass.pdf" → "Bass").
 - Opção "Notas entre parêntesis": ligadura (como no PDF) ou nota normal (visível na tab, volta a tocar).
 - Tracks alinhadas pelos números de compasso impressos: compassos não lidos são preenchidos com pausa no sítio certo (com aviso a indicar quais), em vez de desalinhar o resto da música.
+- Setas de rasgueado (↑/↓) nas tabs gravadas convertidas em efeito de palhetada (brush) no GP5.
+### Corrigido
+- Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).
+- Ritmo: mínimas (hastes curtas), colcheias com bandeirola, notas pontuadas e hastes sem traste (continuação ligada) passam a ser lidas; símbolos musicais localizados apesar do desvio das caixas de texto da fonte.
+- Setas de rasgueado deixavam de ser confundidas com barras de compasso (criavam compassos a mais).
 ### Alterado
 - API: `file` pode repetir-se (um por track); `track_name`, `tuning` e `instrument` aceitam um valor por PDF; o relatório tem a lista `tracks`. `/api/inspect` devolve `part_name`, `strings` e `tuning`.
 

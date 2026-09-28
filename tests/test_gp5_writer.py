@@ -92,3 +92,9 @@ def test_tracks_must_have_equal_measure_counts_and_limit():
         write_gp5([one, two], SongInfo())
     with pytest.raises(ValueError):
         write_gp5([one] * 8, SongInfo())
+
+
+def test_roundtrip_stroke():
+    measure = ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 0, stroke="down"), ScoreNote(2, 1, stroke="down")])])
+    beat = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats[0]
+    assert beat.effect.stroke.direction == gp.BeatStrokeDirection.down
