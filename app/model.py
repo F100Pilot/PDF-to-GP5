@@ -27,8 +27,8 @@ class TabEvent:
     string: int
     fret: int | None  # None for dead notes
     dead: bool = False
-    # Printed in parentheses: written as a ghost note so Guitar Pro shows it in
-    # parentheses too (resolved once notes are in playing order).
+    # Printed in parentheses: a tie (sustain) when it repeats the previous fret on
+    # the string, otherwise a ghost note (resolved once notes are in playing order).
     parenthesized: bool = False
     vibrato: bool = False
     bend_semitones: int = 0

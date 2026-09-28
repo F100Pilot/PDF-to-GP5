@@ -10,7 +10,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Banner "Novidades" na entrada da aplicação com as alterações das versões ainda não vistas pelo utilizador.
 - Várias tracks: carregar vários PDFs (um por track, até 7) e obter um único GP5; nome, afinação e som por track, ordem ajustável; tracks mais curtas completadas com pausas (com aviso).
 - Nome da track detetado no PDF ("Bass", "Electric Guitar"…) ou no nome do ficheiro ("Artista - Música - Bass.pdf" → "Bass").
-- Notas entre parêntesis (ex.: `(0)`) passam a aparecer na tab do GP5 tal como no PDF (escritas como ghost note).
+- Notas entre parêntesis (ex.: `(0)`) que repetem o traste anterior são ligaduras (a nota sustenta; importadores como os do Rocksmith convertem-nas em sustain). No Guitar Pro a ligadura vê-se na pauta; o traste não é repetido na tab.
 - Tracks alinhadas pelos números de compasso impressos: compassos não lidos são preenchidos com pausa no sítio certo (com aviso a indicar quais), em vez de desalinhar o resto da música.
 - Setas de rasgueado (↑/↓) nas tabs gravadas convertidas em efeito de palhetada (brush) no GP5.
 - Bends nas tabs gravadas: bend (seta curva), pre-bend (seta reta), release (seta descendente) e bend mantido em notas ligadas, com a quantidade indicada (½, 1, 1½, 2).

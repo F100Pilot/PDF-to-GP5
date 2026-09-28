@@ -348,10 +348,11 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
     """Resolve marks that depend on the previous note on the same string.
 
     * hammer/pull/slide marks move onto the note they start from;
-    * a parenthesised fret becomes a ghost note, which Guitar Pro shows in
-      parentheses in the tab, exactly as printed in the PDF;
-    * a bend is held on a note that continues a bent note (tie, or the same
-      fret in parentheses) unless the bend was released.
+    * a parenthesised fret repeating the previous fret on the string is a tie
+      (the note sustains; editors print tied notes in parentheses, and tools
+      such as Rocksmith importers turn ties into sustain); a parenthesised
+      fret that differs from the previous one is a ghost note;
+    * a bend is held on a tied note unless the bend was released.
     """
     last: dict[int, ScoreNote] = {}
     for measure in measures:
@@ -359,13 +360,13 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
             for note in beat.notes:
                 prev = last.get(note.string)
                 if note.parenthesized:
-                    note.ghost = True
-                continues = note.tie or (
-                    note.parenthesized and prev is not None and not prev.dead and prev.fret == note.fret
-                )
-                if continues and note.bend_semitones:
-                    note.bend_pre = True  # a bend marked on a continuing note is held, not re-bent
-                elif continues and prev is not None and prev.bend_semitones and not prev.bend_release:
+                    if prev is not None and not prev.dead and prev.fret == note.fret:
+                        note.tie = True
+                    else:
+                        note.ghost = True
+                if note.tie and note.bend_semitones:
+                    note.bend_pre = True  # a bend marked on a tied note is held, not re-bent
+                elif note.tie and prev is not None and prev.bend_semitones and not prev.bend_release:
                     note.bend_semitones, note.bend_pre = prev.bend_semitones, True  # hold the bend
                 if note.link is not None and prev is not None and not prev.dead:
                     if note.link in (Link.HAMMER, Link.PULL):

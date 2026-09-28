@@ -113,15 +113,16 @@ def test_multi_bar_rest_uses_next_system_number():
     assert counts == [5, 1]
 
 
-def test_parentheses_are_ghost_notes_shown_like_the_pdf():
+def test_parentheses_are_ties_when_repeating_the_fret_else_ghost():
     events = [
         TabEvent(x=2, string=4, fret=0),
         TabEvent(x=6, string=4, fret=0, parenthesized=True),
         TabEvent(x=10, string=3, fret=5, parenthesized=True),
     ]
     measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
-    marked = [n for b in measures[0].beats for n in b.notes if n.parenthesized]
-    assert len(marked) == 2 and all(n.ghost and not n.tie for n in marked)
+    marked = {n.string: n for b in measures[0].beats for n in b.notes if n.parenthesized}
+    assert marked[4].tie and not marked[4].ghost
+    assert marked[3].ghost and not marked[3].tie
 
 
 def test_parenthesized_repeat_of_a_bent_note_holds_the_bend():
@@ -131,7 +132,7 @@ def test_parenthesized_repeat_of_a_bent_note_holds_the_bend():
     ]
     measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
     held = next(n for b in measures[0].beats for n in b.notes if n.parenthesized)
-    assert held.ghost and held.bend_semitones == 2 and held.bend_pre
+    assert held.tie and held.bend_semitones == 2 and held.bend_pre
 
 
 def test_tie_after_unreleased_bend_holds_it():

@@ -280,17 +280,14 @@ def test_error_names_the_failing_track(client):
     assert response.json()["detail"].startswith("Track 2 (scan.pdf):")
 
 
-def test_parenthesized_notes_are_written_as_visible_ghost_notes(client):
+def test_parenthesized_repeat_is_written_as_a_tie(client):
     pdf = ascii_tab_pdf([["e|-0---(0)---0---|", *TAB[1:]]])
     data = _post(client, pdf).json()["gp5_base64"]
     notes = [
         n for b in gp.parse(io.BytesIO(base64.b64decode(data))).tracks[0].measures[0].voices[0].beats for n in b.notes
     ]
-    assert [(n.value, n.effect.ghostNote, n.type) for n in notes[:3]] == [
-        (0, False, gp.NoteType.normal),
-        (0, True, gp.NoteType.normal),
-        (0, False, gp.NoteType.normal),
-    ]
+    assert [n.type for n in notes[:3]] == [gp.NoteType.normal, gp.NoteType.tie, gp.NoteType.normal]
+    assert not any(n.effect.ghostNote for n in notes[:3])
 
 
 def test_tracks_are_aligned_by_printed_bar_numbers(client):
