@@ -77,8 +77,10 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             string=e.string,
             fret=e.fret if e.fret is not None else 0,
             dead=e.dead,
-            ghost=e.ghost,
+            parenthesized=e.parenthesized,
             vibrato=e.vibrato,
+            let_ring=e.let_ring,
+            palm_mute=e.palm_mute,
             bend_semitones=e.bend_semitones,
             bend_release=e.bend_release,
             link=e.link,
@@ -88,7 +90,11 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
 
 
 def _ties(notes: list[ScoreNote]) -> list[ScoreNote]:
-    return [ScoreNote(string=n.string, fret=n.fret, tie=True) for n in notes if not n.dead]
+    return [
+        ScoreNote(string=n.string, fret=n.fret, tie=True, let_ring=n.let_ring, palm_mute=n.palm_mute)
+        for n in notes
+        if not n.dead
+    ]
 
 
 def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> list[ScoreMeasure]:
@@ -218,12 +224,22 @@ def _spacing_measures(
 
 
 def resolve_links(measures: list[ScoreMeasure]) -> None:
-    """Move hammer/pull/slide marks onto the note they start from."""
+    """Resolve marks that depend on the previous note on the same string.
+
+    * hammer/pull/slide marks move onto the note they start from;
+    * a parenthesised note repeating the previous fret is a tie (Guitar Pro
+      prints tied notes in parentheses), any other one is a ghost note.
+    """
     last: dict[int, ScoreNote] = {}
     for measure in measures:
         for beat in measure.beats:
             for note in beat.notes:
                 prev = last.get(note.string)
+                if note.parenthesized:
+                    if prev is not None and not prev.dead and prev.fret == note.fret:
+                        note.tie = True
+                    else:
+                        note.ghost = True
                 if note.link is not None and prev is not None and not prev.dead:
                     if note.link in (Link.HAMMER, Link.PULL):
                         prev.hammer = True

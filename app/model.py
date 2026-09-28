@@ -27,11 +27,15 @@ class TabEvent:
     string: int
     fret: int | None  # None for dead notes
     dead: bool = False
-    ghost: bool = False
+    # Printed in parentheses: a tied note if it repeats the previous fret on the
+    # string, otherwise a ghost note (resolved once notes are in playing order).
+    parenthesized: bool = False
     vibrato: bool = False
     bend_semitones: int = 0
     bend_release: bool = False
     link: Link | None = None
+    let_ring: bool = False
+    palm_mute: bool = False
 
 
 @dataclass
@@ -64,6 +68,9 @@ class ScoreNote:
     slide: bool = False  # slide to the next note on this string
     bend_semitones: int = 0
     bend_release: bool = False
+    let_ring: bool = False
+    palm_mute: bool = False
+    parenthesized: bool = False  # unresolved: becomes tie or ghost
     link: Link | None = None  # unresolved link to previous note
 
 

@@ -65,11 +65,11 @@ def _parse_string(chars: list[Char], string: int, unit: float) -> tuple[list[Tab
         t = char.text
         if t.isdigit():
             text, nxt = _read_number(chars, i, unit)
-            ghost = i > 0 and chars[i - 1].text == "(" and nxt < len(chars) and chars[nxt].text == ")"
+            paren = i > 0 and chars[i - 1].text == "(" and nxt < len(chars) and chars[nxt].text == ")"
             frets = split_fret_number(text)
             for k, fret in enumerate(frets):
                 x = chars[i + k].x0 if len(frets) > 1 else char.x0
-                events.append(TabEvent(x=x, string=string, fret=fret, ghost=ghost, link=pending))
+                events.append(TabEvent(x=x, string=string, fret=fret, parenthesized=paren, link=pending))
                 pending = None
             i = nxt
             continue

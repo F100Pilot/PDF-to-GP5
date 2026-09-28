@@ -71,6 +71,8 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
     effect = gp.NoteEffect(
         ghostNote=note.ghost,
         vibrato=note.vibrato,
+        letRing=note.let_ring,
+        palmMute=note.palm_mute,
         hammer=note.hammer,
         slides=[gp.SlideType.legatoSlideTo] if note.slide else [],
         bend=_bend(note) if note.bend_semitones and not note.dead else None,

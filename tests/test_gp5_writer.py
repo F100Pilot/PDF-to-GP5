@@ -59,3 +59,16 @@ def test_empty_score_rejected():
 def test_sanitize_text_strips_control_and_unencodable():
     assert sanitize_text("Ol\u00e1\x00\x1b[31m \u6f22 Song") == "Ol\u00e1[31m  Song"
     assert len(sanitize_text("a" * 500)) == 100
+
+
+def test_roundtrip_let_ring_palm_mute_and_tie():
+    measure = ScoreMeasure(
+        [
+            ScoreBeat(16, [ScoreNote(4, 0, let_ring=True, palm_mute=True)]),
+            ScoreBeat(16, [ScoreNote(4, 0, tie=True, let_ring=True)]),
+        ]
+    )
+    beats = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats
+    first, second = beats[0].notes[0], beats[1].notes[0]
+    assert first.effect.letRing and first.effect.palmMute
+    assert second.type == gp.NoteType.tie and second.effect.letRing

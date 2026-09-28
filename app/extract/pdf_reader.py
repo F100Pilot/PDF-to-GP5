@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pdfplumber
 
@@ -72,6 +72,7 @@ class Page:
     height: float
     chars: list[Char]
     segments: list[Segment]
+    curves: list[Segment] = field(default_factory=list)  # bounding boxes of curved paths
 
 
 class PdfReadError(Exception):
@@ -102,7 +103,8 @@ def read_pages(data: bytes, max_pages: int) -> list[Page]:
                 Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"]))
                 for o in (*page.lines, *page.rects)
             ]
-            pages.append(Page(index, float(page.width), float(page.height), chars, segments))
+            curves = [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.curves]
+            pages.append(Page(index, float(page.width), float(page.height), chars, segments, curves))
     return pages
 
 

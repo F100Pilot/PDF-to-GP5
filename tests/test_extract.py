@@ -45,7 +45,7 @@ def test_ascii_techniques():
     assert (bend.fret, bend.bend_semitones, bend.bend_release) == (5, 2, True)
     assert dead.dead
     ghost, vib = events[5]
-    assert ghost.ghost and ghost.fret == 3
+    assert ghost.parenthesized and ghost.fret == 3
     assert vib.vibrato and vib.fret == 7
 
 
@@ -120,3 +120,25 @@ def test_ascii_systems_without_blank_line_are_split_by_labels():
 def test_ascii_reports_incomplete_tab_lines():
     _, warnings = _systems(ascii_tab_pdf([STANDARD[:3]]))
     assert any("ignoradas" in w for w in warnings)
+
+
+def test_engraved_parentheses_drawn_as_curves():
+    systems = _engraved(engraved_tab_pdf([[(4, 0), (3, 2), (4, 0, "("), (2, 12, "(")]]))
+    marked = sorted((e.fret, e.parenthesized) for e in systems[0].events)
+    assert marked == [(0, False), (0, True), (2, False), (12, True)]
+
+
+def test_engraved_pull_off_letter_links_the_note_pair():
+    systems = _engraved(engraved_tab_pdf([[(3, 4), (3, 2, "P"), (4, 2), (3, 4)]], widths=[120.0]))
+    linked = [(e.string, e.fret) for e in systems[0].events if e.link is not None]
+    assert linked == [(3, 2)]
+    assert next(e for e in systems[0].events if e.link).link.value == "p"
+
+
+def test_engraved_let_ring_and_palm_mute_ranges():
+    staves = [[[(4, 2), (4, 2), (4, 2), (4, 2)]], [[(1, 0), (1, 0)]]]
+    pdf = engraved_tab_pdf(staves, ranges=[(0, "P.M.", 60, 300), (1, "let ring", 60, 540)])
+    first, second = _engraved(pdf)
+    assert [e.palm_mute for e in sorted(first.events, key=lambda e: e.x)] == [True, True, False, False]
+    assert not any(e.let_ring for e in first.events)
+    assert all(e.let_ring and not e.palm_mute for e in second.events)

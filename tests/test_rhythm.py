@@ -111,3 +111,17 @@ def test_multi_bar_rest_uses_next_system_number():
     counts = []
     build_measures([first, second], RhythmOptions(mode="spacing"), [], counts)
     assert counts == [5, 1]
+
+
+def test_parentheses_become_tie_when_repeating_fret_else_ghost():
+    events = [
+        TabEvent(x=2, string=4, fret=0),
+        TabEvent(x=6, string=4, fret=0, parenthesized=True),
+        TabEvent(x=10, string=3, fret=5, parenthesized=True),
+    ]
+    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
+    notes = [n for b in measures[0].beats for n in b.notes if not (n.tie and not n.parenthesized)]
+    tie = next(n for n in notes if n.parenthesized and n.string == 4)
+    ghost = next(n for n in notes if n.string == 3)
+    assert tie.tie and not tie.ghost
+    assert ghost.ghost and not ghost.tie

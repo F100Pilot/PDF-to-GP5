@@ -29,17 +29,22 @@ def ascii_tab_pdf(
 
 
 def engraved_tab_pdf(
-    staves: list[list[list[tuple[int, int]]]] | list[list[tuple[int, int]]],
+    staves: list,
     strings: int = 6,
     bar_numbers: list[list[int]] | None = None,
     widths: list[float] | None = None,
     measure_number_noise: int = 0,
+    ranges: list[tuple[int, str, float, float]] | None = None,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
     ``staves`` is a list of staves, each a list of measures, each a list of
-    (string, fret). A plain list of measures is treated as one staff. Staff
-    lines are drawn one segment per measure, right to left, as some editors do.
+    (string, fret) or (string, fret, flags). A plain list of measures is treated
+    as one staff. Flags: "(" draws parentheses as curved paths, "P"/"H" prints
+    the letter above the staff between the previous note and this one.
+    ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
+    staff followed by a dashed line up to x_to. Staff lines are drawn one
+    segment per measure, right to left, as some editors do.
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -62,10 +67,33 @@ def engraved_tab_pdf(
                 pdf.drawString(start - 2, top + 4, str(bar_numbers[index][m]))
             pdf.setFont("Helvetica", 7)
             step = width / (len(notes) + 1)
-            for k, (string, fret) in enumerate(notes):
+            for k, (string, fret, *rest) in enumerate(notes):
+                flags = rest[0] if rest else ""
                 y = top - (string - 1) * spacing
-                pdf.drawCentredString(start + step * (k + 0.5) + 4, y - 2.5, str(fret))
+                x = start + step * (k + 0.5) + 4
+                pdf.drawCentredString(x, y - 2.5, str(fret))
+                if "(" in flags:
+                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.8
+                    for side, bulge in ((x - half, -1.2), (x + half, 1.2)):
+                        path = pdf.beginPath()
+                        path.moveTo(side, y - 3)
+                        path.curveTo(side + bulge, y - 1.5, side + bulge, y + 1.5, side, y + 3)
+                        path.close()
+                        pdf.drawPath(path, stroke=0, fill=1)
+                for letter in "HP":
+                    if letter in flags:
+                        pdf.drawCentredString(x - step / 2, top + 6, letter)
         pdf.line(x1, top, x1, top - (strings - 1) * spacing)
+        for staff_index, text, x_from, x_to in ranges or []:
+            if staff_index != index:
+                continue
+            y = top - (strings - 1) * spacing - 20
+            pdf.setFont("Helvetica", 6)
+            pdf.drawString(x_from, y, text)
+            dash = pdf.stringWidth(text, "Helvetica", 6) + x_from + 3
+            while dash < x_to:
+                pdf.line(dash, y + 2, min(dash + 3, x_to), y + 2)
+                dash += 5
     # Many small digits elsewhere on the page (e.g. lyrics or bar numbers) must not
     # influence which digits are accepted as frets.
     pdf.setFont("Helvetica", 4)

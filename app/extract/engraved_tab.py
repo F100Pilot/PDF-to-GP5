@@ -7,13 +7,17 @@ inferred later from horizontal spacing.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
-from ..model import TabEvent, TabSystem
+from ..model import Link, TabEvent, TabSystem
 from .common import shared_bars, split_fret_number
-from .pdf_reader import Char, Page, Segment
+from .pdf_reader import Char, Page, Segment, group_lines
 
 MIN_STRINGS, MAX_STRINGS = 4, 8
+_LEGATO_LETTERS = {"H": Link.HAMMER, "P": Link.PULL}
+# Text that opens a dashed range applying an effect to every note under it.
+_RANGE_MARKS = {"letring": "let_ring", "P.M.": "palm_mute"}
 
 
 @dataclass
@@ -59,7 +63,26 @@ def _staves(lines: list[_StaffLine]) -> list[list[_StaffLine]]:
     return [run for run in runs if MIN_STRINGS <= len(run) <= MAX_STRINGS]
 
 
-def _numbers_on_staff(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[TabEvent]:
+def _is_parenthesized(x0: float, x1: float, top: float, bottom: float, curves: list[Segment], spacing: float) -> bool:
+    """Parentheses drawn as thin curved paths hugging both sides of the number."""
+    height = bottom - top
+
+    def bracket(c: Segment) -> bool:
+        return (
+            (c.x1 - c.x0) <= 0.4 * spacing
+            and 0.5 * height <= (c.bottom - c.top) <= 1.5 * height
+            and c.top < bottom
+            and c.bottom > top
+        )
+
+    left = any(bracket(c) and x0 - 0.35 * spacing <= c.x1 <= x0 + 0.1 * spacing for c in curves)
+    right = any(bracket(c) and x1 - 0.1 * spacing <= c.x0 <= x1 + 0.35 * spacing for c in curves)
+    return left and right
+
+
+def _numbers_on_staff(
+    chars: list[Char], staff: list[_StaffLine], spacing: float, curves: list[Segment]
+) -> list[TabEvent]:
     x0, x1 = staff[0].x0, staff[0].x1
     # Fret digits are about one staff space tall; time signatures are about two.
     candidates = [
@@ -92,17 +115,93 @@ def _numbers_on_staff(chars: list[Char], staff: list[_StaffLine], spacing: float
             ):
                 j += 1
             text = "".join(ch.text for ch in on_line[i : j + 1])
-            ghost = i > 0 and on_line[i - 1].text == "(" and j + 1 < len(on_line) and on_line[j + 1].text == ")"
+            paren = (
+                i > 0 and on_line[i - 1].text == "(" and j + 1 < len(on_line) and on_line[j + 1].text == ")"
+            ) or _is_parenthesized(on_line[i].x0, on_line[j].x1, on_line[i].top, on_line[i].bottom, curves, spacing)
             frets = split_fret_number(text)
             if len(frets) == 1:
                 center = (on_line[i].x0 + on_line[j].x1) / 2
-                events.append(TabEvent(x=center, string=string, fret=frets[0], ghost=ghost))
+                events.append(TabEvent(x=center, string=string, fret=frets[0], parenthesized=paren))
             else:
                 events.extend(
-                    TabEvent(x=on_line[i + k].xc, string=string, fret=f, ghost=ghost) for k, f in enumerate(frets)
+                    TabEvent(x=on_line[i + k].xc, string=string, fret=f, parenthesized=paren)
+                    for k, f in enumerate(frets)
                 )
             i = j + 1
     return events
+
+
+def _is_isolated_letter(char: Char, chars: list[Char]) -> bool:
+    """True for a standalone "H"/"P" (not part of "Post-Chorus" or "P.M.")."""
+    width = char.x1 - char.x0
+    return not any(
+        other is not char
+        and abs(other.yc - char.yc) < 0.3 * (char.bottom - char.top)
+        and (other.text.isalpha() or other.text == ".")
+        and (0 <= other.x0 - char.x1 < 0.5 * width or 0 <= char.x0 - other.x1 < 0.5 * width)
+        for other in chars
+    )
+
+
+def _apply_legato_marks(chars: list[Char], staff: list[_StaffLine], spacing: float, events: list[TabEvent]) -> None:
+    """Attach "H"/"P" printed above the staff to the note pair they sit between."""
+    top = staff[0].y
+    by_string: dict[int, list[TabEvent]] = {}
+    for event in sorted(events, key=lambda e: e.x):
+        by_string.setdefault(event.string, []).append(event)
+    for char in chars:
+        if char.text not in _LEGATO_LETTERS or not (top - 3 * spacing <= char.yc < top):
+            continue
+        if not (staff[0].x0 <= char.xc <= staff[0].x1) or not _is_isolated_letter(char, chars):
+            continue
+        best: tuple[float, TabEvent] | None = None
+        for string_events in by_string.values():
+            for first, second in itertools.pairwise(string_events):
+                if first.fret is None or second.fret is None or not (first.x < char.xc < second.x):
+                    continue
+                span = second.x - first.x
+                if span > 6 * spacing:
+                    continue
+                cost = abs((first.x + second.x) / 2 - char.xc) + 0.5 * span
+                if best is None or cost < best[0]:
+                    best = (cost, second)
+        if best is not None:
+            best[1].link = _LEGATO_LETTERS[char.text]
+
+
+def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLine], float]]) -> None:
+    """Apply "let ring" / "P.M." dashed ranges to the notes of the staff above them."""
+    for line in group_lines(page.chars):
+        text = line.text
+        height = line.bottom - line.top
+        for mark, attribute in _RANGE_MARKS.items():
+            start = text.find(mark)
+            while start != -1:
+                first_char = line.chars[start]
+                end_x = line.chars[start + len(mark) - 1].x1
+                owner = min(
+                    (item for item in placed if 0 < line.yc - item[1][-1].y < 8 * item[2]),
+                    key=lambda item: line.yc - item[1][-1].y,
+                    default=None,
+                )
+                if owner is not None:
+                    system, _, spacing = owner
+                    dashes = sorted(
+                        (
+                            seg
+                            for seg in page.segments
+                            if abs((seg.top + seg.bottom) / 2 - line.yc) <= 0.6 * height and seg.x0 >= end_x - 1
+                        ),
+                        key=lambda seg: seg.x0,
+                    )
+                    for seg in dashes:
+                        if seg.x0 - end_x > 1.5 * spacing:
+                            break
+                        end_x = max(end_x, seg.x1)
+                    for event in system.events:
+                        if first_char.x0 - spacing <= event.x <= end_x:
+                            setattr(event, attribute, True)
+                start = text.find(mark, start + len(mark))
 
 
 def _labels(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[str]:
@@ -150,10 +249,12 @@ def _measure_numbers(chars: list[Char], staff: list[_StaffLine], spacing: float,
 def extract_engraved_systems(page: Page) -> list[TabSystem]:
     """Tab staves on the page; staves without fret numbers are kept as rest bars."""
     systems: list[TabSystem] = []
+    placed: list[tuple[TabSystem, list[_StaffLine], float]] = []
     verticals = [s for s in page.segments if s.is_vertical]
     for staff in _staves(_staff_lines(page.segments, page.width)):
         spacing = (staff[-1].y - staff[0].y) / (len(staff) - 1)
-        events = _numbers_on_staff(page.chars, staff, spacing)
+        events = _numbers_on_staff(page.chars, staff, spacing, page.curves)
+        _apply_legato_marks(page.chars, staff, spacing, events)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
         bar_xs = [
@@ -167,18 +268,19 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             bars.insert(0, x0)
         if x1 - bars[-1] > digit_width:
             bars.append(x1)
-        systems.append(
-            TabSystem(
-                page=page.number,
-                string_count=len(staff),
-                events=events,
-                bars=bars,
-                start_x=x0,
-                end_x=x1,
-                char_width=digit_width,
-                labels=_labels(page.chars, staff, spacing),
-                source="engraved",
-                bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
-            )
+        system = TabSystem(
+            page=page.number,
+            string_count=len(staff),
+            events=events,
+            bars=bars,
+            start_x=x0,
+            end_x=x1,
+            char_width=digit_width,
+            labels=_labels(page.chars, staff, spacing),
+            source="engraved",
+            bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
         )
+        systems.append(system)
+        placed.append((system, staff, spacing))
+    _apply_effect_ranges(page, placed)
     return systems
