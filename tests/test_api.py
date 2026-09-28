@@ -300,7 +300,9 @@ def test_parentheses_option(client):
 def test_tracks_are_aligned_by_printed_bar_numbers(client):
     from tests.pdf_factory import engraved_tab_pdf
 
-    full = engraved_tab_pdf([[[(1, 0)], [(1, 1)], [(1, 2)]], [[(1, 3)], [(1, 4)], [(1, 5)]]], bar_numbers=[[1, 2, 3], [4, 5, 6]])
+    full = engraved_tab_pdf(
+        [[[(1, 0)], [(1, 1)], [(1, 2)]], [[(1, 3)], [(1, 4)], [(1, 5)]]], bar_numbers=[[1, 2, 3], [4, 5, 6]]
+    )
     # Second track: the line with bars 3-4 was not read, so its bars 5-6 must not slide to 3-4.
     gappy = engraved_tab_pdf([[[(2, 7)], [(2, 7)]], [[(2, 9)], [(2, 9)]]], bar_numbers=[[1, 2], [5, 6]])
     response = _post_many(client, [("a.pdf", full), ("b.pdf", gappy)])
