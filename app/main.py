@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -14,14 +15,23 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __revision__, __version__
 from .changelog import load_releases, version_key
 from .config import settings
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .gp5_writer import MAX_TRACKS
-from .sandbox import ConversionTimeout, run_isolated
-from .security import BodySizeLimitMiddleware, RateLimiter, SecurityHeadersMiddleware, looks_like_pdf, safe_filename
+from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
+from .security import (
+    BodySizeLimitMiddleware,
+    RateLimiter,
+    SameOriginMiddleware,
+    SecurityHeadersMiddleware,
+    client_key,
+    looks_like_pdf,
+    safe_filename,
+)
 from .tunings import TUNINGS
 
 logger = logging.getLogger(__name__)
@@ -34,12 +44,50 @@ app = FastAPI(
     redoc_url=None,
     openapi_url="/api/openapi.json" if settings.enable_docs else None,
 )
+rate_limiter = RateLimiter(settings.rate_limit_per_minute)
+inspect_limiter = RateLimiter(settings.inspect_rate_limit_per_minute)
+_slots = asyncio.Semaphore(settings.max_concurrent)
+_JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
+
+
+async def _reject(send, status: int, detail: str) -> None:
+    body = json.dumps({"detail": detail}).encode()
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
+
+
+class AdmissionMiddleware:
+    """Rate limit and busy check before the upload is received and parsed (pure ASGI)."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and scope["method"] == "POST" and scope["path"] in _JOB_PATHS:
+            limiter = inspect_limiter if scope["path"] == "/api/inspect" else rate_limiter
+            client = scope.get("client")
+            if not limiter.allow(client_key(client[0] if client else None)):
+                await _reject(send, 429, "Demasiados pedidos. Tente novamente dentro de um minuto.")
+                return
+            if _slots.locked():
+                await _reject(send, 503, "Servidor ocupado. Tente novamente em instantes.")
+                return
+        await self.app(scope, receive, send)
+
+
+# Order matters: the last middleware added runs first.
 # Multipart framing adds a little overhead on top of the files themselves.
 app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_total_upload_bytes + 256 * 1024)
+app.add_middleware(AdmissionMiddleware)
+app.add_middleware(SameOriginMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
 app.add_middleware(SecurityHeadersMiddleware, hsts=settings.enable_hsts)
-
-rate_limiter = RateLimiter(settings.rate_limit_per_minute)
-_slots = asyncio.Semaphore(settings.max_concurrent)
 
 
 @app.get("/api/changelog")
@@ -157,13 +205,8 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
         fixed_value=form.fixed_value,
         max_pages=settings.max_pages,
         max_events=settings.max_events,
+        max_measures=settings.max_measures,
     )
-
-
-def _check_client(request: Request) -> None:
-    client = request.client.host if request.client else "unknown"
-    if not rate_limiter.allow(client):
-        raise HTTPException(status_code=429, detail="Demasiados pedidos. Tente novamente dentro de um minuto.")
 
 
 async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
@@ -187,10 +230,14 @@ async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
 async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> ConversionResult:
     if _slots.locked():
         raise HTTPException(status_code=503, detail="Servidor ocupado. Tente novamente em instantes.")
-    timeout = settings.conversion_timeout_s * len(pdfs)
+    # One budget per request, however many PDFs it carries, so a slow upload
+    # cannot hold a worker slot for minutes.
+    timeout = min(settings.conversion_timeout_s * len(pdfs), settings.max_job_timeout_s)
     async with _slots:
         try:
             return await run_in_threadpool(run_isolated, pdfs, options, timeout, settings.worker_memory_mb, job)
+        except ConversionUnavailable:
+            raise HTTPException(status_code=503, detail="Servidor ocupado. Tente novamente em instantes.") from None
         except ConversionTimeout:
             raise HTTPException(status_code=422, detail="O processamento do PDF excedeu o tempo limite.") from None
         except ConversionError as exc:
@@ -198,7 +245,6 @@ async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> C
 
 
 async def _run_conversion(request: Request, files: list[UploadFile], form: ConvertForm) -> ConversionResult:
-    _check_client(request)
     options = _options(form, [f.filename or "" for f in files])
     return await _run_job(await _read_pdfs(files), options, "convert")
 
@@ -215,11 +261,11 @@ FormFields = Annotated[ConvertForm, Depends(convert_form)]
 @app.post("/api/inspect")
 async def inspect_pdf(request: Request, file: FileField) -> JSONResponse:
     """Detect song metadata and the track's part so the form can be pre-filled."""
-    _check_client(request)
     options = ConversionOptions(
         tracks=(TrackOptions(filename=file.filename or ""),),
         max_pages=settings.max_pages,
         max_events=settings.max_events,
+        max_measures=settings.max_measures,
     )
     result = await _run_job(await _read_pdfs([file]), options, "inspect")
     return JSONResponse(result.report)

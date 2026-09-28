@@ -17,7 +17,9 @@
   const DROP_HINT = "Arraste os PDFs da música (um por track) ou clique para escolher";
   let objectUrl = null;
   let maxBytes = 10 * 1024 * 1024;
+  let maxTotalBytes = 40 * 1024 * 1024;
   let maxTracks = 7;
+  let inspecting = false;
   let tunings = ["auto"];
   let instruments = ["auto"];
   let tracks = []; // { file, name, tuning, instrument, info }
@@ -41,6 +43,7 @@
       instruments = opts.instruments;
       maxBytes = opts.max_upload_mb * 1024 * 1024;
       maxTracks = opts.max_tracks || maxTracks;
+      maxTotalBytes = (opts.max_total_upload_mb || 40) * 1024 * 1024;
       renderTracks();
     })
     .catch(() => showStatus("Não foi possível carregar as opções do servidor.", true));
@@ -166,18 +169,35 @@
     return payload;
   }
 
+  // Converting while PDFs are still being inspected would compete for the same server slots.
+  function setInspecting(active) {
+    inspecting = active;
+    submit.disabled = active;
+  }
+
   async function selectFiles(fileList) {
     const files = [...fileList].filter((f) => f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf");
     const token = ++inspection;
     result.hidden = true;
     status.hidden = true;
-    if (!files.length) { tracks = []; meta.hidden = true; inspectStatus.hidden = true; renderTracks(); return; }
+    // Any new selection replaces the previous one, even when it is rejected below.
+    tracks = [];
+    meta.hidden = true;
+    inspectStatus.hidden = true;
+    setInspecting(false);
+    renderTracks();
+    if (!files.length) return;
     if (files.length > maxTracks) {
       showStatus(`Máximo de ${maxTracks} PDFs (tracks) por música.`, true);
       return;
     }
     const tooBig = files.find((f) => f.size > maxBytes);
     if (tooBig) { showStatus(`${tooBig.name} excede ${maxBytes / 1024 / 1024} MB.`, true); return; }
+    if (files.reduce((sum, f) => sum + f.size, 0) > maxTotalBytes) {
+      showStatus(`Os PDFs juntos excedem ${maxTotalBytes / 1024 / 1024} MB.`, true);
+      return;
+    }
+    setInspecting(true);
     tracks = files.map((file) => ({ file, name: "", tuning: "auto", instrument: "auto", info: null, error: "" }));
     renderTracks();
     meta.hidden = true;
@@ -200,6 +220,7 @@
       renderTracks();
     }
     if (token !== inspection) return;
+    setInspecting(false);
     for (const track of tracks) {
       if (!track.name) track.name = nameFromFile(track.file.name, detected.title, detected.artist);
     }
@@ -311,6 +332,7 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (inspecting) return showStatus("Aguarde o fim da análise dos PDFs.", false);
     if (!tracks.length) return showStatus("Escolha pelo menos um ficheiro PDF.", true);
     if (!form.reportValidity()) return undefined;
 

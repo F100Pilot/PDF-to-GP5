@@ -314,3 +314,48 @@ def test_eight_string_tab_is_rejected_with_clear_message(client):
     response = _post(client, ascii_tab_pdf([eight]))
     assert response.status_code == 422
     assert "7" in response.json()["detail"]
+
+
+def test_cross_site_post_is_refused(client):
+    pdf = ascii_tab_pdf([TAB])
+    files = {"file": ("a.pdf", pdf, "application/pdf")}
+    assert client.post("/api/convert", files=files, headers={"Origin": "https://evil.example"}).status_code == 403
+    assert client.post("/api/convert", files=files, headers={"Origin": "null"}).status_code == 403
+    assert client.post("/api/convert", files=files, headers={"Origin": "http://testserver"}).status_code == 200
+
+
+def test_unknown_host_is_refused(client):
+    assert client.get("/api/health", headers={"Host": "attacker.example"}).status_code == 400
+
+
+def test_inspect_has_its_own_rate_budget(client, monkeypatch):
+    monkeypatch.setattr(main, "rate_limiter", RateLimiter(per_minute=1))
+    pdf = ascii_tab_pdf([TAB])
+    for _ in range(3):
+        assert client.post("/api/inspect", files={"file": ("x.pdf", pdf, "application/pdf")}).status_code == 200
+    assert _post(client, pdf).status_code == 200
+    assert _post(client, pdf).status_code == 429
+
+
+def test_huge_printed_bar_number_does_not_create_rest_bars(client):
+    from tests.pdf_factory import engraved_tab_pdf
+
+    pdf = engraved_tab_pdf([[[(1, 0)], [(1, 2)]]], bar_numbers=[[1, 300000]])
+    response = _post(client, pdf)
+    assert response.status_code == 200, response.text
+    assert response.json()["report"]["measures"] == 2
+
+
+def test_sandbox_start_failure_is_reported_as_unavailable(monkeypatch):
+    from app import sandbox
+
+    class Broken:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            raise OSError("too many processes")
+
+    monkeypatch.setattr(sandbox._CTX, "Process", Broken)
+    with pytest.raises(sandbox.ConversionUnavailable):
+        run_isolated(ascii_tab_pdf([TAB]), ConversionOptions(), timeout_s=5, memory_mb=1024)

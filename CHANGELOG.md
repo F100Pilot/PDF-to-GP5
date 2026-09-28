@@ -26,7 +26,10 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).
 - Ritmo: mínimas (hastes curtas), colcheias com bandeirola, notas pontuadas e hastes sem traste (continuação ligada) passam a ser lidas; símbolos musicais localizados apesar do desvio das caixas de texto da fonte.
 - Setas de rasgueado deixavam de ser confundidas com barras de compasso (criavam compassos a mais).
+- Segurança: limite de memória também em Windows (Job Object) e de CPU em Linux/macOS; timeout máximo por pedido; limite de compassos e de números de compasso; verificação de `Host` (`ALLOWED_HOSTS`) e de `Origin`; rate limit e concorrência verificados antes de ler o upload, com orçamento próprio para a inspeção e IPv6 agrupado por /64; falha ao arrancar o processo de conversão devolve 503.
+- Interface: tamanho total dos PDFs validado antes do envio; botão Converter bloqueado durante a inspeção; nova seleção limpa o estado anterior.
 ### Alterado
+- Porta por defeito dos scripts de arranque e da documentação passa de 8000 para 8020.
 - API: `file` pode repetir-se (um por track); `track_name`, `tuning` e `instrument` aceitam um valor por PDF; o relatório tem a lista `tracks`. `/api/inspect` devolve `part_name`, `strings` e `tuning`.
 
 ## [0.5.0] - 2026-09-28

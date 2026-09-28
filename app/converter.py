@@ -56,6 +56,7 @@ class ConversionOptions:
     fixed_value: int = 8
     max_pages: int = 40
     max_events: int = 50_000
+    max_measures: int = 2000
 
     def track(self, index: int) -> TrackOptions:
         return self.tracks[index] if index < len(self.tracks) else TrackOptions()
@@ -287,6 +288,10 @@ def _align_by_numbers(score: Score) -> list[int] | None:
     measures = score.measures
     if not measures or sum(m.number is not None for m in measures) < 0.8 * len(measures):
         return None
+    # A misread (or hostile) bar number far beyond the bars actually read would
+    # create that many rest bars; distrust the numbering instead.
+    if max(m.number or 0 for m in measures) > 2 * len(measures) + 64:
+        return None
     slots: dict[int, ScoreMeasure] = {}
     position = 0
     for measure in measures:
@@ -372,6 +377,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         if missing:
             report["warnings"].append(f"Compassos não encontrados no PDF, preenchidos com pausa: {_ranges(missing)}.")
     total_measures = max(len(s.measures) for s in scores)
+    if total_measures > options.max_measures:
+        raise ConversionError(f"A música tem {total_measures} compassos; o máximo é {options.max_measures}.")
     for score, report, by_number in zip(scores, track_reports, aligned, strict=True):
         first_added = len(score.measures) + 1
         added = _pad(score, total_measures)

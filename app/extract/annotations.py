@@ -128,15 +128,16 @@ def dynamics(page: Page, top: float, bottom: float, x0: float, x1: float, spacin
         and x0 - spacing <= c.x0 <= x1
         and top - 3 * spacing <= c.yc <= bottom + 6 * spacing
     ]
+    letters = [c for c in page.chars if c.text.isalpha()] if text_chars else []
     for line in group_lines(text_chars):
         for word in _words(line.chars):
             token = "".join(c.text for c in word)
-            if token in VELOCITIES and _standalone(page, word):
+            if token in VELOCITIES and _standalone(letters, word):
                 marks.append((word[0].x0, VELOCITIES[token]))
     return sorted(marks)
 
 
-def _standalone(page: Page, word: list[Char]) -> bool:
+def _standalone(letters: list[Char], word: list[Char]) -> bool:
     """No other letters touching the word on the same line (so "f" in "of" does not count)."""
     height = word[0].bottom - word[0].top
     return not any(
@@ -144,5 +145,5 @@ def _standalone(page: Page, word: list[Char]) -> bool:
         and c.text.isalpha()
         and abs(c.yc - word[0].yc) < 0.3 * height
         and (0 <= word[0].x0 - c.x1 < 0.3 * height or 0 <= c.x0 - word[-1].x1 < 0.3 * height)
-        for c in page.chars
+        for c in letters
     )

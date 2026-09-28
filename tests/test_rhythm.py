@@ -143,3 +143,21 @@ def test_tie_after_unreleased_bend_holds_it():
     tied = ScoreNote(2, 15, tie=True)
     resolve_links([ScoreMeasure([ScoreBeat(16, [bent]), ScoreBeat(16, [tied])])])
     assert tied.bend_semitones == 2 and tied.bend_pre
+
+
+def test_measure_cap_is_enforced():
+    import pytest
+
+    from app.converter import ConversionError, ConversionOptions, convert
+    from tests.pdf_factory import ascii_tab_pdf
+
+    tab = [
+        "e|-0---|-0---|-0---|",
+        "B|-----|-----|-----|",
+        "G|-----|-----|-----|",
+        "D|-----|-----|-----|",
+        "A|-----|-----|-----|",
+        "E|-----|-----|-----|",
+    ]
+    with pytest.raises(ConversionError, match="compassos"):
+        convert(ascii_tab_pdf([tab]), ConversionOptions(max_measures=2))

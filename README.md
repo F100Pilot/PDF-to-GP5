@@ -32,7 +32,7 @@ Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre 
 
 ## Arranque rápido (Windows)
 
-Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8000 e iniciam o servidor (Ctrl+C para parar):
+Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8020 e iniciam o servidor (Ctrl+C para parar):
 
 | Script | Para | Python |
 |---|---|---|
@@ -46,8 +46,8 @@ Basta fazer duplo clique no script. Porta e endereço podem ser alterados nas va
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --port 8000 --workers 1
-# http://localhost:8000
+.venv/bin/uvicorn app.main:app --port 8020 --workers 1
+# http://localhost:8020
 ```
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
@@ -71,17 +71,18 @@ Campos (multipart):
 Campos omitidos ou `auto` são detetados nos PDFs.
 
 ```bash
-curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8000/api/convert/gp5
+curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8020/api/convert/gp5
 curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_name=Baixo \
-     -o musica.gp5 http://localhost:8000/api/convert/gp5
+     -o musica.gp5 http://localhost:8020/api/convert/gp5
 ```
 
 ## Segurança
 
-- Ficheiros processados só em memória; nada é gravado em disco pela aplicação.
+- A aplicação não guarda ficheiros: os PDFs são processados em memória. Uploads acima de 1 MB são colocados pelo servidor (Starlette) num ficheiro temporário, apagado no fim do pedido.
 - Validação: tamanho máximo (cabeçalho `Content-Length` **e** contagem em streaming), assinatura `%PDF-`, limite de páginas e de notas, campos validados.
-- Cada conversão corre num processo filho com **timeout** (processo morto) e **limite de memória** (`RLIMIT_AS`); o resultado volta em JSON (nunca `pickle`) com tamanho máximo.
-- Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429).
+- Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux/macOS; Job Object em Windows); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
+- Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429; IPv6 agrupado por /64), verificados antes de ler o corpo do pedido; inspeção com orçamento próprio.
+- Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
 - Cabeçalhos: CSP estrita sem scripts inline, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
 - Erros internos nunca são expostos ao cliente; nomes de ficheiro e metadados GP5 são sanitizados.
 - Documentação OpenAPI desativada por defeito. `pip-audit` no CI.
@@ -100,6 +101,10 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 | `WORKER_MEMORY_MB` | 1024 |
 | `MAX_CONCURRENT_CONVERSIONS` | 2 |
 | `RATE_LIMIT_PER_MINUTE` | 20 |
+| `INSPECT_RATE_LIMIT_PER_MINUTE` | 60 |
+| `MAX_JOB_TIMEOUT_S` (pedido inteiro) | 90 |
+| `MAX_MEASURES` | 2000 |
+| `ALLOWED_HOSTS` (separados por vírgula) | `127.0.0.1,localhost,[::1]` |
 | `ENABLE_DOCS` | desligado |
 | `ENABLE_HSTS` | desligado |
 

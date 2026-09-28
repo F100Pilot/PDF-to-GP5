@@ -74,20 +74,30 @@ def _overlaps(char: Char, low: float, high: float) -> bool:
     return char.bottom >= low and char.top <= high
 
 
-def _has_dot(x: float, low: float, high: float, page: Page, spacing: float) -> bool:
+def _dot_candidates(page: Page, spacing: float) -> tuple[list[Char], list[Segment]]:
+    """Dot glyphs and small filled shapes, filtered once per staff (not once per stem)."""
+    glyphs = [c for c in page.chars if c.text == AUGMENTATION_DOT]
+    shapes = [
+        s
+        for s in page.curves
+        if 0.1 * spacing <= s.x1 - s.x0 <= 0.35 * spacing and 0.1 * spacing <= s.bottom - s.top <= 0.35 * spacing
+    ]
+    return glyphs, shapes
+
+
+def _has_dot(x: float, low: float, high: float, dots: tuple[list[Char], list[Segment]], spacing: float) -> bool:
     """Augmentation dot just right of a stem or rest (glyph or small filled shape)."""
-    for char in page.chars:
-        beside = char.text == AUGMENTATION_DOT and x < char.x0 <= x + 1.5 * spacing
+    glyphs, shapes = dots
+    for char in glyphs:
+        beside = x < char.x0 <= x + 1.5 * spacing
         if beside and any(low - spacing <= y <= high + spacing for y in glyph_ys(char)):
             return True
-    for shape in page.curves:
-        w, h = shape.x1 - shape.x0, shape.bottom - shape.top
-        small = 0.1 * spacing <= w <= 0.35 * spacing and 0.1 * spacing <= h <= 0.35 * spacing
+    for shape in shapes:
         beside = (
             x < shape.x0 <= x + 1.2 * spacing
             and low - 0.6 * spacing <= (shape.top + shape.bottom) / 2 <= high + 0.6 * spacing
         )
-        if small and beside:
+        if beside:
             return True
     return False
 
@@ -106,6 +116,8 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     below = stems[0].top > bottom
     typical = median(s.bottom - s.top for s in stems)
     beams = _beam_shapes(page, spacing)
+    flag_chars = [c for c in page.chars if c.text in FLAG_UNITS]
+    dots = _dot_candidates(page, spacing)
     zone_low = min(s.top for s in stems)
     zone_high = max(s.bottom for s in stems)
     # Tuplet numbers sit just beyond the beams; any digit there makes durations unreliable.
@@ -137,14 +149,14 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
         else:
             flags = [
                 FLAG_UNITS[c.text]
-                for c in page.chars
-                if c.text in FLAG_UNITS and -0.5 * spacing <= c.x0 - x <= 1.0 * spacing and _near(c, end, 1.5 * spacing)
+                for c in flag_chars
+                if -0.5 * spacing <= c.x0 - x <= 1.0 * spacing and _near(c, end, 1.5 * spacing)
             ]
             if flags:
                 units = min(flags)
             else:
                 units = 16 if (stem.bottom - stem.top) <= 0.7 * typical else 8
-        units = _apply_dot(units, _has_dot(x, stem.top, stem.bottom, page, spacing))
+        units = _apply_dot(units, _has_dot(x, stem.top, stem.bottom, dots, spacing))
         if any(abs(t - x) <= 1.5 * spacing for t in tuplet_xs):
             units = None
         marks.append(RhythmMark(x=x, units=units))
@@ -156,6 +168,6 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
         if not _near(char, staff_center, 4 * spacing):
             continue
         rest_ys = glyph_ys(char)
-        dotted = _has_dot(char.x1, min(rest_ys) - spacing, max(rest_ys) + spacing, page, spacing)
+        dotted = _has_dot(char.x1, min(rest_ys) - spacing, max(rest_ys) + spacing, dots, spacing)
         marks.append(RhythmMark(x=char.xc, units=_apply_dot(REST_UNITS[char.text], dotted), is_rest=True))
     return sorted(marks, key=lambda m: m.x)

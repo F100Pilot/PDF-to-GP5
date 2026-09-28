@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import threading
 import time
@@ -93,6 +94,52 @@ async def _send_413(send: Send) -> None:
         }
     )
     await send({"type": "http.response.body", "body": body})
+
+
+class SameOriginMiddleware:
+    """Refuse state-changing requests sent by other web sites.
+
+    A page on any site can make the browser POST a form to http://127.0.0.1:8020;
+    browsers then send an Origin header naming that site. Requests without an
+    Origin (curl, scripts) are allowed.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] not in ("GET", "HEAD", "OPTIONS"):
+            headers = dict(scope.get("headers", []))
+            origin = headers.get(b"origin", b"").decode("latin-1")
+            host = headers.get(b"host", b"").decode("latin-1")
+            if origin and (origin == "null" or origin.split("://", 1)[-1].rstrip("/") != host):
+                body = b'{"detail":"Pedido de outra origem recusado."}'
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 403,
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode()),
+                        ],
+                    }
+                )
+                await send({"type": "http.response.body", "body": body})
+                return
+        await self.app(scope, receive, send)
+
+
+def client_key(host: str | None) -> str:
+    """Rate-limit key: the IPv4 address, or the /64 network for IPv6 (one home or host)."""
+    if not host:
+        return "unknown"
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if address.version == 6:
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+    return str(address)
 
 
 class RateLimiter:

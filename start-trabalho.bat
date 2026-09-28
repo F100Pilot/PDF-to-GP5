@@ -9,7 +9,7 @@ rem ===================================================================
 
 set "VENV=%USERPROFILE%\venvs\pdf-to-gp5"
 set "HOST=127.0.0.1"
-set "PORT=8000"
+set "PORT=8020"
 
 cd /d "%~dp0"
 
@@ -24,7 +24,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] A preparar o ambiente Python em %VENV% ...
+echo [2/3] A preparar o ambiente Python em "%VENV%" ...
 if not exist "%VENV%\Scripts\python.exe" (
     python -m venv "%VENV%"
     if errorlevel 1 goto :no_python
@@ -33,9 +33,16 @@ if not exist "%VENV%\Scripts\python.exe" (
 if errorlevel 1 goto :pip_failed
 
 echo.
+netstat -an | find ":%PORT% " | find "LISTENING" >nul
+if not errorlevel 1 goto :port_busy
 echo [3/3] Servidor em http://%HOST%:%PORT%   -   Ctrl+C para parar
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
 "%VENV%\Scripts\python.exe" -m uvicorn app.main:app --host %HOST% --port %PORT%
+goto :end
+
+:port_busy
+echo ERRO: a porta %PORT% ja esta em uso - o servidor ja esta a correr noutra janela?
+echo Feche essa janela ou altere PORT no topo deste ficheiro.
 goto :end
 
 :no_python

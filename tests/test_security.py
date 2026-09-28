@@ -34,3 +34,11 @@ def test_rate_limiter_blocks_after_limit_and_bounds_memory():
     for key in "bcdef":
         limiter.allow(key)
     assert len(limiter._hits) == 3
+
+
+def test_client_key_groups_ipv6_by_64():
+    from app.security import client_key
+
+    assert client_key("203.0.113.9") == "203.0.113.9"
+    assert client_key("2001:db8:1:2:aaaa::1") == client_key("2001:db8:1:2:bbbb::2") == "2001:db8:1:2::/64"
+    assert client_key(None) == "unknown"
