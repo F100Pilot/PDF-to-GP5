@@ -417,6 +417,9 @@
 
   fetch("/api/health")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-    .then((health) => { document.getElementById("version").textContent = `Versão ${health.version}`; })
+    .then((health) => {
+      const revision = health.revision ? ` (${health.revision})` : "";
+      document.getElementById("version").textContent = `Versão ${health.version}${revision}`;
+    })
     .catch(() => {});
 })();

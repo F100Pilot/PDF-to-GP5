@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
-from . import __version__
+from . import __revision__, __version__
 from .changelog import load_releases, version_key
 from .config import settings
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
@@ -52,7 +52,7 @@ async def changelog() -> dict:
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "version": __version__}
+    return {"status": "ok", "version": __version__, "revision": __revision__}
 
 
 @app.get("/api/options")
