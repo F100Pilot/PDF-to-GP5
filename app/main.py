@@ -14,6 +14,7 @@ from typing import Annotated, Literal
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -22,6 +23,7 @@ from .changelog import load_releases, version_key
 from .config import settings
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .gp5_writer import MAX_TRACKS
+from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
 from .security import (
     BodySizeLimitMiddleware,
@@ -47,6 +49,7 @@ app = FastAPI(
 rate_limiter = RateLimiter(settings.rate_limit_per_minute)
 inspect_limiter = RateLimiter(settings.inspect_rate_limit_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
+presence = Presence()  # enabled by the local launcher (python -m app)
 _JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
 
 
@@ -100,7 +103,26 @@ async def changelog() -> dict:
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "version": __version__, "revision": __revision__}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "revision": __revision__,
+        "close_with_browser": presence.enabled,
+    }
+
+
+class PresenceReport(BaseModel):
+    id: str = Field(pattern=PAGE_ID.pattern)
+    state: Literal["alive", "gone"]
+
+
+@app.post("/api/presence", status_code=204)
+async def page_presence(report: PresenceReport) -> Response:
+    """A page of the app is open ("alive", repeated) or was closed ("gone")."""
+    if not presence.enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+    presence.update(report.id, report.state == "alive")
+    return Response(status_code=204)
 
 
 @app.get("/api/options")

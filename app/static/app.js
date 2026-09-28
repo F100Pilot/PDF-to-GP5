@@ -439,11 +439,49 @@
     .then(showNews)
     .catch(() => {});
 
+  // Local launcher only: tell the server this page is open, so it can stop
+  // a few seconds after the last page is closed.
+  function reportPresence(pageId, state) {
+    const body = JSON.stringify({ id: pageId, state });
+    if (state === "gone" && navigator.sendBeacon) {
+      navigator.sendBeacon("/api/presence", new Blob([body], { type: "application/json" }));
+      return;
+    }
+    fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  }
+
+  function watchPresence() {
+    const pageId = window.crypto && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let timer = null;
+    const alive = () => reportPresence(pageId, "alive");
+    const start = () => {
+      alive();
+      if (timer === null) timer = setInterval(alive, 15000);
+    };
+    window.addEventListener("pagehide", () => {
+      clearInterval(timer);
+      timer = null;
+      reportPresence(pageId, "gone");
+    });
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) start(); // page restored from the back/forward cache
+    });
+    start();
+  }
+
   fetch("/api/health")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((health) => {
       const revision = health.revision ? ` (${health.revision})` : "";
       document.getElementById("version").textContent = `Versão ${health.version}${revision}`;
+      if (health.close_with_browser) watchPresence();
     })
     .catch(() => {});
 })();

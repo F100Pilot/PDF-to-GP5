@@ -45,9 +45,16 @@ if errorlevel 1 goto :pip_failed
 echo.
 netstat -an | find ":%PORT% " | find "LISTENING" >nul
 if not errorlevel 1 goto :port_busy
-echo [3/3] Servidor em http://%HOST%:%PORT%   -   Ctrl+C para parar
+echo [3/3] Servidor em http://%HOST%:%PORT%
+echo       Para parar: feche a pagina no browser (ou Ctrl+C nesta janela).
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
-"%VENV%\Scripts\python.exe" -m uvicorn app.main:app --host %HOST% --port %PORT%
+"%VENV%\Scripts\python.exe" -m app --host %HOST% --port %PORT% --close-with-browser
+if errorlevel 1 goto :server_failed
+rem Servidor encerrado normalmente (pagina fechada): fechar a janela.
+goto :eof
+
+:server_failed
+echo ERRO: o servidor terminou com erro - veja as mensagens acima.
 goto :end
 
 :port_busy

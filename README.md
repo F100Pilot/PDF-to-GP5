@@ -41,6 +41,8 @@ Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependê
 
 Basta fazer duplo clique no script. Porta e endereço podem ser alterados nas variáveis `PORT` e `HOST` no topo de cada ficheiro.
 
+Para parar, basta fechar a página da aplicação no browser: o servidor encerra cerca de 8 segundos depois de fechada a última página (recarregar a página não o encerra) e a janela do script fecha-se. Também se pode usar Ctrl+C na janela do script.
+
 ## Executar
 
 ```bash
@@ -49,6 +51,8 @@ python3 -m venv .venv
 .venv/bin/uvicorn app.main:app --port 8020 --workers 1
 # http://localhost:8020
 ```
+
+Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arranca o mesmo servidor e encerra-o quando a última página da aplicação é fechada (é o que os scripts de arranque usam). Sem `--close-with-browser` (ou com `uvicorn` diretamente) o servidor só para com Ctrl+C e ignora os avisos de presença das páginas.
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
