@@ -159,3 +159,14 @@ def test_sandbox_rejects_malformed_replies(raw):
 def test_sandbox_success_roundtrip():
     result = run_isolated(ascii_tab_pdf([TAB]), ConversionOptions(), timeout_s=30, memory_mb=1024)
     assert result.gp5.startswith(b"\x18FICHIER GUITAR PRO") and result.report["notes"] == 4
+
+
+def test_empty_staves_do_not_vote_and_become_rests(client):
+    from tests.pdf_factory import engraved_tab_pdf
+
+    pdf = engraved_tab_pdf([[[(1, 0)], [(2, 1)]], [[], []]])
+    response = _post(client, pdf)
+    assert response.status_code == 200, response.text
+    report = response.json()["report"]
+    assert report["measures"] == 4 and report["warnings"] == []
+    assert [d["measures"] for d in report["systems_detail"]] == [2, 2]

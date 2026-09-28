@@ -165,19 +165,35 @@ def _quantize(xs: list[float], origin: float, end: float, units: int) -> list[in
     return best[1] if best else _fallback_onsets(xs, origin, end, units)
 
 
-def _spacing_measures(system: TabSystem, columns: list[_Column], units: int, warnings: list[str]) -> list[ScoreMeasure]:
+def _rest_bar(units: int) -> ScoreMeasure:
+    return ScoreMeasure([ScoreBeat(part) for part in split_units(units)])
+
+
+def _bar_span(numbers: list[int | None], index: int, next_number: int | None) -> int:
+    """How many bars an empty segment stands for (multi-bar rests), from printed bar numbers."""
+    current = numbers[index] if index < len(numbers) else None
+    following = numbers[index + 1] if index + 1 < len(numbers) else next_number
+    if current is not None and following is not None and 1 < following - current <= 64:
+        return following - current
+    return 1
+
+
+def _spacing_measures(
+    system: TabSystem, columns: list[_Column], units: int, warnings: list[str], next_number: int | None = None
+) -> list[ScoreMeasure]:
     unit_width = system.char_width
     bounds = sorted(system.bars)
     if not bounds or columns and columns[0].x < bounds[0]:
         bounds.insert(0, system.start_x)
     if columns and columns[-1].x > bounds[-1]:
         bounds.append(system.end_x)
+    numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
     measures: list[ScoreMeasure] = []
-    for start, end in itertools.pairwise(bounds):
+    for index, (start, end) in enumerate(itertools.pairwise(bounds)):
         cols = [c for c in columns if start <= c.x < end]
         if not cols:
             if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
-                measures.extend(_sequence([([], units)], units))
+                measures.extend(_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number)))
             continue
         if len(cols) > units:
             warnings.append(
@@ -216,7 +232,13 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
                 last[note.string] = note
 
 
-def build_measures(systems: list[TabSystem], options: RhythmOptions, warnings: list[str]) -> list[ScoreMeasure]:
+def build_measures(
+    systems: list[TabSystem],
+    options: RhythmOptions,
+    warnings: list[str],
+    system_measures: list[int] | None = None,
+) -> list[ScoreMeasure]:
+    """Build all measures; ``system_measures`` (if given) receives the bar count per system."""
     units = options.measure_units
     per_system = [(s, _columns(s, warnings)) for s in systems]
     use_spacing = options.mode == "spacing" or (options.mode == "auto" and all(len(s.bars) >= 2 for s in systems))
@@ -224,8 +246,12 @@ def build_measures(systems: list[TabSystem], options: RhythmOptions, warnings: l
         warnings.append("Tablatura sem barras de compasso em todas as linhas: usadas durações fixas.")
     measures: list[ScoreMeasure] = []
     if use_spacing:
-        for system, columns in per_system:
-            measures.extend(_spacing_measures(system, columns, units, warnings))
+        for index, (system, columns) in enumerate(per_system):
+            following = systems[index + 1].bar_numbers if index + 1 < len(systems) else []
+            system_bars = _spacing_measures(system, columns, units, warnings, following[0] if following else None)
+            measures.extend(system_bars)
+            if system_measures is not None:
+                system_measures.append(len(system_bars))
     else:
         beat_units = 32 // options.fixed_value
         items = [(_to_notes(c.events), beat_units) for _, columns in per_system for c in columns]

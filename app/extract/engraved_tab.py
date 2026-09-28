@@ -8,7 +8,6 @@ inferred later from horizontal spacing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from statistics import median
 
 from ..model import TabEvent, TabSystem
 from .common import shared_bars, split_fret_number
@@ -28,7 +27,7 @@ def _staff_lines(segments: list[Segment], page_width: float) -> list[_StaffLine]
     """Merge horizontal segments sharing the same y into full-width lines."""
     horizontals = sorted(
         (s for s in segments if s.is_horizontal and (s.x1 - s.x0) > 0.02 * page_width),
-        key=lambda s: (s.top + s.bottom) / 2,
+        key=lambda s: (round((s.top + s.bottom) / 2, 1), s.x0),
     )
     lines: list[_StaffLine] = []
     for seg in horizontals:
@@ -38,7 +37,9 @@ def _staff_lines(segments: list[Segment], page_width: float) -> list[_StaffLine]
             lines[-1].x1 = max(lines[-1].x1, seg.x1)
         else:
             lines.append(_StaffLine(y, seg.x0, seg.x1))
-    return [line for line in lines if (line.x1 - line.x0) > 0.3 * page_width]
+    # Short staves exist (e.g. a final bar on its own line); equal spacing and extent
+    # checks in _staves filter out unrelated lines.
+    return [line for line in lines if (line.x1 - line.x0) > 0.08 * page_width]
 
 
 def _staves(lines: list[_StaffLine]) -> list[list[_StaffLine]]:
@@ -60,19 +61,16 @@ def _staves(lines: list[_StaffLine]) -> list[list[_StaffLine]]:
 
 def _numbers_on_staff(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[TabEvent]:
     x0, x1 = staff[0].x0, staff[0].x1
-    candidates = [c for c in chars if x0 <= c.xc <= x1 and (c.text.isdigit() or c.text in "xX()")]
-    digit_heights = [c.bottom - c.top for c in candidates if c.text.isdigit()]
-    if not digit_heights:
-        return []
-    typical_height = median(digit_heights)
+    # Fret digits are about one staff space tall; time signatures are about two.
+    candidates = [
+        c
+        for c in chars
+        if x0 <= c.xc <= x1 and (c.text.isdigit() or c.text in "xX()") and (c.bottom - c.top) <= 1.6 * spacing
+    ]
     events: list[TabEvent] = []
     for string, line in enumerate(staff, start=1):
         on_line = sorted(
-            (
-                c
-                for c in candidates
-                if abs(c.yc - line.y) <= 0.4 * spacing and (c.bottom - c.top) <= 1.4 * typical_height
-            ),
+            (c for c in candidates if abs(c.yc - line.y) <= 0.4 * spacing),
             key=lambda c: c.x0,
         )
         i = 0
@@ -126,14 +124,36 @@ def _labels(chars: list[Char], staff: list[_StaffLine], spacing: float) -> list[
     return labels
 
 
+def _measure_numbers(chars: list[Char], staff: list[_StaffLine], spacing: float, bars: list[float]) -> list[int | None]:
+    """Read the bar numbers printed just above the staff at the start of each bar."""
+    top = staff[0].y
+    digits = sorted(
+        (c for c in chars if c.text.isdigit() and top - 1.5 * spacing <= c.yc < top - 0.2 * spacing),
+        key=lambda c: c.x0,
+    )
+    numbers: list[tuple[float, int]] = []
+    run: list[Char] = []
+    for c in [*digits, None]:
+        if c is not None and run and c.x0 - run[-1].x1 < 0.3 * (c.x1 - c.x0) and abs(c.yc - run[-1].yc) < 1:
+            run.append(c)
+            continue
+        if run:
+            numbers.append((run[0].x0, int("".join(ch.text for ch in run))))
+        run = [c] if c is not None else []
+    result: list[int | None] = []
+    for bar in bars[:-1]:
+        near = [n for x, n in numbers if abs(x - bar) <= 1.2 * spacing]
+        result.append(near[0] if len(near) == 1 else None)
+    return result
+
+
 def extract_engraved_systems(page: Page) -> list[TabSystem]:
+    """Tab staves on the page; staves without fret numbers are kept as rest bars."""
     systems: list[TabSystem] = []
     verticals = [s for s in page.segments if s.is_vertical]
     for staff in _staves(_staff_lines(page.segments, page.width)):
         spacing = (staff[-1].y - staff[0].y) / (len(staff) - 1)
         events = _numbers_on_staff(page.chars, staff, spacing)
-        if not events:
-            continue  # e.g. a standard-notation staff
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
         bar_xs = [
@@ -158,6 +178,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
                 char_width=digit_width,
                 labels=_labels(page.chars, staff, spacing),
                 source="engraved",
+                bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
             )
         )
     return systems

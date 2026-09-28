@@ -72,3 +72,51 @@ def test_engraved_staff_and_numbers():
     assert system.string_count == 6
     assert sorted((e.string, e.fret) for e in system.events) == [(1, 0), (2, 12), (6, 3)]
     assert len(system.bars) == 3
+
+
+def _engraved(pdf: bytes):
+    return [s for page in read_pages(pdf, max_pages=5) for s in extract_engraved_systems(page)]
+
+
+def test_engraved_keeps_empty_staves_and_segmented_lines():
+    systems = _engraved(engraved_tab_pdf([[[(1, 0)], [(2, 1)], [(3, 2)]], [[], [], []]]))
+    assert [len(s.events) for s in systems] == [3, 0]
+    assert all(s.start_x == 60.0 for s in systems)  # segments merged regardless of drawing order
+    assert [len(s.bars) for s in systems] == [4, 4]
+
+
+def test_engraved_short_final_staff():
+    systems = _engraved(engraved_tab_pdf([[[(1, 0)], [(1, 2)]], [[(2, 3)]]], widths=[480.0, 90.0]))
+    assert len(systems) == 2 and systems[1].events[0].fret == 3
+
+
+def test_engraved_frets_survive_many_small_digits_on_page():
+    systems = _engraved(engraved_tab_pdf([[(1, 5), (2, 7)]], measure_number_noise=400))
+    assert sorted(e.fret for e in systems[0].events) == [5, 7]
+
+
+def test_engraved_reads_bar_numbers():
+    systems = _engraved(engraved_tab_pdf([[[(1, 0)], [], [(1, 2)]]], bar_numbers=[[7, 8, 12]]))
+    assert systems[0].bar_numbers == [7, 8, 12]
+
+
+def test_ascii_tolerates_unknown_symbols_and_rejects_prose():
+    tab = [line.replace("-0---", "-0v--") for line in STANDARD]
+    tab[3] = "D|-5b7r5--x--T[2]---------|"
+    systems, _ = _systems(ascii_tab_pdf([tab], extra_lines=["---- Chorus ---- (play twice) ----"]))
+    assert len(systems) == 1 and systems[0].string_count == 6
+
+
+def test_ascii_double_spaced_lines():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD, STANDARD], line_spacing=2.2))
+    assert [s.string_count for s in systems] == [6, 6]
+
+
+def test_ascii_systems_without_blank_line_are_split_by_labels():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD + STANDARD]))
+    assert [s.string_count for s in systems] == [6, 6]
+
+
+def test_ascii_reports_incomplete_tab_lines():
+    _, warnings = _systems(ascii_tab_pdf([STANDARD[:3]]))
+    assert any("ignoradas" in w for w in warnings)

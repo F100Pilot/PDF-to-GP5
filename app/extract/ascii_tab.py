@@ -11,8 +11,16 @@ from .pdf_reader import Char, Page, TextLine, group_lines
 
 _BODY_CHARS = set("-0123456789|hpbrs/\\~xX()<>.:*^=+")
 _LABEL_RE = re.compile(r"^[A-Ga-g][#b]?$")
+_PROSE_RE = re.compile(r"[A-Za-z]{3,}")
+# Share of unrecognised symbols (e.g. "v", "T", "[12]") tolerated in a tab line; they are skipped.
+MAX_UNKNOWN_RATIO = 0.15
 _LINKS = {"h": Link.HAMMER, "p": Link.PULL, "/": Link.SLIDE_UP, "\\": Link.SLIDE_DOWN, "s": Link.SLIDE_UP}
 MIN_STRINGS, MAX_STRINGS = 4, 8
+
+
+def _is_dashy(text: str) -> bool:
+    dashes = text.count("-")
+    return dashes >= 6 and dashes / len(text) >= 0.35
 
 
 def _split_tab_line(line: TextLine) -> tuple[str, list[Char]] | None:
@@ -32,10 +40,9 @@ def _split_tab_line(line: TextLine) -> tuple[str, list[Char]] | None:
             body = body[:i]
             break
     text = "".join(c.text for c in body)
-    dashes = text.count("-")
-    if dashes < 6 or dashes / len(text) < 0.35:
+    if not _is_dashy(text) or _PROSE_RE.search(text):
         return None
-    if sum(ch in _BODY_CHARS for ch in text) / len(text) < 0.97:
+    if sum(ch not in _BODY_CHARS for ch in text) / len(text) > MAX_UNKNOWN_RATIO:
         return None
     return label, body
 
@@ -128,29 +135,65 @@ def _build_system(page: int, group: list[tuple[str, list[Char]]]) -> TabSystem:
     )
 
 
+def _split_stacked(group: list[tuple[str, list[Char]]]) -> list[list[tuple[str, list[Char]]]]:
+    """Split systems printed without a blank line between them, using repeating labels."""
+    labels = [label for label, _ in group]
+    if all(labels):
+        for size in range(MAX_STRINGS, MIN_STRINGS - 1, -1):
+            if len(group) % size == 0 and all(
+                labels[i : i + size] == labels[:size] for i in range(0, len(group), size)
+            ):
+                return [group[i : i + size] for i in range(0, len(group), size)]
+    return []
+
+
 def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     """Find groups of consecutive tab lines on a page."""
     systems: list[TabSystem] = []
     warnings: list[str] = []
     group: list[tuple[str, list[Char]]] = []
-    last_line: TextLine | None = None
+    group_ys: list[float] = []
+    ignored = 0
 
     def flush() -> None:
+        nonlocal ignored
         if MIN_STRINGS <= len(group) <= MAX_STRINGS:
             systems.append(_build_system(page.number, group))
         elif len(group) > MAX_STRINGS:
-            warnings.append(
-                f"Página {page.number}: bloco com {len(group)} linhas de tab ignorado (máx. {MAX_STRINGS})."
-            )
+            chunks = _split_stacked(group)
+            systems.extend(_build_system(page.number, chunk) for chunk in chunks)
+            if not chunks:
+                warnings.append(
+                    f"Página {page.number}: bloco com {len(group)} linhas de tab ignorado (máx. {MAX_STRINGS})."
+                )
+        elif len(group) >= 2:
+            ignored += len(group)
 
-    for line in group_lines(page.chars):
+    lines = group_lines(page.chars)
+    for index, line in enumerate(lines):
         parsed = _split_tab_line(line)
-        adjacent = last_line is not None and (line.yc - last_line.yc) <= 1.8 * (last_line.bottom - last_line.top)
-        if parsed and group and adjacent:
+        adjacent = False
+        if parsed and group:
+            gap = line.yc - group_ys[-1]
+            if len(group_ys) >= 2:
+                expected = group_ys[1] - group_ys[0]
+                adjacent = abs(gap - expected) <= 0.3 * expected
+            else:
+                previous = lines[index - 1]
+                adjacent = previous.yc == group_ys[-1] and gap <= 2.6 * (previous.bottom - previous.top)
+        if parsed and adjacent:
             group.append(parsed)
+            group_ys.append(line.yc)
         else:
             flush()
             group = [parsed] if parsed else []
-        last_line = line
+            group_ys = [line.yc] if parsed else []
+            if not parsed and _is_dashy(line.text) and len(line.text) >= 12:
+                ignored += 1
     flush()
+    if ignored:
+        warnings.append(
+            f"Página {page.number}: {ignored} linha(s) com aspeto de tablatura ignoradas "
+            "(símbolos não reconhecidos ou linhas de tab incompletas)."
+        )
     return systems, warnings

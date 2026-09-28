@@ -99,3 +99,7 @@ pre {
   overflow-x: auto;
   font: 13px/1.35 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
+#systems-box { margin-top: 16px; }
+#systems-box summary { cursor: pointer; font-weight: 600; }
+.systems { border-collapse: collapse; margin-top: 8px; font-size: 0.9rem; }
+.systems th, .systems td { padding: 4px 12px; border-bottom: 1px solid var(--border); text-align: right; }

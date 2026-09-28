@@ -92,3 +92,22 @@ def test_empty_bar_becomes_full_rest():
     measures = build_measures([_system(events, [0.0, 10.0, 20.0], end=20.0)], RhythmOptions(mode="spacing"), [])
     assert len(measures) == 2
     assert all(b.is_rest for b in measures[1].beats)
+
+
+def test_multi_bar_rest_from_bar_numbers():
+    events = [TabEvent(x=2.0, string=1, fret=0)]
+    system = _system(events, [0.0, 10.0, 20.0, 30.0], end=30.0, source="engraved")
+    system.bar_numbers = [53, 54, 57]  # bar 54 is a 3-bar rest; bar 57 is 1 bar (end of piece)
+    counts = []
+    measures = build_measures([system], RhythmOptions(mode="spacing"), [], counts)
+    assert counts == [5] and len(measures) == 5
+
+
+def test_multi_bar_rest_uses_next_system_number():
+    first = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0, 20.0], end=20.0, source="engraved")
+    first.bar_numbers = [1, 2]
+    second = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0], end=10.0, source="engraved")
+    second.bar_numbers = [6]
+    counts = []
+    build_measures([first, second], RhythmOptions(mode="spacing"), [], counts)
+    assert counts == [5, 1]

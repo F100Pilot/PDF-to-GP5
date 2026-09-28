@@ -77,12 +77,15 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
     if event_count > options.max_events:
         raise ConversionError(f"Tablatura demasiado grande ({event_count} notas; máximo {options.max_events}).")
 
-    string_count, _ = Counter(s.string_count for s in systems).most_common(1)[0]
+    # Only staves with notes vote: empty engraved staves may be standard-notation staves.
+    with_notes = [s for s in systems if s.events]
+    if not with_notes:
+        raise ConversionError("A tablatura foi encontrada mas não contém notas.")
+    string_count, _ = Counter(s.string_count for s in with_notes).most_common(1)[0]
     kept = [s for s in systems if s.string_count == string_count]
-    if len(kept) < len(systems):
-        warnings.append(
-            f"{len(systems) - len(kept)} linha(s) de tab com número de cordas diferente de {string_count} foram ignoradas."
-        )
+    dropped = sum(1 for s in with_notes if s.string_count != string_count)
+    if dropped:
+        warnings.append(f"{dropped} linha(s) de tab com número de cordas diferente de {string_count} foram ignoradas.")
 
     labels = next((s.labels for s in kept if s.labels), [])
     try:
@@ -91,7 +94,8 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
         raise ConversionError("Afinação inválida.") from exc
     warnings.extend(tuning_warnings)
 
-    measures = build_measures(kept, options.rhythm, warnings)
+    system_measures: list[int] = []
+    measures = build_measures(kept, options.rhythm, warnings, system_measures)
     note_count = sum(len(b.notes) for m in measures for b in m.beats if not all(n.tie for n in b.notes))
     if note_count == 0:
         raise ConversionError("A tablatura foi encontrada mas não contém notas.")
@@ -127,5 +131,14 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
         "notes": note_count,
         "warnings": warnings,
         "preview": render_preview(score),
+        "systems_detail": [
+            {
+                "page": s.page,
+                "source": s.source,
+                "notes": len(s.events),
+                "measures": system_measures[i] if i < len(system_measures) else None,
+            }
+            for i, s in enumerate(kept)
+        ],
     }
     return ConversionResult(gp5=gp5, report=report)

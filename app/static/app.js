@@ -94,6 +94,17 @@
       list.appendChild(li);
     }
     document.getElementById("warnings-box").hidden = report.warnings.length === 0;
+    const rows = document.getElementById("systems");
+    rows.replaceChildren();
+    (report.systems_detail || []).forEach((system, index) => {
+      const tr = document.createElement("tr");
+      for (const value of [index + 1, system.page, system.notes, system.measures ?? "—"]) {
+        const td = document.createElement("td");
+        td.textContent = String(value);
+        tr.appendChild(td);
+      }
+      rows.appendChild(tr);
+    });
     document.getElementById("preview").textContent = report.preview;
   }
 
