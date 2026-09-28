@@ -113,33 +113,32 @@ def test_multi_bar_rest_uses_next_system_number():
     assert counts == [5, 1]
 
 
-def test_parentheses_become_tie_when_repeating_fret_else_ghost():
+def test_parentheses_are_ghost_notes_shown_like_the_pdf():
     events = [
         TabEvent(x=2, string=4, fret=0),
         TabEvent(x=6, string=4, fret=0, parenthesized=True),
         TabEvent(x=10, string=3, fret=5, parenthesized=True),
     ]
     measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
-    notes = [n for b in measures[0].beats for n in b.notes if not (n.tie and not n.parenthesized)]
-    tie = next(n for n in notes if n.parenthesized and n.string == 4)
-    ghost = next(n for n in notes if n.string == 3)
-    assert tie.tie and not tie.ghost
-    assert ghost.ghost and not ghost.tie
+    marked = [n for b in measures[0].beats for n in b.notes if n.parenthesized]
+    assert len(marked) == 2 and all(n.ghost and not n.tie for n in marked)
 
 
-def test_parentheses_as_normal_notes_when_requested():
-    events = [TabEvent(x=2, string=4, fret=0), TabEvent(x=6, string=4, fret=0, parenthesized=True)]
-    options = RhythmOptions(mode="spacing", parentheses="note")
-    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], options, [])
-    notes = [n for b in measures[0].beats for n in b.notes if n.parenthesized]
-    assert notes and all(not n.tie and not n.ghost for n in notes)
-
-
-def test_tie_after_unreleased_bend_holds_it():
+def test_parenthesized_repeat_of_a_bent_note_holds_the_bend():
     events = [
         TabEvent(x=2, string=2, fret=15, bend_semitones=2),
         TabEvent(x=10, string=2, fret=15, parenthesized=True),
     ]
     measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
-    tied = next(n for b in measures[0].beats for n in b.notes if n.parenthesized)
-    assert tied.tie and tied.bend_semitones == 2 and tied.bend_pre
+    held = next(n for b in measures[0].beats for n in b.notes if n.parenthesized)
+    assert held.ghost and held.bend_semitones == 2 and held.bend_pre
+
+
+def test_tie_after_unreleased_bend_holds_it():
+    from app.model import ScoreBeat, ScoreMeasure, ScoreNote
+    from app.rhythm import resolve_links
+
+    bent = ScoreNote(2, 15, bend_semitones=2)
+    tied = ScoreNote(2, 15, tie=True)
+    resolve_links([ScoreMeasure([ScoreBeat(16, [bent]), ScoreBeat(16, [tied])])])
+    assert tied.bend_semitones == 2 and tied.bend_pre

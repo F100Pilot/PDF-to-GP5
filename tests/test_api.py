@@ -280,21 +280,17 @@ def test_error_names_the_failing_track(client):
     assert response.json()["detail"].startswith("Track 2 (scan.pdf):")
 
 
-def test_parentheses_option(client):
+def test_parenthesized_notes_are_written_as_visible_ghost_notes(client):
     pdf = ascii_tab_pdf([["e|-0---(0)---0---|", *TAB[1:]]])
-    tie = _post(client, pdf).json()["gp5_base64"]
-    note = _post(client, pdf, parentheses="note").json()["gp5_base64"]
-    types = [
-        [
-            n.type
-            for b in gp.parse(io.BytesIO(base64.b64decode(data))).tracks[0].measures[0].voices[0].beats
-            for n in b.notes
-        ]
-        for data in (tie, note)
+    data = _post(client, pdf).json()["gp5_base64"]
+    notes = [
+        n for b in gp.parse(io.BytesIO(base64.b64decode(data))).tracks[0].measures[0].voices[0].beats for n in b.notes
     ]
-    assert gp.NoteType.tie in types[0]
-    assert gp.NoteType.tie not in types[1]
-    assert _post(client, pdf, parentheses="maybe").status_code == 422
+    assert [(n.value, n.effect.ghostNote, n.type) for n in notes[:3]] == [
+        (0, False, gp.NoteType.normal),
+        (0, True, gp.NoteType.normal),
+        (0, False, gp.NoteType.normal),
+    ]
 
 
 def test_tracks_are_aligned_by_printed_bar_numbers(client):

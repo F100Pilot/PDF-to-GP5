@@ -73,7 +73,7 @@ Colunas:
 |---|---|---|---|---|---|
 | Traste (0–29) e acordes | ✅ | ✅ | ✅ | Happen To Me | |
 | Nota morta `x` | ✅ | ✅ | ✅ | — | |
-| Nota entre parêntesis → ligadura ou ghost note | ✅ | ✅ | ✅ | Happen To Me | Opção na interface |
+| Nota entre parêntesis `(0)` | ✅ | ✅ | ✅ | Happen To Me | Escrita como ghost note: aparece entre parêntesis no GP, como no PDF |
 | Nota fantasma (ghost) | ✅ | ✅ | ✅ | — | Parêntesis com traste diferente do anterior |
 | Acento `>` | ⬜ | ⬜ | ✅ | — | |
 | Acento forte `^` (marcato) | ⬜ | ⬜ | ✅ | — | |

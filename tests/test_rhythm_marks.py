@@ -112,3 +112,12 @@ def test_flags_and_dots_with_offset_glyph_boxes():
 def test_stems_must_share_their_far_end():
     tick = Segment(200, 200, STEM_TOP + 10, STEM_BOTTOM + 12)  # e.g. end of a "P.M." line
     assert [m.x for m in _read(segments=[_stem(20), _stem(40), tick])] == [20, 40]
+
+
+def test_lone_note_on_stemless_line_is_a_whole_note_when_part_has_rhythm():
+    notated = _system([TabEvent(x=10, string=1, fret=0)], [RhythmMark(10, 32)])
+    stemless = _system([TabEvent(x=40, string=2, fret=7)], [])
+    stats = RhythmStats()
+    measures = build_measures([notated, stemless], RhythmOptions(), [], None, stats)
+    assert (stats.notated, stats.estimated) == (2, 0)
+    assert [b.units for b in measures[1].beats] == [32]

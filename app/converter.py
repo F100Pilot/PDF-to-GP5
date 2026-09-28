@@ -13,7 +13,7 @@ from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .model import Score, ScoreBeat, ScoreMeasure, TabSystem
 from .preview import render_preview
-from .rhythm import ParenthesesMode, RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
+from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
 from .tunings import TUNINGS, resolve_tuning
 
 INSTRUMENTS: dict[str, int] = {
@@ -54,7 +54,6 @@ class ConversionOptions:
     tracks: tuple[TrackOptions, ...] = ()
     rhythm_mode: RhythmMode = "auto"
     fixed_value: int = 8
-    parentheses: ParenthesesMode = "tie"
     max_pages: int = 40
     max_events: int = 50_000
 
@@ -352,7 +351,6 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         fixed_value=options.fixed_value,
         numerator=numerator,
         denominator=denominator,
-        parentheses=options.parentheses,
     )
 
     scores: list[Score] = []

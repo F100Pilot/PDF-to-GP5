@@ -22,9 +22,6 @@ from .model import Link, RhythmMark, ScoreBeat, ScoreMeasure, ScoreNote, TabEven
 REPRESENTABLE_UNITS = (48, 32, 24, 16, 12, 8, 6, 4, 3, 2, 1)
 
 RhythmMode = Literal["auto", "spacing", "fixed"]
-# How to read a fret in parentheses: "tie" keeps the editor's meaning (sustain, or a
-# ghost note when the fret differs); "note" makes it a normal, re-picked note.
-ParenthesesMode = Literal["tie", "note"]
 WHOLE_NOTE_UNITS = 32
 
 
@@ -34,7 +31,6 @@ class RhythmOptions:
     fixed_value: int = 8  # note value used in fixed mode (4, 8 or 16)
     numerator: int = 4
     denominator: int = 4
-    parentheses: ParenthesesMode = "tie"
 
     @property
     def measure_units(self) -> int:
@@ -249,6 +245,7 @@ def _spacing_measures(
     warnings: list[str],
     next_number: int | None = None,
     stats: RhythmStats | None = None,
+    track_has_rhythm: bool = False,
 ) -> list[ScoreMeasure]:
     bounds = sorted(system.bars)
     if not bounds or columns and columns[0].x < bounds[0]:
@@ -259,7 +256,9 @@ def _spacing_measures(
     pending_sections = sorted(system.sections)
     measures: list[ScoreMeasure] = []
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
-        produced = _segment_measures(system, columns, start, end, units, warnings, stats, numbers, index, next_number)
+        produced = _segment_measures(
+            system, columns, start, end, units, warnings, stats, numbers, index, next_number, track_has_rhythm
+        )
         if produced:
             names = [name for x, name in pending_sections if x < end]
             pending_sections = [(x, name) for x, name in pending_sections if x >= end]
@@ -287,6 +286,7 @@ def _segment_measures(
     numbers: list[int | None],
     index: int,
     next_number: int | None,
+    track_has_rhythm: bool = False,
 ) -> list[ScoreMeasure]:
     """Measures for the bar between two bar lines (more than one for multi-bar rests)."""
     unit_width = system.char_width
@@ -297,6 +297,10 @@ def _segment_measures(
         return []
     marks = [m for m in system.rhythm if start <= m.x < end]
     notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None
+    if notated is None and not system.rhythm and track_has_rhythm and len(cols) == 1:
+        # The part prints rhythm, yet this line has no stems at all: a lone note is a
+        # whole note (editors draw it without a stem), so its length is known.
+        notated = [(_to_notes(cols[0].events), units)]
     if stats is not None:
         if notated is not None:
             stats.notated += 1
@@ -340,26 +344,28 @@ def fill_tied_continuations(measures: list[ScoreMeasure]) -> None:
                 sounding = []  # a rest ends what was ringing
 
 
-def resolve_links(measures: list[ScoreMeasure], parentheses: ParenthesesMode = "tie") -> None:
+def resolve_links(measures: list[ScoreMeasure]) -> None:
     """Resolve marks that depend on the previous note on the same string.
 
     * hammer/pull/slide marks move onto the note they start from;
-    * a parenthesised note repeating the previous fret is a tie (Guitar Pro
-      prints tied notes in parentheses), any other one is a ghost note.
+    * a parenthesised fret becomes a ghost note, which Guitar Pro shows in
+      parentheses in the tab, exactly as printed in the PDF;
+    * a bend is held on a note that continues a bent note (tie, or the same
+      fret in parentheses) unless the bend was released.
     """
     last: dict[int, ScoreNote] = {}
     for measure in measures:
         for beat in measure.beats:
             for note in beat.notes:
                 prev = last.get(note.string)
-                if note.parenthesized and parentheses == "tie":
-                    if prev is not None and not prev.dead and prev.fret == note.fret:
-                        note.tie = True
-                    else:
-                        note.ghost = True
-                if note.tie and note.bend_semitones:
-                    note.bend_pre = True  # a bend marked on a tied note is held, not re-bent
-                elif note.tie and prev is not None and prev.bend_semitones and not prev.bend_release:
+                if note.parenthesized:
+                    note.ghost = True
+                continues = note.tie or (
+                    note.parenthesized and prev is not None and not prev.dead and prev.fret == note.fret
+                )
+                if continues and note.bend_semitones:
+                    note.bend_pre = True  # a bend marked on a continuing note is held, not re-bent
+                elif continues and prev is not None and prev.bend_semitones and not prev.bend_release:
                     note.bend_semitones, note.bend_pre = prev.bend_semitones, True  # hold the bend
                 if note.link is not None and prev is not None and not prev.dead:
                     if note.link in (Link.HAMMER, Link.PULL):
@@ -383,11 +389,12 @@ def build_measures(
     if options.mode == "auto" and not use_spacing:
         warnings.append("Tablatura sem barras de compasso em todas as linhas: usadas durações fixas.")
     measures: list[ScoreMeasure] = []
+    track_has_rhythm = any(s.rhythm for s in systems)
     if use_spacing:
         for index, (system, columns) in enumerate(per_system):
             following = systems[index + 1].bar_numbers if index + 1 < len(systems) else []
             system_bars = _spacing_measures(
-                system, columns, units, warnings, following[0] if following else None, stats
+                system, columns, units, warnings, following[0] if following else None, stats, track_has_rhythm
             )
             measures.extend(system_bars)
             if system_measures is not None:
@@ -397,5 +404,5 @@ def build_measures(
         items = [(_to_notes(c.events), beat_units) for _, columns in per_system for c in columns]
         measures = _sequence(items, units)
     fill_tied_continuations(measures)
-    resolve_links(measures, options.parentheses)
+    resolve_links(measures)
     return measures
