@@ -33,6 +33,75 @@
     }
   }
 
+  const SEEN_KEY = "pdf-to-gp5.seen-version";
+
+  function readSeen() {
+    try { return localStorage.getItem(SEEN_KEY); } catch { return null; }
+  }
+
+  function writeSeen(version) {
+    try { localStorage.setItem(SEEN_KEY, version); } catch { /* storage unavailable */ }
+  }
+
+  function compareVersions(a, b) {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    for (let i = 0; i < 3; i += 1) if (pa[i] !== pb[i]) return pa[i] - pb[i];
+    return 0;
+  }
+
+  // Changelog text may contain `code` spans; build them as elements, never as HTML.
+  function appendRich(parent, text) {
+    text.split("`").forEach((part, index) => {
+      if (!part) return;
+      if (index % 2) {
+        const code = document.createElement("code");
+        code.textContent = part;
+        parent.appendChild(code);
+      } else {
+        parent.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
+  function showNews(data) {
+    const seen = readSeen();
+    if (seen === data.version) return;
+    // First visit: only the current release; otherwise every release newer than the last one seen.
+    const releases = data.releases.filter((r) =>
+      seen ? compareVersions(r.version, seen) > 0 : r.version === data.version);
+    if (!releases.length) { writeSeen(data.version); return; }
+    const body = document.getElementById("news-body");
+    body.replaceChildren();
+    for (const release of releases) {
+      const heading = document.createElement("h3");
+      heading.textContent = `Versão ${release.version}${release.date ? ` · ${release.date}` : ""}`;
+      body.appendChild(heading);
+      for (const section of release.sections) {
+        const name = document.createElement("h4");
+        name.textContent = section.name;
+        const list = document.createElement("ul");
+        for (const item of section.items) {
+          const li = document.createElement("li");
+          appendRich(li, item);
+          list.appendChild(li);
+        }
+        body.append(name, list);
+      }
+    }
+    const news = document.getElementById("news");
+    news.hidden = false;
+    document.getElementById("news-close").addEventListener("click", () => {
+      writeSeen(data.version);
+      news.hidden = true;
+    }, { once: true });
+  }
+
+  fetch("/api/changelog")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then(showNews)
+    .catch(() => {});
+
   fetch("/api/health")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((health) => { document.getElementById("version").textContent = `Versão ${health.version}`; })

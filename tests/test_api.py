@@ -206,3 +206,12 @@ def test_inspect_validates_upload(client):
     response = client.post("/api/inspect", files={"file": ("x.pdf", b"<html>", "application/pdf")})
     assert response.status_code == 415
     assert client.post("/api/inspect", files={"file": ("x.pdf", blank_pdf(), "application/pdf")}).status_code == 422
+
+
+def test_changelog_endpoint(client):
+    from app import __version__
+
+    body = client.get("/api/changelog").json()
+    assert body["version"] == __version__
+    assert body["releases"][0]["version"] == __version__
+    assert all(r["version"] != "Unreleased" for r in body["releases"])

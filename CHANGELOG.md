@@ -3,6 +3,11 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-PT/1.1.0/);
 versões segundo [Semantic Versioning](https://semver.org/lang/pt-BR/).
 Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar entre versões menores.
+As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
+
+## [Unreleased]
+### Adicionado
+- Banner "Novidades" na entrada da aplicação com as alterações das versões ainda não vistas pelo utilizador.
 
 ## [0.5.0] - 2026-09-28
 ### Adicionado

@@ -45,6 +45,7 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 |---|---|---|
 | `GET` | `/api/health` | estado |
 | `GET` | `/api/options` | afinações, instrumentos, limites |
+| `GET` | `/api/changelog` | versões publicadas e respetivas alterações |
 | `POST` | `/api/inspect` | JSON: título, artista, BPM e compasso detetados (sem converter) |
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
@@ -91,6 +92,10 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 ## Versões
 
 [Semantic Versioning](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH`, definida em `app/__init__.py`, visível na interface e em `/api/health`, com tag git `vX.Y.Z` por versão. Alterações em `CHANGELOG.md`.
+
+- Cada alteração é registada em `## [Unreleased]` no `CHANGELOG.md`, sem mudar a versão.
+- A versão só sobe quando várias alterações são publicadas em conjunto: a secção `[Unreleased]` passa a `[X.Y.Z] - data` e `__version__` é atualizado.
+- Ao abrir a aplicação, um banner "Novidades" mostra as versões publicadas desde a última que o utilizador viu (guardada no browser); fecha-se com "Fechar". Alterações ainda não publicadas não aparecem.
 
 ## Desenvolvimento
 

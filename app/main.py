@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
+from .changelog import load_releases, version_key
 from .config import settings
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult
 from .sandbox import ConversionTimeout, run_isolated
@@ -38,6 +39,14 @@ app.add_middleware(SecurityHeadersMiddleware, hsts=settings.enable_hsts)
 
 rate_limiter = RateLimiter(settings.rate_limit_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
+
+
+@app.get("/api/changelog")
+async def changelog() -> dict:
+    """Released changes up to the running version, newest first (for the "what's new" banner)."""
+    current = version_key(__version__)
+    releases = [r for r in load_releases() if version_key(r["version"]) <= current]
+    return {"version": __version__, "releases": releases}
 
 
 @app.get("/api/health")
