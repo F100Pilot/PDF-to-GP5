@@ -295,3 +295,20 @@ def test_parentheses_option(client):
     assert gp.NoteType.tie in types[0]
     assert gp.NoteType.tie not in types[1]
     assert _post(client, pdf, parentheses="maybe").status_code == 422
+
+
+def test_tracks_are_aligned_by_printed_bar_numbers(client):
+    from tests.pdf_factory import engraved_tab_pdf
+
+    full = engraved_tab_pdf([[[(1, 0)], [(1, 1)], [(1, 2)]], [[(1, 3)], [(1, 4)], [(1, 5)]]], bar_numbers=[[1, 2, 3], [4, 5, 6]])
+    # Second track: the line with bars 3-4 was not read, so its bars 5-6 must not slide to 3-4.
+    gappy = engraved_tab_pdf([[[(2, 7)], [(2, 7)]], [[(2, 9)], [(2, 9)]]], bar_numbers=[[1, 2], [5, 6]])
+    response = _post_many(client, [("a.pdf", full), ("b.pdf", gappy)])
+    assert response.status_code == 200, response.text
+    report = response.json()["report"]
+    assert report["measures"] == 6
+    assert report["tracks"][1]["missing_bars"] == [3, 4]
+    assert any("3–4" in w for w in report["warnings"])
+    song = gp.parse(io.BytesIO(base64.b64decode(response.json()["gp5_base64"])))
+    frets = [[n.value for b in m.voices[0].beats for n in b.notes] for m in song.tracks[1].measures]
+    assert frets == [[7], [7], [], [], [9], [9]]

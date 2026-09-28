@@ -234,7 +234,6 @@ def _spacing_measures(
     next_number: int | None = None,
     stats: RhythmStats | None = None,
 ) -> list[ScoreMeasure]:
-    unit_width = system.char_width
     bounds = sorted(system.bars)
     if not bounds or columns and columns[0].x < bounds[0]:
         bounds.insert(0, system.start_x)
@@ -243,41 +242,64 @@ def _spacing_measures(
     numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
     measures: list[ScoreMeasure] = []
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
-        cols = [c for c in columns if start <= c.x < end]
-        if not cols:
-            if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
-                measures.extend(_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number)))
-            continue
-        marks = [m for m in system.rhythm if start <= m.x < end]
-        notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None
-        if stats is not None:
-            if notated is not None:
-                stats.notated += 1
+        produced = _segment_measures(system, columns, start, end, units, warnings, stats, numbers, index, next_number)
+        first_number = numbers[index] if index < len(numbers) else None
+        if first_number is not None and produced:
+            if all(not beat.notes for m in produced for beat in m.beats):
+                for offset, measure in enumerate(produced):  # (multi-)bar rest: consecutive numbers
+                    measure.number = first_number + offset
             else:
-                stats.estimated += 1
-        if notated is not None:
-            measures.extend(_sequence(notated, units))
-            continue
-        if len(cols) > units:
-            warnings.append(
-                f"Página {system.page}: compasso com {len(cols)} notas excede a métrica; notas em fusas (1/32)."
-            )
-            measures.extend(_sequence([(_to_notes(c.events), 1) for c in cols], units))
-            continue
-        content_start = start + unit_width  # skip the bar-line glyph
-        if system.source == "engraved" or cols[0].x - content_start <= 1.5 * unit_width:
-            origin = cols[0].x
-        else:
-            origin = content_start + unit_width  # leading rest: assume one spacer before the grid
-        onsets = _quantize([c.x for c in cols], origin, end, units)
-        items: list[tuple[list[ScoreNote], int]] = []
-        if onsets[0] > 0:
-            items.append(([], onsets[0]))
-        for k, col in enumerate(cols):
-            nxt = onsets[k + 1] if k + 1 < len(cols) else units
-            items.append((_to_notes(col.events), nxt - onsets[k]))
-        measures.extend(_sequence(items, units))
+                produced[0].number = first_number
+        measures.extend(produced)
     return measures
+
+
+def _segment_measures(
+    system: TabSystem,
+    columns: list[_Column],
+    start: float,
+    end: float,
+    units: int,
+    warnings: list[str],
+    stats: RhythmStats | None,
+    numbers: list[int | None],
+    index: int,
+    next_number: int | None,
+) -> list[ScoreMeasure]:
+    """Measures for the bar between two bar lines (more than one for multi-bar rests)."""
+    unit_width = system.char_width
+    cols = [c for c in columns if start <= c.x < end]
+    if not cols:
+        if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
+            return [_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number))]
+        return []
+    marks = [m for m in system.rhythm if start <= m.x < end]
+    notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None
+    if stats is not None:
+        if notated is not None:
+            stats.notated += 1
+        else:
+            stats.estimated += 1
+    if notated is not None:
+        return _sequence(notated, units)
+    if len(cols) > units:
+        warnings.append(
+            f"Página {system.page}: compasso com {len(cols)} notas excede a métrica; notas em fusas (1/32)."
+        )
+        return _sequence([(_to_notes(c.events), 1) for c in cols], units)
+    content_start = start + unit_width  # skip the bar-line glyph
+    if system.source == "engraved" or cols[0].x - content_start <= 1.5 * unit_width:
+        origin = cols[0].x
+    else:
+        origin = content_start + unit_width  # leading rest: assume one spacer before the grid
+    onsets = _quantize([c.x for c in cols], origin, end, units)
+    items: list[tuple[list[ScoreNote], int]] = []
+    if onsets[0] > 0:
+        items.append(([], onsets[0]))
+    for k, col in enumerate(cols):
+        nxt = onsets[k + 1] if k + 1 < len(cols) else units
+        items.append((_to_notes(col.events), nxt - onsets[k]))
+    return _sequence(items, units)
 
 
 def resolve_links(measures: list[ScoreMeasure], parentheses: ParenthesesMode = "tie") -> None:

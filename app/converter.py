@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -202,12 +203,48 @@ def _track_name(index: int, track: TrackOptions, parsed: _ParsedPdf, song: SongM
     )
 
 
+def _rest_bar(score: Score) -> ScoreMeasure:
+    units = score.numerator * 32 // score.denominator
+    return ScoreMeasure([ScoreBeat(part) for part in split_units(units)])
+
+
+def _ranges(numbers: list[int]) -> str:
+    """[3, 4, 5, 9] -> "3–5, 9"."""
+    parts: list[str] = []
+    for _, group in itertools.groupby(enumerate(numbers), key=lambda item: item[1] - item[0]):
+        values = [n for _, n in group]
+        parts.append(f"{values[0]}–{values[-1]}" if len(values) > 1 else str(values[0]))
+    return ", ".join(parts)
+
+
+def _align_by_numbers(score: Score) -> list[int] | None:
+    """Put each bar at its printed bar number, filling gaps with rests.
+
+    Returns the missing bar numbers, or None when the numbering is absent or not
+    strictly increasing (the measures are then left untouched).
+    """
+    measures = score.measures
+    if not measures or sum(m.number is not None for m in measures) < 0.8 * len(measures):
+        return None
+    slots: dict[int, ScoreMeasure] = {}
+    position = 0
+    for measure in measures:
+        target = measure.number if measure.number is not None else position + 1
+        if target <= position:
+            return None
+        slots[target] = measure
+        position = target
+    missing = [n for n in range(1, position + 1) if n not in slots]
+    score.measures = [slots.get(n) or _rest_bar(score) for n in range(1, position + 1)]
+    for number, measure in enumerate(score.measures, start=1):
+        measure.number = number
+    return missing
+
+
 def _pad(score: Score, measures: int) -> int:
     """Append full-bar rests so every track has the same number of bars; returns bars added."""
-    units = score.numerator * 32 // score.denominator
     missing = measures - len(score.measures)
-    for _ in range(missing):
-        score.measures.append(ScoreMeasure([ScoreBeat(part) for part in split_units(units)]))
+    score.measures.extend(_rest_bar(score) for _ in range(missing))
     return missing
 
 
@@ -267,13 +304,23 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         scores.append(score)
         track_reports.append(report)
 
-    total_measures = max(len(s.measures) for s in scores)
+    aligned: list[bool] = []
     for score, report in zip(scores, track_reports, strict=True):
+        missing = _align_by_numbers(score)
+        aligned.append(missing is not None)
+        report["missing_bars"] = missing or []
+        if missing:
+            report["warnings"].append(f"Compassos não encontrados no PDF, preenchidos com pausa: {_ranges(missing)}.")
+    total_measures = max(len(s.measures) for s in scores)
+    for score, report, by_number in zip(scores, track_reports, aligned, strict=True):
+        first_added = len(score.measures) + 1
         added = _pad(score, total_measures)
         if added:
+            report["missing_bars"].extend(range(first_added, total_measures + 1))
+            where = "" if by_number else " (sem numeração de compassos no PDF: pode estar desalinhada)"
             report["warnings"].append(
-                f"Tem {report['measures']} compassos e a música tem {total_measures}: "
-                f"acrescentados {added} compasso(s) de pausa no fim."
+                f"Tem {first_added - 1} compassos e a música tem {total_measures}: "
+                f"acrescentados {added} compasso(s) de pausa no fim{where}."
             )
 
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo))

@@ -101,6 +101,7 @@ class ScoreBeat:
 @dataclass
 class ScoreMeasure:
     beats: list[ScoreBeat]
+    number: int | None = None  # bar number printed in the PDF, when known
 
 
 @dataclass
