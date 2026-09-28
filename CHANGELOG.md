@@ -20,6 +20,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Letra da música importada para o GP5 (até 5 blocos, na track com mais notas).
 - Afinação escrita no PDF ("Tuning: D A D G B E", "Drop D", "Eb standard"…) e afinações livres.
 - Dinâmicas (ppp … fff) aplicadas como velocidade das notas.
+- Scripts de arranque para Windows: `start-trabalho.bat` (ambiente virtual fora do OneDrive) e `start-casa.bat` (sem ambiente virtual); ambos fazem `git pull` e iniciam o servidor.
 ### Corrigido
 - Tabs com mais de 7 cordas passam a dar erro claro (o formato GP5 só guarda 7 cordas; antes gerava um ficheiro inválido). Removida a afinação de 8 cordas.
 - Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).

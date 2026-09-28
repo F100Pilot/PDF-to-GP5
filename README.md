@@ -30,6 +30,17 @@ Se a tab gravada tiver notação rítmica (hastes, barras, pausas — "tab com h
 
 Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre a pré-visualização: o ritmo é uma estimativa.
 
+## Arranque rápido (Windows)
+
+Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8000 e iniciam o servidor (Ctrl+C para parar):
+
+| Script | Para | Python |
+|---|---|---|
+| `start-trabalho.bat` | PC com restrições (sem administrador, projeto no OneDrive) | Ambiente virtual em `%USERPROFILE%\venvs\pdf-to-gp5`, criado na primeira execução |
+| `start-casa.bat` | PC sem restrições | Sem ambiente virtual: dependências instaladas com `pip install --user` |
+
+Basta fazer duplo clique no script. Porta e endereço podem ser alterados nas variáveis `PORT` e `HOST` no topo de cada ficheiro.
+
 ## Executar
 
 ```bash

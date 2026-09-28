@@ -1,0 +1,52 @@
+@echo off
+setlocal
+rem ===================================================================
+rem  PDF -> GP5 : arranque no PC de CASA
+rem  - sem ambiente virtual: dependencias instaladas no Python do utilizador (--user)
+rem  Passos: git pull, instalar dependencias, abrir o browser, iniciar o servidor.
+rem ===================================================================
+
+set "HOST=127.0.0.1"
+set "PORT=8000"
+
+cd /d "%~dp0"
+
+rem Preferir o lancador "py" (instalador do python.org); senao, "python".
+set "PY=python"
+where py >nul 2>nul
+if not errorlevel 1 set "PY=py -3"
+
+echo.
+echo [1/3] A atualizar o codigo (git pull)...
+where git >nul 2>nul
+if errorlevel 1 (
+    echo AVISO: git nao encontrado. Vai ser usada a versao local.
+) else (
+    git pull --ff-only
+    if errorlevel 1 echo AVISO: git pull falhou. Vai ser usada a versao local.
+)
+
+echo.
+echo [2/3] A instalar/atualizar as dependencias...
+%PY% --version >nul 2>nul
+if errorlevel 1 goto :no_python
+%PY% -m pip install --user --disable-pip-version-check -q -r requirements.txt
+if errorlevel 1 goto :pip_failed
+
+echo.
+echo [3/3] Servidor em http://%HOST%:%PORT%   -   Ctrl+C para parar
+start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
+%PY% -m uvicorn app.main:app --host %HOST% --port %PORT%
+goto :end
+
+:no_python
+echo ERRO: Python nao encontrado. Instale o Python 3.11 ou superior (python.org).
+goto :end
+
+:pip_failed
+echo ERRO: nao foi possivel instalar as dependencias.
+
+:end
+echo.
+pause
+endlocal
