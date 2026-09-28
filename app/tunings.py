@@ -48,6 +48,44 @@ def match_labels(labels: list[str]) -> str | None:
     return None
 
 
+# Names printed instead of note letters ("Tuning: Drop D", "Afinação: meio tom abaixo").
+TUNING_NAMES: dict[str, str] = {
+    "standard": "standard",
+    "e standard": "standard",
+    "padrão": "standard",
+    "normal": "standard",
+    "drop d": "drop_d",
+    "eb standard": "eb_standard",
+    "e flat standard": "eb_standard",
+    "half step down": "eb_standard",
+    "1/2 step down": "eb_standard",
+    "½ step down": "eb_standard",
+    "meio tom abaixo": "eb_standard",
+    "d standard": "d_standard",
+    "whole step down": "d_standard",
+    "1 step down": "d_standard",
+    "um tom abaixo": "d_standard",
+    "drop c": "drop_c",
+    "open g": "open_g",
+    "open d": "open_d",
+    "dadgad": "dadgad",
+}
+
+
+def labels_to_midi(labels: list[str]) -> list[int] | None:
+    """MIDI tuning for arbitrary note labels (string 1 first), octaves taken from the
+    standard tuning with the same number of strings."""
+    reference = DEFAULT_BY_STRING_COUNT.get(len(labels))
+    classes = [label_pitch_class(label) for label in labels]
+    if reference is None or any(c is None for c in classes):
+        return None
+    tuning: list[int] = []
+    for base, pitch_class in zip(TUNINGS[reference], classes, strict=True):
+        candidates = [base + delta for delta in range(-6, 7) if (base + delta) % 12 == pitch_class]
+        tuning.append(min(candidates, key=lambda m: (abs(m - base), m)))
+    return tuning
+
+
 def resolve_tuning(requested: str, string_count: int, labels: list[str]) -> tuple[list[int], list[str]]:
     """Pick the tuning to use. Returns (midi values, warnings)."""
     warnings: list[str] = []
@@ -59,11 +97,19 @@ def resolve_tuning(requested: str, string_count: int, labels: list[str]) -> tupl
             f"Afinação '{requested}' tem {len(midi)} cordas mas a tablatura tem {string_count}; "
             "usada a afinação padrão para esse número de cordas."
         )
-    elif labels:
+    elif labels and len(labels) == string_count:
         matched = match_labels(labels)
         if matched:
             return list(TUNINGS[matched]), warnings
+        custom = labels_to_midi(labels)
+        if custom is not None:
+            return custom, warnings
         warnings.append(f"Afinação indicada no PDF ({' '.join(labels)}) não reconhecida; usada a padrão.")
+    elif labels:
+        warnings.append(
+            f"A afinação indicada no PDF tem {len(labels)} notas mas a tablatura tem {string_count} cordas; "
+            "usada a padrão."
+        )
     default = DEFAULT_BY_STRING_COUNT.get(string_count)
     if default is None:
         raise ValueError(f"Número de cordas não suportado: {string_count}")

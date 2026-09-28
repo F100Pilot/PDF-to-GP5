@@ -288,6 +288,8 @@
       ["Título", (report.title || "—") + auto("title")], ["Artista", (report.artist || "—") + auto("artist")],
       ["BPM", report.tempo + auto("tempo")], ["Compasso", report.time_signature + auto("time_signature")],
       ["Tracks", report.tracks.length], ["Compassos", report.measures], ["Notas", report.notes],
+      ["Secções", report.sections && report.sections.length ? report.sections.length : "—"],
+      ["Letra", report.lyrics ? `${report.lyrics.track}` : "—"],
     ]), { id: "summary" }));
     const list = document.getElementById("warnings");
     list.replaceChildren();

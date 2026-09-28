@@ -45,6 +45,7 @@ class SongMetadata:
     tempo: int | None = None
     numerator: int | None = None
     denominator: int | None = None
+    tuning_labels: tuple[str, ...] = ()  # string 1 (highest) first
 
 
 def line_text(line: TextLine) -> str:
@@ -101,6 +102,34 @@ def _detect_time_signature(page: Page) -> tuple[int, int] | None:
     return None
 
 
+_TUNING_LINE = re.compile(r"^\s*(?:tuning|afina[cç][aã]o)\s*[:\-]?\s*(?P<v>.+)$", re.IGNORECASE)
+_NOTE_TOKEN = re.compile(r"^[A-Ga-g](?:#|b|♯|♭)?$")
+
+
+def _detect_tuning(texts: list[str]) -> tuple[str, ...]:
+    """Labels (string 1 first) from a line like "Tuning: E A D G B E" (written low to high)
+    or a named tuning ("Tuning: Drop D")."""
+    from ..tunings import TUNING_NAMES, TUNINGS
+
+    names = {k: _NOTE_NAMES_OF(TUNINGS[v]) for k, v in TUNING_NAMES.items()}
+    for text in texts:
+        match = _TUNING_LINE.match(text)
+        if not match:
+            continue
+        value = match.group("v").strip().lower().rstrip(".")
+        if value in names:
+            return names[value]
+        tokens = [t.replace("♯", "#").replace("♭", "b") for t in re.split(r"[\s,\-–]+", match.group("v").strip()) if t]
+        if 4 <= len(tokens) <= 7 and all(_NOTE_TOKEN.match(t) for t in tokens):
+            return tuple(t[0].upper() + t[1:] for t in reversed(tokens))
+    return ()
+
+
+def _NOTE_NAMES_OF(midi: tuple[int, ...]) -> tuple[str, ...]:
+    names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    return tuple(names[m % 12] for m in midi)
+
+
 def _visual_title_artist(page: Page, lines: list[TextLine]) -> tuple[str | None, str | None]:
     """Largest text near the top is the title; the next credit-like line is the artist."""
     top_area = [line for line in lines if line.top < 0.3 * page.height]
@@ -147,6 +176,7 @@ def detect_metadata(pages: list[Page], info: dict[str, str] | None = None) -> So
     artist = labelled.get("artist") or visual_artist or info.get("Author")
     signature = _detect_time_signature(page)
     return SongMetadata(
+        tuning_labels=_detect_tuning(texts),
         title=title[:100] if title else None,
         artist=artist[:100] if artist else None,
         tempo=_detect_tempo(texts),

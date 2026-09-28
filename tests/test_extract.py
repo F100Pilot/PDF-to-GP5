@@ -206,3 +206,8 @@ def test_vibrato_wiggle_line_above_staff():
     wiggles = [Char("", x, x + 5, 99, 109) for x in range(90, 130, 5)]
     event = extract_engraved_systems(_bend_page([], wiggles))[0].events[0]
     assert event.vibrato
+
+
+def test_ascii_section_label_above_tab_block():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD], extra_lines=["[Chorus]"]))
+    assert systems[0].sections == [(systems[0].start_x, "Chorus")]

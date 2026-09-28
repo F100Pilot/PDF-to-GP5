@@ -19,6 +19,16 @@ class Char:
     x1: float
     top: float
     bottom: float
+    font: str = ""  # font name without the subset prefix, e.g. "Edwin-Bold"
+
+    @property
+    def bold(self) -> bool:
+        return "bold" in self.font.lower()
+
+    @property
+    def italic(self) -> bool:
+        name = self.font.lower()
+        return "italic" in name or "oblique" in name
 
     @property
     def xc(self) -> float:
@@ -122,7 +132,14 @@ def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, st
             raise PdfReadError(f"O PDF tem {len(pdf.pages)} páginas; o máximo é {max_pages}.")
         for index, page in enumerate(pdf.pages, start=1):
             chars = [
-                Char(_normalize(c["text"]), float(c["x0"]), float(c["x1"]), float(c["top"]), float(c["bottom"]))
+                Char(
+                    _normalize(c["text"]),
+                    float(c["x0"]),
+                    float(c["x1"]),
+                    float(c["top"]),
+                    float(c["bottom"]),
+                    str(c.get("fontname", "")).split("+")[-1],
+                )
                 for c in page.chars
                 if c.get("text") and not c["text"].isspace()
             ]

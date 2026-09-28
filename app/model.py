@@ -38,6 +38,7 @@ class TabEvent:
     let_ring: bool = False
     palm_mute: bool = False
     stroke: str | None = None  # "down" (low to high strings) or "up"; strum arrows
+    velocity: int | None = None  # MIDI velocity from the dynamic in force (None = default)
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,9 @@ class TabSystem:
     # detect multi-bar rests. len == len(bars) - 1 when present.
     bar_numbers: list[int | None] = field(default_factory=list)
     rhythm: list[RhythmMark] = field(default_factory=list)  # engraved tabs with rhythm notation
+    sections: list[tuple[float, str]] = field(default_factory=list)  # (x, "Chorus") above the staff
+    lyrics: list[tuple[float, str, bool]] = field(default_factory=list)  # (x, syllable, joins next word)
+    dynamics: list[tuple[float, int]] = field(default_factory=list)  # (x, MIDI velocity)
 
 
 @dataclass
@@ -89,6 +93,7 @@ class ScoreNote:
     let_ring: bool = False
     palm_mute: bool = False
     stroke: str | None = None
+    velocity: int | None = None
     parenthesized: bool = False  # unresolved: becomes tie or ghost
     link: Link | None = None  # unresolved link to previous note
 
@@ -110,6 +115,7 @@ class ScoreBeat:
 class ScoreMeasure:
     beats: list[ScoreBeat]
     number: int | None = None  # bar number printed in the PDF, when known
+    marker: str | None = None  # section name starting at this bar
 
 
 @dataclass

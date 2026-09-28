@@ -29,10 +29,19 @@ _BEND_UNITS_PER_SEMITONE = 50  # Guitar Pro: 100 = one whole tone
 
 
 @dataclass(frozen=True)
+class LyricsInfo:
+    """Song lyrics for one track: up to 5 lines, each starting at a bar (1-based)."""
+
+    track: int  # 1-based track number the syllables follow
+    lines: tuple[tuple[int, str], ...]
+
+
+@dataclass(frozen=True)
 class SongInfo:
     title: str = ""
     artist: str = ""
     tempo: int = 120
+    lyrics: LyricsInfo | None = None
 
 
 def sanitize_text(value: str, max_length: int = 100) -> str:
@@ -83,7 +92,8 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
         slides=[gp.SlideType.legatoSlideTo] if note.slide else [],
         bend=_bend(note) if note.bend_semitones and not note.dead else None,
     )
-    return gp.Note(beat, value=note.fret, string=note.string, type=note_type, effect=effect)
+    velocity = note.velocity or gp.Velocities.default
+    return gp.Note(beat, value=note.fret, string=note.string, type=note_type, effect=effect, velocity=velocity)
 
 
 def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
@@ -152,9 +162,16 @@ def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
             start=start,
             timeSignature=gp.TimeSignature(numerator=first.numerator, denominator=gp.Duration(value=first.denominator)),
         )
+        marker = next((s.measures[number - 1].marker for s in scores if s.measures[number - 1].marker), None)
+        if marker:
+            header.marker = gp.Marker(title=sanitize_text(marker, 40), color=gp.Color(255, 0, 0))
         song.addMeasureHeader(header)
         start += header.length
     song.tracks = [_build_track(song, number, score) for number, score in enumerate(scores, start=1)]
+    if info.lyrics and info.lyrics.lines:
+        lines = [gp.LyricLine(bar, sanitize_text(text, 10_000)) for bar, text in info.lyrics.lines[:5]]
+        lines += [gp.LyricLine() for _ in range(5 - len(lines))]
+        song.lyrics = gp.Lyrics(trackChoice=info.lyrics.track, lines=lines)
     return song
 
 

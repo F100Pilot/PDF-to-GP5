@@ -10,7 +10,7 @@ from .extract.ascii_tab import extract_ascii_systems
 from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
 from .extract.pdf_reader import PdfReadError, read_document
-from .gp5_writer import MAX_STRINGS, MAX_TRACKS, SongInfo, write_gp5
+from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .model import Score, ScoreBeat, ScoreMeasure, TabSystem
 from .preview import render_preview
 from .rhythm import ParenthesesMode, RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
@@ -128,6 +128,63 @@ def _main_staves(systems: list[TabSystem], warnings: list[str]) -> tuple[int, li
     return string_count, [s for s in systems if s.string_count == string_count]
 
 
+def _apply_dynamics(systems: list[TabSystem]) -> None:
+    """Each dynamic mark sets the velocity of the notes from its position on, across lines."""
+    current: int | None = None
+    for system in systems:
+        marks = sorted(system.dynamics)
+        index = 0
+        for event in sorted(system.events, key=lambda e: e.x):
+            while index < len(marks) and marks[index][0] <= event.x + system.char_width:
+                current = marks[index][1]
+                index += 1
+            event.velocity = current
+        if index < len(marks):
+            current = marks[-1][1]
+
+
+def _bar_of(system: TabSystem, x: float, previous: int) -> int:
+    """Printed bar number of the bar containing ``x`` (counting on from ``previous`` when unknown)."""
+    bounds = sorted(system.bars)
+    numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
+    number = previous
+    for index, (start, end) in enumerate(itertools.pairwise(bounds)):
+        known = numbers[index] if index < len(numbers) else None
+        number = known if known is not None else number + 1
+        if x < end:
+            return number
+    return max(number, previous)
+
+
+def _lyric_lines(systems: list[TabSystem], max_lines: int = 5) -> list[tuple[int, str]]:
+    """Lyrics as at most ``max_lines`` (starting bar, text) blocks.
+
+    Guitar Pro gives one syllable to each note of the chosen track, so the text is
+    cut into blocks that restart at the bar where they were printed.
+    """
+    words: list[tuple[int, str, bool]] = []
+    last_bar = 0
+    for system in systems:
+        for x, syllable, joins in sorted(system.lyrics):
+            last_bar = _bar_of(system, x, last_bar)
+            words.append((last_bar, syllable, joins))
+        if system.bars:
+            last_bar = _bar_of(system, max(system.bars), last_bar)
+    if not words:
+        return []
+    blocks: list[list[tuple[int, str, bool]]] = [[words[0]]]
+    for word in words[1:]:
+        if word[0] - blocks[-1][-1][0] > 1:
+            blocks.append([word])
+        else:
+            blocks[-1].append(word)
+    while len(blocks) > max_lines:  # merge across the smallest gaps
+        gaps = [blocks[i + 1][0][0] - blocks[i][-1][0] for i in range(len(blocks) - 1)]
+        i = gaps.index(min(gaps))
+        blocks[i : i + 2] = [blocks[i] + blocks[i + 1]]
+    return [(block[0][0], "".join(s + ("-" if joins else " ") for _, s, joins in block).strip()) for block in blocks]
+
+
 def _tuning_name(tuning: list[int]) -> str:
     return next((name for name, midi in TUNINGS.items() if list(midi) == tuning), "custom")
 
@@ -137,13 +194,14 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     string_count, kept = _main_staves(parsed.systems, warnings)
     if string_count > MAX_STRINGS:
         raise ConversionError(f"A tablatura tem {string_count} cordas; o formato GP5 suporta no máximo {MAX_STRINGS}.")
-    labels = next((s.labels for s in kept if s.labels), [])
+    labels = next((s.labels for s in kept if s.labels), []) or list(parsed.metadata.tuning_labels)
     try:
         tuning, tuning_warnings = resolve_tuning(track.tuning, string_count, labels)
     except (KeyError, ValueError) as exc:
         raise ConversionError("Afinação inválida.") from exc
     warnings.extend(tuning_warnings)
 
+    _apply_dynamics(kept)
     system_measures: list[int] = []
     stats = RhythmStats()
     measures = build_measures(kept, rhythm, warnings, system_measures, stats)
@@ -170,6 +228,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     )
     report = {
         "name": name,
+        "dynamics": sum(len(s.dynamics) for s in kept),
         "filename": track.filename,
         "instrument": instrument,
         "strings": string_count,
@@ -193,6 +252,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
             for i, s in enumerate(kept)
         ],
     }
+    report["_lyrics"] = _lyric_lines(kept)
     return score, report
 
 
@@ -325,7 +385,20 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
                 f"acrescentados {added} compasso(s) de pausa no fim{where}."
             )
 
-    gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo))
+    lyric_candidates = [i for i, r in enumerate(track_reports) if r["_lyrics"]]
+    lyrics = None
+    if lyric_candidates:
+        chosen = max(lyric_candidates, key=lambda i: track_reports[i]["notes"])
+        lyrics = LyricsInfo(track=chosen + 1, lines=tuple(track_reports[chosen]["_lyrics"]))
+    for report in track_reports:
+        del report["_lyrics"]
+    sections = []
+    for index in range(total_measures):
+        name = next((s.measures[index].marker for s in scores if s.measures[index].marker), None)
+        if name:
+            sections.append({"bar": index + 1, "name": name})
+
+    gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))
     warnings = [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]]
     report = {
         "title": title,
@@ -340,6 +413,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         },
         "measures": total_measures,
         "notes": sum(r["notes"] for r in track_reports),
+        "sections": sections,
+        "lyrics": {"track": track_reports[lyrics.track - 1]["name"], "lines": len(lyrics.lines)} if lyrics else None,
         "warnings": warnings,
         "tracks": track_reports,
     }
@@ -351,7 +426,7 @@ def inspect(pdf: bytes, options: ConversionOptions) -> dict:
     parsed = _parse_pdf(pdf, options)
     meta = parsed.metadata
     string_count, kept = _main_staves(parsed.systems, [])
-    labels = next((s.labels for s in kept if s.labels), [])
+    labels = next((s.labels for s in kept if s.labels), []) or list(meta.tuning_labels)
     tuning, _ = resolve_tuning("auto", string_count, labels)
     return {
         "title": meta.title,

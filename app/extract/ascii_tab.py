@@ -7,11 +7,17 @@ from statistics import median
 
 from ..model import Link, TabEvent, TabSystem
 from .common import shared_bars, split_fret_number
+from .metadata import line_text
 from .pdf_reader import Char, Page, TextLine, group_lines
 
 _BODY_CHARS = set("-0123456789|hpbrs/\\~xX()<>.:*^=+")
 _LABEL_RE = re.compile(r"^[A-Ga-g][#b]?$")
 _PROSE_RE = re.compile(r"[A-Za-z]{3,}")
+_SECTION_RE = re.compile(
+    r"^\s*\[?\s*(?P<name>(?:intro|verse|pre-?chorus|chorus|post-?chorus|bridge|solo|outro|interlude|riff|"
+    r"breakdown|instrumental|refr[aã]o|estrofe|ponte)\b[^\]:]*?)\s*\]?\s*:?\s*$",
+    re.IGNORECASE,
+)
 # Share of unrecognised symbols (e.g. "v", "T", "[12]") tolerated in a tab line; they are skipped.
 MAX_UNKNOWN_RATIO = 0.15
 _LINKS = {"h": Link.HAMMER, "p": Link.PULL, "/": Link.SLIDE_UP, "\\": Link.SLIDE_DOWN, "s": Link.SLIDE_UP}
@@ -147,16 +153,32 @@ def _split_stacked(group: list[tuple[str, list[Char]]]) -> list[list[tuple[str, 
     return []
 
 
+def _section_above(lines: list[TextLine], index: int) -> str | None:
+    """A section label ("[Chorus]", "Verse 2:") on one of the two lines just above a tab block."""
+    for back in (1, 2):
+        if index - back < 0:
+            break
+        line = lines[index - back]
+        if lines[index].yc - line.yc > 4 * (line.bottom - line.top):
+            break
+        match = _SECTION_RE.match(line_text(line))
+        if match:
+            return match.group("name").strip().title()
+    return None
+
+
 def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     """Find groups of consecutive tab lines on a page."""
     systems: list[TabSystem] = []
     warnings: list[str] = []
     group: list[tuple[str, list[Char]]] = []
     group_ys: list[float] = []
+    group_section: str | None = None
     ignored = 0
 
     def flush() -> None:
         nonlocal ignored
+        first = len(systems)
         if MIN_STRINGS <= len(group) <= MAX_STRINGS:
             systems.append(_build_system(page.number, group))
         elif len(group) > MAX_STRINGS:
@@ -168,6 +190,8 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
                 )
         elif len(group) >= 2:
             ignored += len(group)
+        if group_section and len(systems) > first:
+            systems[first].sections = [(systems[first].start_x, group_section)]
 
     lines = group_lines(page.chars)
     for index, line in enumerate(lines):
@@ -188,6 +212,7 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             flush()
             group = [parsed] if parsed else []
             group_ys = [line.yc] if parsed else []
+            group_section = _section_above(lines, index) if parsed else None
             if not parsed and _is_dashy(line.text) and len(line.text) >= 12:
                 ignored += 1
     flush()

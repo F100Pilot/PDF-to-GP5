@@ -16,6 +16,10 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Bends nas tabs gravadas: bend (seta curva), pre-bend (seta reta), release (seta descendente) e bend mantido em notas ligadas, com a quantidade indicada (½, 1, 1½, 2).
 - Vibrato (linha ondulada) aplicado às notas abrangidas, incluindo notas ligadas só com haste.
 - `docs/NOTACAO.md`: registo de todas as notas e técnicas, com o estado de implementação de cada uma.
+- Secções (Intro, Verse, Chorus…) convertidas em marcadores do GP5 (tabs gravadas e em texto).
+- Letra da música importada para o GP5 (até 5 blocos, na track com mais notas).
+- Afinação escrita no PDF ("Tuning: D A D G B E", "Drop D", "Eb standard"…) e afinações livres.
+- Dinâmicas (ppp … fff) aplicadas como velocidade das notas.
 ### Corrigido
 - Tabs com mais de 7 cordas passam a dar erro claro (o formato GP5 só guarda 7 cordas; antes gerava um ficheiro inválido). Removida a afinação de 8 cordas.
 - Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).

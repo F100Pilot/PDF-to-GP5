@@ -95,6 +95,7 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             let_ring=e.let_ring,
             palm_mute=e.palm_mute,
             stroke=e.stroke,
+            velocity=e.velocity,
             bend_semitones=e.bend_semitones,
             bend_release=e.bend_release,
             bend_pre=e.bend_pre,
@@ -255,9 +256,15 @@ def _spacing_measures(
     if columns and columns[-1].x > bounds[-1]:
         bounds.append(system.end_x)
     numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
+    pending_sections = sorted(system.sections)
     measures: list[ScoreMeasure] = []
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
         produced = _segment_measures(system, columns, start, end, units, warnings, stats, numbers, index, next_number)
+        if produced:
+            names = [name for x, name in pending_sections if x < end]
+            pending_sections = [(x, name) for x, name in pending_sections if x >= end]
+            if names:
+                produced[0].marker = " / ".join(names)
         first_number = numbers[index] if index < len(numbers) else None
         if first_number is not None and produced:
             if all(not beat.notes for m in produced for beat in m.beats):

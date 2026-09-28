@@ -65,7 +65,7 @@ Colunas:
 | Repetições `‖: :‖` e "x3" | ⬜ | ⬜ | ✅ | — | Hoje ignoradas (tocadas uma vez) |
 | Casas de 1.ª/2.ª vez (voltas) | ⬜ | ⬜ | ✅ | — | |
 | Coda, Segno, D.C., D.S., Fine | ⬜ | ⬜ | ✅ | — | |
-| Secções (Intro, Verse, Chorus…) → marcadores | ⬜ | ⬜ | ✅ | Happen To Me | Texto já presente nos PDFs |
+| Secções (Intro, Verse, Chorus…) → marcadores | ✅ | ✅ | ✅ | Happen To Me | Gravada: texto a negrito acima da pauta; texto: `[Chorus]`, `Verse 2:` |
 
 ## 3. Notas
 
@@ -79,7 +79,7 @@ Colunas:
 | Acento forte `^` (marcato) | ⬜ | ⬜ | ✅ | — | |
 | Staccato `.` | ⬜ | ⬜ | ✅ | — | |
 | Dedilhação (mão esquerda 1–4, mão direita p-i-m-a) | ⬜ | ⬜ | ✅ | — | |
-| Dinâmica (ppp … fff) | ⬜ | ⬜ | ✅ | Happen To Me (`f`) | Via velocidade da nota |
+| Dinâmica (ppp … fff) | ⬜ | ✅ | ✅ | Happen To Me (`f`) | Velocidade da nota até à dinâmica seguinte; glifos SMuFL ou letras itálicas |
 | Crescendo / decrescendo (hairpins) | ⬜ | ⬜ | ⛔ | Happen To Me | Aproximar por dinâmicas |
 
 ## 4. Técnicas da mão esquerda
@@ -138,11 +138,11 @@ Colunas:
 | Várias tracks (um PDF por track) | ✅ | ✅ | ✅ | Happen To Me | Até 7 tracks |
 | Nome da track / parte | ✅ | ✅ | ✅ | Happen To Me | Texto do PDF ou nome do ficheiro |
 | Afinação por etiquetas (`e B G D A E`) | ✅ | ✅ | ✅ | — | |
-| Afinação escrita ("Tuning: D A D G B E") | ⬜ | ⬜ | ✅ | Happen To Me | |
+| Afinação escrita ("Tuning: D A D G B E", "Drop D"…) | ✅ | ✅ | ✅ | Happen To Me | Notas de grave para agudo ou nome; afinações livres com a oitava mais próxima |
 | Capo ("Capo 3") | ⬜ | ⬜ | ✅ | — | |
 | Guitarra 4–7 cordas / baixo 4–5 cordas | ✅ | ✅ | ✅ | Happen To Me | |
 | 8 cordas ou mais | ⛔ | ⛔ | ⛔ | — | GP5 guarda no máximo 7 cordas (dá erro claro) |
-| Letra da música | ⬜ | ⬜ | ✅ | Happen To Me | Texto sob a pauta |
+| Letra da música | ⬜ | 🟡 | ✅ | Happen To Me | Até 5 blocos, cada um no seu compasso; o GP distribui as sílabas pelas notas da track (não segue o ritmo da voz) |
 | Nomes de acordes / diagramas | ⬜ | ⬜ | ✅ | — | |
 | Texto livre sobre notas | ⬜ | ⬜ | ✅ | — | |
 | Segunda voz | ⬜ | ⬜ | ✅ | — | Hoje: uma voz por track |

@@ -127,3 +127,20 @@ def test_more_than_seven_strings_rejected():
     score = Score(8, [64, 59, 55, 50, 45, 40, 35, 30], [ScoreMeasure([ScoreBeat(32)])], 4, 4)
     with pytest.raises(ValueError):
         write_gp5(score, SongInfo())
+
+
+def test_roundtrip_markers_lyrics_and_velocity():
+    from app.gp5_writer import LyricsInfo
+
+    first = ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 0, velocity=47)])], marker="Chorus")
+    second = ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 2)])])
+    info = SongInfo(title="S", lyrics=LyricsInfo(track=1, lines=((1, "hap-pen to me"),)))
+    song = gp.parse(io.BytesIO(write_gp5(_score([first, second]), info)))
+    assert song.measureHeaders[0].marker.title == "Chorus" and song.measureHeaders[1].marker is None
+    assert (song.lyrics.trackChoice, song.lyrics.lines[0].startingMeasure, song.lyrics.lines[0].lyrics) == (
+        1,
+        1,
+        "hap-pen to me",
+    )
+    notes = [m.voices[0].beats[0].notes[0].velocity for m in song.tracks[0].measures]
+    assert notes == [47, gp.Velocities.default]

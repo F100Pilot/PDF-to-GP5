@@ -11,6 +11,7 @@ import itertools
 from dataclasses import dataclass, replace
 
 from ..model import Link, TabEvent, TabSystem
+from .annotations import dynamics, lyrics, section_labels
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
 from .rhythm_marks import glyph_ys, read_rhythm
@@ -431,6 +432,9 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             labels=_labels(page.chars, staff, spacing),
             source="engraved",
             bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
+            sections=section_labels(page, top, x0, x1, spacing),
+            lyrics=lyrics(page, bottom, x0, x1, spacing),
+            dynamics=dynamics(page, top, bottom, x0, x1, spacing),
             rhythm=[
                 replace(m, vibrato=True) if not m.is_rest and any(a <= m.x <= b for a, b in vibrato_ranges) else m
                 for m in read_rhythm(page, top, bottom, x0, x1, spacing)
