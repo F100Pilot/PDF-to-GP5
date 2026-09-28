@@ -17,14 +17,24 @@ where py >nul 2>nul
 if not errorlevel 1 set "PY=py -3"
 
 echo.
+if /i "%~1"=="--atualizado" goto :prepare
 echo [1/3] A atualizar o codigo (git pull)...
 where git >nul 2>nul
 if errorlevel 1 (
     echo AVISO: git nao encontrado. Vai ser usada a versao local.
 ) else (
     git pull --ff-only
-    if errorlevel 1 echo AVISO: git pull falhou. Vai ser usada a versao local.
+    if errorlevel 1 (
+        echo AVISO: git pull falhou. Vai ser usada a versao local.
+    ) else (
+        rem O cmd le este ficheiro enquanto o executa: recomecar com a versao
+        rem acabada de descarregar - este bloco ja foi lido todo.
+        call "%~f0" --atualizado
+        exit /b
+    )
 )
+
+:prepare
 
 echo.
 echo [2/3] A instalar/atualizar as dependencias...
