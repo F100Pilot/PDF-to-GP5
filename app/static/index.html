@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PDF para GP5</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="highway3d.js" defer></script>
   <script src="score.js" defer></script>
   <script src="app.js" defer></script>
 </head>
@@ -101,7 +102,11 @@
               <option value="Default" selected>Pauta e tab</option>
               <option value="Tab">Só tab</option>
               <option value="Score">Só pauta</option>
+              <option value="3D">Pista 3D (Rocksmith)</option>
             </select>
+          </label>
+          <label id="score-3d-track-label" hidden>Track na pista 3D
+            <select id="score-3d-track"></select>
           </label>
           <div class="score-player">
             <button id="score-play" type="button" disabled>▶ Tocar</button>
@@ -118,6 +123,7 @@
         </div>
         <div id="score-tracks" class="score-tracks"></div>
         <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
+        <div id="highway" class="highway" hidden></div>
         <div id="score" class="score"></div>
         <p class="hint">Clique numa nota para começar a tocar a partir daí. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>.</p>
       </section>

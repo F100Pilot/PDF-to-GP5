@@ -60,6 +60,8 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 
 Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, só tab ou só pauta), com todas as tracks ou só as escolhidas, cada uma com a sua cor, e toca-a (tocar/pausa/parar, velocidade, silenciar tracks; clicar numa nota começa a tocar daí). Usa o [alphaTab](https://alphatab.net) 1.8.4, incluído em `app/static/vendor/alphatab/` (funciona sem internet) e carregado só quando há um resultado para mostrar. Licenças: alphaTab MPL-2.0, fonte Bravura SIL OFL 1.1, sons Sonivox Apache-2.0 (ficheiros de licença na mesma pasta).
 
+**Pista 3D (Rocksmith)**: na Vista, "Pista 3D" mostra uma track como no Rocksmith — cordas nas cores do Rocksmith (Mi grave vermelho em cima), notas com o traste a chegar à linha de ataque, cordas soltas como barra, rasto nas notas longas e ligadas, quadro nos acordes e câmara a seguir a zona do braço. Segue o mesmo áudio, velocidade e posição da partitura. Usa o [three.js](https://threejs.org) 0.186.1 (MIT, em `app/static/vendor/three/`) e precisa de WebGL (aceleração gráfica); sem WebGL a página avisa e mantém a partitura.
+
 ## API
 
 | Método | Rota | Resposta |

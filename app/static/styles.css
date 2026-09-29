@@ -178,3 +178,4 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
   .form-side .grid { grid-template-columns: 1fr; }
   .form-side { position: sticky; top: 16px; }
 }
+.highway { height: min(72vh, 780px); min-height: 320px; border-radius: 8px; overflow: hidden; background: #0b0d14; }

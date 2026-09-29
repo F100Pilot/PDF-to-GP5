@@ -64,6 +64,16 @@ def test_score_viewer_files_are_served(client):
     assert client.get("/vendor/alphatab/soundfont/sonivox.sf3").status_code == 200
 
 
+def test_3d_highway_files_are_served(client):
+    page = client.get("/").text
+    assert 'src="highway3d.js"' in page and 'value="3D"' in page and 'id="highway"' in page
+    assert client.get("/highway3d.js").status_code == 200
+    # ES modules are refused by browsers unless served with a JavaScript MIME type (nosniff).
+    for path in ("/vendor/three/three.module.js", "/vendor/three/three.core.js"):
+        response = client.get(path)
+        assert response.status_code == 200 and "javascript" in response.headers["content-type"]
+
+
 def test_page_files_are_revalidated(client):
     for path in ("/", "/app.js", "/styles.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"

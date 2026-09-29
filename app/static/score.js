@@ -12,11 +12,20 @@
   const stopButton = document.getElementById("score-stop");
   const speedSelect = document.getElementById("score-speed");
   const statusLine = document.getElementById("score-status");
+  const highway = document.getElementById("highway");
+  const highwayTrackLabel = document.getElementById("score-3d-track-label");
+  const highwayTrack = document.getElementById("score-3d-track");
 
   let loading = null;
   let api = null;
   let colors = [];
   let shown = new Set();
+  let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
+  let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
+
+  function in3D() {
+    return viewSelect.value === "3D";
+  }
 
   // Tab-only view: print the rhythm under the tab, as the PDFs and Guitar Pro do.
   function rhythmModeFor(view) {
@@ -49,8 +58,8 @@
     api = new alphaTab.AlphaTabApi(container, {
       // Canvas rendering: the SVG engine writes inline style attributes, which the page's CSP forbids.
       core: { engine: "html5", fontDirectory: `${VENDOR}font/`, useWorkers: true },
-      display: { staveProfile: viewSelect.value, scale: 0.9 },
-      notation: { rhythmMode: rhythmModeFor(viewSelect.value) },
+      display: { staveProfile: notationView, scale: 0.9 },
+      notation: { rhythmMode: rhythmModeFor(notationView) },
       player: {
         playerMode: alphaTab.PlayerMode.EnabledSynthesizer,
         soundFont: `${VENDOR}soundfont/sonivox.sf3`,
@@ -61,8 +70,13 @@
       setStatus(`Erro na partitura: ${error && error.message ? error.message : error}`);
     });
     api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
-    api.renderFinished.on(() => setStatus(""));
-    api.scoreLoaded.on((score) => buildTrackBar(score));
+    api.renderFinished.on(() => setStatus(notice));
+    api.scoreLoaded.on((score) => {
+      buildTrackBar(score);
+      buildHighwayTracks(score);
+      if (in3D()) showHighway();
+    });
+    api.playerPositionChanged.on((e) => window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek));
     api.soundFontLoad.on((e) => {
       if (e.total) setStatus(`A carregar os sons… ${Math.round((100 * e.loaded) / e.total)}%`);
     });
@@ -74,6 +88,7 @@
     api.playerStateChanged.on((e) => {
       const playing = e.state === alphaTab.synth.PlayerState.Playing;
       playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
+      window.Highway3D.setPlaying(playing);
     });
   }
 
@@ -122,12 +137,58 @@
     });
   }
 
-  viewSelect.addEventListener("change", () => {
-    if (!api) return;
-    api.settings.display.staveProfile = alphaTab.StaveProfile[viewSelect.value];
-    api.settings.notation.rhythmMode = rhythmModeFor(viewSelect.value);
+  function buildHighwayTracks(score) {
+    const previous = highwayTrack.value;
+    highwayTrack.replaceChildren(...score.tracks.map((track) => {
+      const option = document.createElement("option");
+      option.value = String(track.index);
+      option.textContent = `${track.index + 1}. ${track.name}`;
+      return option;
+    }));
+    if (previous && Number(previous) < score.tracks.length) highwayTrack.value = previous;
+  }
+
+  // The 3D highway replaces the notation on the page; alphaTab keeps playing and drives it.
+  async function showHighway() {
+    container.hidden = true;
+    highway.hidden = false;
+    highwayTrackLabel.hidden = false;
+    api.settings.player.scrollMode = alphaTab.ScrollMode.Off; // nothing to follow on the hidden notation
+    api.updateSettings();
+    try {
+      await window.Highway3D.show(highway, api.score, Number(highwayTrack.value || 0));
+      notice = "";
+      setStatus("");
+    } catch (error) {
+      console.error(error);
+      notice = error instanceof Error && error.message.includes("WebGL")
+        ? error.message
+        : "Não foi possível mostrar a pista 3D.";
+      viewSelect.value = notationView;
+      showNotation();
+    }
+  }
+
+  function showNotation() {
+    window.Highway3D.hide();
+    highway.hidden = true;
+    highwayTrackLabel.hidden = true;
+    container.hidden = false;
+    api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;
+    api.settings.display.staveProfile = alphaTab.StaveProfile[notationView];
+    api.settings.notation.rhythmMode = rhythmModeFor(notationView);
     api.updateSettings();
     api.render();
+  }
+
+  viewSelect.addEventListener("change", () => {
+    if (!in3D()) notationView = viewSelect.value;
+    if (!api || !api.score) return;
+    if (in3D()) showHighway();
+    else showNotation();
+  });
+  highwayTrack.addEventListener("change", () => {
+    if (api && api.score && in3D()) showHighway();
   });
   playButton.addEventListener("click", () => api && api.playPause());
   stopButton.addEventListener("click", () => api && api.stop());
@@ -138,6 +199,7 @@
   // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position.
   async function show(bytes, trackCount, trackColors) {
     colors = trackColors || [];
+    notice = "";
     box.hidden = false;
     playButton.disabled = true;
     stopButton.disabled = true;
@@ -156,6 +218,7 @@
 
   function hide() {
     if (api) api.stop();
+    window.Highway3D.hide();
     box.hidden = true;
   }
 
