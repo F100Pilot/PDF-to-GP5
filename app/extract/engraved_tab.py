@@ -191,6 +191,32 @@ def _apply_legato_marks(chars: list[Char], staff: list[_StaffLine], spacing: flo
             best[1].link = _LEGATO_LETTERS[char.text]
 
 
+def _ties_into_empty_bars(
+    curves: list[Segment], staff: list[_StaffLine], spacing: float, events: list[TabEvent], bars: list[float]
+) -> list[float]:
+    """Bar lines that a tie crosses from a note into an empty bar (the tied note is not printed
+    and a whole note has no stem): a flat arc just above a string holding a note before the bar
+    line, ending past it, with no fret in the bar that follows."""
+    tied: list[float] = []
+    for bar, following in itertools.pairwise(bars):
+        if any(bar <= e.x < following for e in events):
+            continue
+        for n, line in enumerate(staff, start=1):
+            before = [e for e in events if e.string == n and e.fret is not None and e.x < bar]
+            if not before:
+                continue
+            last = max(e.x for e in before)
+            if any(
+                c.bottom - c.top < 0.8 * spacing
+                and line.y - 1.2 * spacing <= (c.top + c.bottom) / 2 <= line.y
+                and last < c.x0 < bar < c.x1 - 0.3 * spacing
+                for c in curves
+            ):
+                tied.append(bar)
+                break
+    return tied
+
+
 def _attach_grace_notes(events: list[TabEvent], spacing: float) -> tuple[list[TabEvent], list[float]]:
     """Grace notes (small digits) become part of the note they lead into: the note of the next
     column on the same string, hammered on when an "H"/"P" joins them. Returns the other
@@ -625,6 +651,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         signatures = time_signatures(page.chars, top, bottom, x0, x1, spacing)
         starts, ends = repeat_signs(page.chars, top, bottom, spacing, drawn)
         bars, signatures = _trim_margins(bars, signatures, starts, events, spacing)
+        tied_bars = _ties_into_empty_bars(page.curves, staff, spacing, events, bars)
         signs, jumps = navigation_marks(page, top, x0, x1, spacing)
         system = TabSystem(
             page=page.number,
@@ -640,6 +667,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             sections=section_labels(page, top, x0, x1, spacing),
             lyrics=lyrics(page, bottom, x0, x1, spacing),
             dynamics=dynamics(page, top, bottom, x0, x1, spacing),
+            tied_bars=tied_bars,
             hairpins=hairpins(page, bottom, _next_top(staves, bottom, page.height), x0, x1, spacing),
             time_signatures=signatures,
             repeat_starts=starts,

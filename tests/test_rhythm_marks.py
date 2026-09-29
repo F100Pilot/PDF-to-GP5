@@ -53,6 +53,12 @@ def test_bracketed_three_makes_a_triplet():
     assert [(m.units, m.tuplet) for m in marks] == [(4, True), (4, True), (4, True), (8, False)]
 
 
+def test_line_of_only_half_notes_reads_them_as_half_notes():
+    """Half-note stems are half as long; with no other stem on the line they are still halves."""
+    marks = _read(segments=[_stem(20, STEM_BOTTOM - 10), _stem(200, STEM_BOTTOM - 10)])
+    assert [m.units for m in marks] == [16, 16]
+
+
 def test_staff_without_stems_has_no_marks():
     assert _read(segments=[Segment(0, 500, TOP, TOP)]) == []
 
@@ -87,6 +93,13 @@ def test_triplet_bar_sums_to_the_bar_and_keeps_the_written_lengths():
     measures = build_measures([_system(events, rhythm)], RhythmOptions(), [], None, stats)
     assert [(b.units, b.tuplet) for b in measures[0].beats] == [(4, True)] * 3 + [(8, False), (16, False)]
     assert measures[0].units == 32 and (stats.notated, stats.estimated) == (1, 0)
+
+
+def test_tie_into_an_empty_bar_holds_the_notes_through_it():
+    system = _system([TabEvent(x=10, string=1, fret=9)], [RhythmMark(10, 32)])
+    system.bars, system.end_x, system.tied_bars = [0.0, 100.0, 200.0], 200, [100.0]
+    measures = build_measures([system], RhythmOptions(), [])
+    assert [(b.units, [(n.fret, n.tie) for n in b.notes]) for b in measures[1].beats] == [(32, [(9, True)])]
 
 
 def test_stemless_single_note_is_a_whole_note():

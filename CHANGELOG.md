@@ -34,6 +34,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Corrigido
+- Compasso vazio atravessado por uma ligadura (a nota ligada não é impressa e a semibreve não tem haste): passa a ser a continuação da nota durante o compasso inteiro, em vez de pausa.
+- Linha só com mínimas (hastes curtas): eram lidas como semínimas, porque a haste "normal" era medida na própria linha; o compasso ficava com ritmo estimado.
 - Dinâmicas escritas com uma letra por glifo ("ppp" como três "p", "mf" como "m" + "f"): eram lidas como p e f; passam a ppp e mf.
 - Pista 3D: a barra de uma corda solta (0) deixa de ocupar a janela de trastes de vários tempos (muitas vezes 5 ou mais); fica com a largura da maior posição da mão nessa janela, no mínimo 4 trastes.
 - Conversão e análise do PDF falhavam ("zip() argument 2 is longer than argument 1") quando uma linha por baixo da tab só tinha marcações como "let ring" ou "PM".

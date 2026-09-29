@@ -461,3 +461,12 @@ def test_engraved_small_digits_are_grace_notes_of_the_next_note():
 def test_engraved_staccato_dot_above_the_column():
     systems = extract_engraved_systems(_signs_page(chars=[_glyph("\ue4a2", 99, 90)]))
     assert [(e.fret, e.staccato) for e in sorted(systems[0].events, key=lambda e: e.x)] == [(3, True), (5, False)]
+
+
+def test_engraved_tie_arc_into_an_empty_bar():
+    arc = Segment(110, 320, 114, 117)  # just above string 3, from the "3" across the bar line at 300
+    page = _signs_page(notes=((100, "3"),), segments=[])
+    page.curves.append(arc)
+    assert extract_engraved_systems(page)[0].tied_bars == [300]
+    page.chars.append(page.chars[0].__class__("5", 350, 356, 116, 124))  # a fret in the bar: not tied through
+    assert extract_engraved_systems(page)[0].tied_bars == []

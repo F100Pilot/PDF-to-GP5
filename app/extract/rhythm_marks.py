@@ -130,7 +130,9 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     if not stems:
         return []
     below = stems[0].top > bottom
-    typical = median(s.bottom - s.top for s in stems)
+    # Half notes have shorter stems than the rest; a line of only half notes must not take them for
+    # the norm (stems are about two staff spaces long).
+    typical = max(median(s.bottom - s.top for s in stems), 1.5 * spacing)
     beams = _beam_shapes(page, spacing)
     flag_chars = [c for c in page.chars if c.text in FLAG_UNITS]
     dots = _dot_candidates(page, spacing)

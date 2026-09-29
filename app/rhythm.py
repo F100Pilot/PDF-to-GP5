@@ -378,6 +378,8 @@ def _segment_measures(
     unit_width = system.char_width
     cols = [c for c in columns if start <= c.x < end]
     if not cols:
+        if any(abs(start - x) <= unit_width for x in system.tied_bars):
+            return _sequence([(_TiePrevious(), units)], units)  # a tie runs through the empty bar
         if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
             return [_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number))]
         return []
