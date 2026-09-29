@@ -316,6 +316,8 @@
     return details;
   }
 
+  const LYRICS_TRACK = "Letra (voz)"; // the silent track carrying the lyrics (app/converter.py)
+
   // Guitar Pro names of the navigation marks, as printed in scores.
   const NAVIGATION = {
     "Da Capo": "D.C.", "Da Capo al Coda": "D.C. al Coda", "Da Capo al Fine": "D.C. al Fine",
@@ -409,7 +411,8 @@
       status.hidden = true;
       result.hidden = false;
       if (window.ScoreView) {
-        window.ScoreView.show(gp5, payload.report.tracks.length, trackColors, payload.report.timed_lyrics);
+        const lyricsTrack = Boolean(payload.report.lyrics && payload.report.lyrics.track === LYRICS_TRACK);
+        window.ScoreView.show(gp5, payload.report.tracks.length, trackColors, payload.report.timed_lyrics, lyricsTrack);
       }
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);

@@ -9,6 +9,10 @@ from .rhythm_marks import glyph_ys
 
 _LETTERS = re.compile(r"[A-Za-zÀ-ÿ]{2,}")
 _NOT_LYRICS = re.compile(r"^\s*(?:let\s*ring|p\.?\s*m\.?|palm\s*mute)\b", re.IGNORECASE)
+# Technique marks that can share a line with the lyrics ("… the end  let ring - - -"): single words,
+# and pairs of words, compared without dots and case.
+_TECHNIQUE_WORDS = {"letring", "lr", "pm", "palmmute"}
+_TECHNIQUE_PAIRS = {("let", "ring"), ("palm", "mute"), ("p", "m")}
 _HYPHENS = {"-", "–", "—", "‐"}
 
 # SMuFL dynamics (U+E520 block) and their plain-text spelling.
@@ -95,7 +99,7 @@ def lyrics(page: Page, bottom: float, x0: float, x1: float, spacing: float) -> l
         text = "".join(c.text for c in line.chars)
         if _NOT_LYRICS.match(text) or not _LETTERS.search(text):
             continue
-        words = [w for w in _words(line.chars) if "".join(c.text for c in w) not in _HYPHENS]
+        words = _without_techniques([w for w in _words(line.chars) if "".join(c.text for c in w) not in _HYPHENS])
         hyphen_chars = [c for c in line.chars if c.text in _HYPHENS]
         for current, following in zip(words, [*words[1:], None], strict=True):
             joins = False
@@ -108,6 +112,18 @@ def lyrics(page: Page, bottom: float, x0: float, x1: float, spacing: float) -> l
             if word:
                 syllables.append((current[0].x0, word, joins))
     return syllables
+
+
+def _without_techniques(words: list[list[Char]]) -> list[list[Char]]:
+    """Drop "let ring" / "P.M." / "palm mute" marks printed on the same line as the lyrics."""
+    keys = ["".join(c.text for c in word).replace(".", "").replace("-", "").lower() for word in words]
+    dropped: set[int] = set()
+    for i, key in enumerate(keys):
+        if key in _TECHNIQUE_WORDS:
+            dropped.add(i)
+        elif i + 1 < len(keys) and (key, keys[i + 1]) in _TECHNIQUE_PAIRS:
+            dropped.update((i, i + 1))
+    return [word for i, word in enumerate(words) if i not in dropped]
 
 
 def dynamics(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[tuple[float, int]]:

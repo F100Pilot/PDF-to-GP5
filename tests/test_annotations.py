@@ -170,3 +170,15 @@ def test_tracks_share_time_signatures_and_repeats_per_bar():
     assert [m.units for m in bass.measures] == [32, 24, 24]
     assert bass.measures[1].repeat_open and bass.measures[1].repeat_times == 2
     assert bass.measures[2].beats[0].notes and cut == [(1, 3)]
+
+
+def test_technique_marks_on_the_lyrics_line_are_not_lyrics():
+    chars = [
+        *_word("la", 60, 170),
+        *_word("da", 90, 170),
+        *_word("let", 300, 170),
+        *_word("ring", 330, 170),
+        *_word("P.M.", 400, 170),
+        *_word("Letring", 460, 170),
+    ]
+    assert [s for _, s, _ in lyrics(_page(chars), BOTTOM, 50, 550, SPACING)] == ["la", "da"]

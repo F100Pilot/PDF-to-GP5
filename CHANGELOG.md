@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Partitura: só uma track de instrumento de cada vez (escolha por botão de opção), com a "Letra (voz)" opcional por baixo; a mesma track fica na pista 3D (e a letra deixa de aparecer na lista da pista 3D).
 - Pista 3D: a inclinação da câmara vai até à vista de cima, na vertical (slider todo à direita), para alinhar as notas com o desenho da música no chão sem perspetiva; o ângulo lateral não se aplica nessa vista.
 - O acerto do áudio fica guardado por música (artista – título) no browser: ao voltar a converter a mesma música, o início e o tempo da partitura voltam como estavam, e aparece o nome do áudio usado da última vez.
 - "Tempo da partitura" no painel do áudio (±0,1 BPM, Repor): a partitura toca ao tempo da gravação quando esta não está exatamente ao BPM do PDF (o desacerto deixa de crescer ao longo da música); o vídeo e o áudio seguem-no e o .gp fica com esse tempo.
@@ -20,6 +21,9 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Mudanças de tempo a meio da música ("♩ = 90", "= 90", "Tempo 90" por cima da tab): cada uma passa para o GP5 no seu compasso (a partitura, a pista 3D, o vídeo e a barra de tempo acompanham) e aparecem no resumo. A marca do compasso 1 é o tempo da música; um tempo escolhido no formulário substitui-a.
 - Opção "Escrever as repetições por extenso (para o Rocksmith, que não tem repetições)" (em Ritmo; a escolha fica guardada): o GP5/.gp fica com os compassos repetidos copiados pela ordem em que se tocam (voltas e repetições dentro de repetições incluídas, na mesma ordem que o leitor da página), sem sinais de repetição; a letra, os marcadores de secção e a pista 3D seguem cada passagem.
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
+
+### Corrigido
+- Letra: marcações "let ring", "P.M." e "palm mute" impressas na mesma linha da letra deixam de entrar na letra.
 
 ## [0.6.0] - 2026-09-29
 ### Adicionado

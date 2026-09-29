@@ -188,8 +188,25 @@
     api.renderTracks(tracks);
   }
 
+  const LYRICS_TRACK = "Letra (voz)"; // the silent track carrying the lyrics (app/converter.py)
+  const isLyrics = (track) => track.name === LYRICS_TRACK;
+  let lyricsIndex = -1; // index of the lyrics track, if the file has one
+
+  // One instrument track on the page (and on the 3D highway) at a time; the lyrics track can be
+  // shown with it.
+  function showTrack(index) {
+    shown = new Set([index, ...[...shown].filter((i) => i === lyricsIndex)]);
+    for (const radio of trackBar.querySelectorAll('input[type="radio"]')) radio.checked = Number(radio.value) === index;
+    if (highwayTrack.value !== String(index)) {
+      highwayTrack.value = String(index);
+      if (in3D()) showHighway();
+    }
+    renderShown();
+  }
+
   function buildTrackBar(score) {
     trackBar.replaceChildren();
+    lyricsIndex = score.tracks.findIndex(isLyrics);
     score.tracks.forEach((track) => {
       const item = document.createElement("div");
       item.className = "score-track";
@@ -197,14 +214,22 @@
 
       const label = document.createElement("label");
       const check = document.createElement("input");
-      check.type = "checkbox";
       check.checked = shown.has(track.index);
-      check.addEventListener("change", () => {
-        if (check.checked) shown.add(track.index);
-        else if (shown.size > 1) shown.delete(track.index);
-        else check.checked = true; // keep at least one track on the page
-        renderShown();
-      });
+      if (isLyrics(track)) {
+        check.type = "checkbox"; // the lyrics go with whichever track is shown
+        check.title = "Mostrar a letra com a track escolhida";
+        check.addEventListener("change", () => {
+          if (check.checked) shown.add(track.index);
+          else shown.delete(track.index);
+          renderShown();
+        });
+      } else {
+        check.type = "radio";
+        check.name = "score-track";
+        check.value = String(track.index);
+        check.title = "Mostrar esta track";
+        check.addEventListener("change", () => check.checked && showTrack(track.index));
+      }
       const badge = document.createElement("span");
       badge.className = "track-num";
       badge.textContent = String(track.index + 1);
@@ -230,13 +255,14 @@
 
   function buildHighwayTracks(score) {
     const previous = highwayTrack.value;
-    highwayTrack.replaceChildren(...score.tracks.map((track) => {
+    highwayTrack.replaceChildren(...score.tracks.filter((track) => !isLyrics(track)).map((track) => {
       const option = document.createElement("option");
       option.value = String(track.index);
       option.textContent = `${track.index + 1}. ${track.name}`;
       return option;
     }));
-    if (previous && Number(previous) < score.tracks.length) highwayTrack.value = previous;
+    const first = [...shown].find((index) => index !== lyricsIndex);
+    highwayTrack.value = first !== undefined ? String(first) : previous || "0";
   }
 
   // The 3D highway replaces the notation on the page; alphaTab keeps playing and drives it.
@@ -301,7 +327,9 @@
   cameraControl(tiltInput, TILT_KEY, (value) => window.Highway3D.setTilt(value));
   cameraControl(sideInput, SIDE_KEY, (value) => window.Highway3D.setSide(value));
   highwayTrack.addEventListener("change", () => {
-    if (api && api.score && in3D()) showHighway();
+    if (!api || !api.score) return;
+    if (in3D()) showHighway();
+    showTrack(Number(highwayTrack.value)); // the same track on the page
   });
   playButton.addEventListener("click", () => api && api.playPause());
   seekInput.addEventListener("input", () => {
@@ -321,8 +349,9 @@
   });
 
   // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position;
-  // `lyrics`: the complete lyrics from the PDF with their place in the music (report.timed_lyrics).
-  async function show(bytes, trackCount, trackColors, lyrics) {
+  // `lyrics`: the complete lyrics from the PDF with their place in the music (report.timed_lyrics);
+  // `lyricsTrack`: the file ends with the lyrics track (after the `trackCount` instrument tracks).
+  async function show(bytes, trackCount, trackColors, lyrics, lyricsTrack = false) {
     lastBytes = bytes;
     colors = trackColors || [];
     timedLyrics = Array.isArray(lyrics) ? lyrics : null;
@@ -340,7 +369,8 @@
       await loadAlphaTab();
       if (!api) createApi();
       else api.stop();
-      shown = new Set(Array.from({ length: trackCount }, (_, i) => i));
+      // The first instrument track, with the lyrics under it.
+      shown = new Set(lyricsTrack ? [0, trackCount] : [0]);
       api.load(bytes, [...shown]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Erro ao mostrar a partitura.");
