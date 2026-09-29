@@ -7,6 +7,11 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Biblioteca: as músicas convertidas ficam guardadas no browser (IndexedDB) com o relatório e o áudio escolhido; "Tocar" reabre a música sem converter de novo, com o áudio e o acerto. Procura por título/artista, remoção em dois passos e espaço usado.
+- Leitor: barra de reprodução fixa em baixo, com as secções da música (pela ordem em que se tocam, com repetições) por cima da barra de tempo — a atual destacada, clicar salta para lá — e Loop A–B.
+- Atalhos de teclado (Espaço, ← →, 1–4, [ ], L) e Ctrl K / ⌘K para procurar páginas, músicas da biblioteca e comandos (tocar, vista, loop, tema).
+- Tema do sistema, claro ou escuro, escolhido em Definições (aplicado antes de a página aparecer, sem clarão).
+- Tracks: reordenar arrastando pela pega (as setas continuam, para o teclado).
 - Rasgueado desenhado como linha ondulada de arpejo com seta (tabs de editor): o acorde a seguir fica com rasgueado (seta para cima = dos graves para os agudos), como já acontecia com as setas retas. O glifo rodado é colocado onde está desenhado.
 - Harmónicos pinch (PH), artificiais (AH) e naturais (N.H.) nas tabs de editor: o texto por cima da pauta com traço até ao fim do intervalo marca as notas desse intervalo, também quando continua na linha seguinte; no GP5 ficam como harmónico pinch / artificial (uma oitava acima) / natural.
 - Bend numa nota ligada (haste sem número, depois de uma ligadura): a curva do bend que começa nessa haste passa a dobrar a nota ligada, com o release quando a seta desce mais à frente; antes o bend perdia-se.

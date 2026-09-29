@@ -25,6 +25,9 @@
   const seekInput = document.getElementById("score-seek");
   const timeLabel = document.getElementById("score-time");
   const SEEK_STEPS = Number(seekInput.max);
+  const sectionsBar = document.getElementById("score-sections");
+  const loopButton = document.getElementById("score-loop");
+  const LOOP_LABEL = "Loop A–B";
 
   let loading = null;
   let api = null;
@@ -73,6 +76,10 @@
   // time bar is being dragged (its thumb then follows the mouse, not the player).
   let timeline = { tick: 0, endTick: 0, time: 0, endTime: 0 };
   let dragging = false;
+  // Bars in playing order (repeats unrolled; alphaTab ticks) and the song's sections over them.
+  let bars = [];
+  let sections = []; // { start, end, button }
+  let loopStart = null; // tick of A while waiting for B
 
   function formatTime(ms) {
     const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -92,6 +99,97 @@
     if (dragging) return;
     seekInput.value = String(e.endTick > 0 ? Math.round((SEEK_STEPS * e.currentTick) / e.endTick) : 0);
     showTime(timeline.time);
+    markSection(e.currentTick);
+  }
+
+  // The song's sections (Intro, Verse…) as a strip over the time bar, in playing order: each is
+  // as wide as it lasts and jumps there when clicked.
+  function buildSections() {
+    const lookup = api.tickCache;
+    bars = lookup && lookup.masterBars
+      ? lookup.masterBars.map((bar) => ({
+        start: bar.start,
+        end: bar.end,
+        name: bar.masterBar && bar.masterBar.section ? bar.masterBar.section.text : "",
+      }))
+      : [];
+    sections = [];
+    for (const bar of bars) {
+      const last = sections[sections.length - 1];
+      if (!last || bar.name) sections.push({ start: bar.start, end: bar.end, name: bar.name || "Início" });
+      else last.end = bar.end;
+    }
+    const total = bars.length ? bars[bars.length - 1].end - bars[0].start : 0;
+    sectionsBar.replaceChildren(...sections.map((section) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = section.name;
+      button.title = `${section.name}: tocar a partir daqui`;
+      button.style.flexGrow = String(section.end - section.start);
+      button.addEventListener("click", () => { api.tickPosition = section.start; });
+      section.button = button;
+      return button;
+    }));
+    sectionsBar.hidden = sections.length < 2 || !total;
+    markSection(timeline.tick);
+  }
+
+  function markSection(tick) {
+    for (const section of sections) {
+      const current = tick >= section.start && tick < section.end;
+      section.button.classList.toggle("played", tick >= section.end);
+      if (current) section.button.setAttribute("aria-current", "true");
+      else section.button.removeAttribute("aria-current");
+    }
+  }
+
+  // Previous / next bar (in playing order).
+  function stepBar(delta) {
+    if (!api || playButton.disabled || !bars.length) return;
+    const tick = timeline.tick;
+    let index = bars.findIndex((bar) => tick >= bar.start && tick < bar.end);
+    if (index < 0) index = tick >= bars[bars.length - 1].end ? bars.length - 1 : 0;
+    const target = bars[Math.min(Math.max(index + delta, 0), bars.length - 1)];
+    api.tickPosition = target.start;
+  }
+
+  // Loop A–B: first press marks A, the second B (the stretch then repeats), the third ends it.
+  function setLoopState(state, label) {
+    loopButton.setAttribute("aria-pressed", state);
+    loopButton.textContent = label;
+  }
+
+  function clearLoop() {
+    loopStart = null;
+    if (api) {
+      api.isLooping = false;
+      api.playbackRange = null;
+    }
+    setLoopState("false", LOOP_LABEL);
+  }
+
+  function toggleLoop() {
+    if (!api || playButton.disabled) return;
+    if (api.playbackRange) {
+      clearLoop();
+      setStatus("");
+    } else if (loopStart === null) {
+      loopStart = timeline.tick;
+      setLoopState("mixed", "Marcar fim (B)");
+      setStatus(`Início do trecho (A) em ${formatTime(timeline.time)}: carregue outra vez no fim (B).`);
+    } else {
+      const [start, end] = [loopStart, timeline.tick].sort((a, b) => a - b);
+      if (end - start < 480) return; // under a beat: wait for a real end
+      const range = new alphaTab.synth.PlaybackRange();
+      range.startTick = start;
+      range.endTick = end;
+      api.playbackRange = range;
+      api.isLooping = true;
+      loopStart = null;
+      setLoopState("true", "Loop ligado ✓");
+      setStatus("A repetir o trecho A–B. Carregue em Loop para desligar.");
+      if (timeline.tick >= end || timeline.tick < start) api.tickPosition = start;
+    }
   }
 
   // Jump to `fraction` (0…1) of the song; the video and the 3D highway follow (isSeek position).
@@ -148,6 +246,9 @@
     });
     api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
     api.renderFinished.on(() => setStatus(notice));
+    // midiLoad fires once the playing order (tickCache) is built. Not midiLoaded: subscribing to it
+    // recurses forever inside alphaTab 1.8.4 (loadedMidiInfo) and the score never loads.
+    api.midiLoad.on(() => buildSections());
     api.scoreLoaded.on((score) => {
       applyVolume();
       tempoFactor = 1;
@@ -158,6 +259,7 @@
       buildTrackBar(score);
       buildHighwayTracks(score);
       if (in3D()) showHighway();
+      document.dispatchEvent(new CustomEvent("score-loaded"));
     });
     api.playerPositionChanged.on((e) => {
       updateTimeline(e);
@@ -172,6 +274,7 @@
       playButton.disabled = false;
       stopButton.disabled = false;
       seekInput.disabled = false;
+      loopButton.disabled = false;
       setStatus("");
     });
     api.playerStateChanged.on((e) => {
@@ -342,6 +445,7 @@
   });
   window.Highway3D.setSeekHandler(seekTo);
   stopButton.addEventListener("click", () => api && api.stop());
+  loopButton.addEventListener("click", toggleLoop);
   speedSelect.addEventListener("change", () => {
     applySpeed();
     window.VideoSync.speed(Number(speedSelect.value));
@@ -360,6 +464,9 @@
     playButton.disabled = true;
     stopButton.disabled = true;
     seekInput.disabled = true;
+    loopButton.disabled = true;
+    clearLoop();
+    sectionsBar.hidden = true;
     seekInput.value = "0";
     timeline = { tick: 0, endTick: 0, time: 0, endTime: 0 };
     showTime(0);
@@ -413,8 +520,20 @@
     if (api && !playButton.disabled) api.tickPosition = 0;
   }
 
+  // Change the view (Default, Tab, Score or 3D), as the Vista menu does.
+  function setView(view) {
+    if (![...viewSelect.options].some((option) => option.value === view) || viewSelect.value === view) return;
+    viewSelect.value = view;
+    viewSelect.dispatchEvent(new Event("change"));
+  }
+
+  function stop() {
+    if (api && !playButton.disabled) api.stop();
+  }
+
   window.ScoreView = {
     show, hide, exportGp, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
+    stop, stepBar, toggleLoop, setView,
     tempoFactor: () => tempoFactor,
     ready: () => Boolean(api) && !playButton.disabled,
   };

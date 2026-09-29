@@ -227,7 +227,10 @@
   }
 
   chooseButton.addEventListener("click", () => fileInput.click());
-  removeButton.addEventListener("click", clearAudio);
+  removeButton.addEventListener("click", () => {
+    clearAudio();
+    document.dispatchEvent(new CustomEvent("song-audio", { detail: { file: null } }));
+  });
 
   fileInput.addEventListener("change", () => {
     const file = fileInput.files && fileInput.files[0];
@@ -265,6 +268,7 @@
     setStatus("");
     updateLink();
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
+    document.dispatchEvent(new CustomEvent("song-audio", { detail: { file } })); // kept in the library
     waveform(bytes)
       .then((data) => {
         if (audio === bytes) window.Highway3D.setWaveform(data);
@@ -401,6 +405,11 @@
   }
 
   window.AudioSync = {
+    useFile: (file) => useAudioFile(file),
+    // Delay (+) or advance (−) the score by `seconds` against the audio (keyboard [ and ]).
+    nudge(seconds) {
+      if (audio) nudgeScore(seconds);
+    },
     // A new song: its printed tempo, which the score plays at until the tempo is adjusted.
     // `key`: "artist - title", under which this song's start and tempo are remembered.
     songLoaded(tempo, key) {

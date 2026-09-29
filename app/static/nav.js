@@ -10,6 +10,7 @@
     resultado: "Resultado",
     tocar: "Tocar",
     audio: "Áudio",
+    biblioteca: "Biblioteca",
     definicoes: "Definições",
   };
   const DEFAULT_PAGE = "converter";

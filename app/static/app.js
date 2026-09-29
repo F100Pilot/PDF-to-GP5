@@ -88,6 +88,49 @@
     renderTracks();
   }
 
+  // Reorder by dragging a track by its handle (the ↑/↓ buttons do the same from the keyboard).
+  let dragFrom = null;
+
+  function dropTarget(li, event) {
+    const box = li.getBoundingClientRect();
+    return event.clientY < box.top + box.height / 2 ? "before" : "after";
+  }
+
+  function makeDraggable(li, index, grip) {
+    grip.addEventListener("pointerdown", () => { li.draggable = true; });
+    li.addEventListener("dragstart", (event) => {
+      dragFrom = index;
+      li.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(index));
+    });
+    li.addEventListener("dragend", () => {
+      dragFrom = null;
+      li.draggable = false;
+      for (const item of trackList.children) item.classList.remove("dragging", "drop-before", "drop-after");
+    });
+    li.addEventListener("dragover", (event) => {
+      if (dragFrom === null) return;
+      event.preventDefault();
+      const side = dropTarget(li, event);
+      li.classList.toggle("drop-before", side === "before" && dragFrom !== index);
+      li.classList.toggle("drop-after", side === "after" && dragFrom !== index);
+    });
+    li.addEventListener("dragleave", () => li.classList.remove("drop-before", "drop-after"));
+    li.addEventListener("drop", (event) => {
+      if (dragFrom === null) return;
+      event.preventDefault();
+      let target = dropTarget(li, event) === "before" ? index : index + 1;
+      if (dragFrom < target) target -= 1;
+      if (target !== dragFrom) {
+        const [moved] = tracks.splice(dragFrom, 1);
+        tracks.splice(target, 0, moved);
+      }
+      dragFrom = null;
+      renderTracks();
+    });
+  }
+
   // Colour the element (border and number badge) with the colour of track position `index`.
   function paintTrack(element, index) {
     const color = trackColors.length ? trackColors[index % trackColors.length] : "";
@@ -104,6 +147,13 @@
     tracks.forEach((track, index) => {
       const li = document.createElement("li");
       li.className = "track";
+      const grip = document.createElement("span");
+      grip.className = "track-grip";
+      grip.textContent = "⠿";
+      grip.title = "Arrastar para mudar a ordem";
+      grip.setAttribute("aria-hidden", "true"); // from the keyboard: the ↑/↓ buttons
+      if (tracks.length > 1) makeDraggable(li, index, grip);
+      else grip.hidden = true;
       const badge = paintTrack(li, index);
       const head = document.createElement("div");
       head.className = "track-head";
@@ -122,7 +172,7 @@
         button("↓", "Mover para baixo", () => move(index, 1), index === tracks.length - 1),
         button("✕", "Remover", () => { tracks.splice(index, 1); renderTracks(); }),
       );
-      head.append(badge, file, info, actions);
+      head.append(grip, badge, file, info, actions);
 
       const fields = document.createElement("div");
       fields.className = "grid";
@@ -357,6 +407,27 @@
     document.getElementById("track-results").replaceChildren(...report.tracks.map(renderTrackResult));
   }
 
+  // Show a converted song: its result, its score and the file to download. `fromLibrary`: reopened
+  // from the library (library.js), so not saved there again.
+  function openSong(gp5, filename, report, fromLibrary = false) {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(new Blob([gp5], { type: "application/octet-stream" }));
+    download.href = objectUrl;
+    download.download = filename;
+    renderResult(report);
+    status.hidden = true;
+    result.hidden = false;
+    const { title, artist, tempo } = report;
+    document.dispatchEvent(new CustomEvent("song-converted", {
+      detail: { title, artist, tempo, tracks: report.tracks.length, gp5, filename, report, fromLibrary },
+    }));
+    if (window.ScoreView) {
+      const lyricsTrack = Boolean(report.lyrics && report.lyrics.track === LYRICS_TRACK);
+      window.ScoreView.show(gp5, report.tracks.length, trackColors, report.timed_lyrics, lyricsTrack);
+    }
+  }
+  window.App = { openSong };
+
   function base64ToBytes(b64) {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
@@ -402,22 +473,7 @@
       if (!response.ok) {
         throw new Error(typeof payload.detail === "string" ? payload.detail : "Pedido inválido.");
       }
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      const gp5 = base64ToBytes(payload.gp5_base64);
-      objectUrl = URL.createObjectURL(new Blob([gp5], { type: "application/octet-stream" }));
-      download.href = objectUrl;
-      download.download = payload.filename;
-      renderResult(payload.report);
-      status.hidden = true;
-      result.hidden = false;
-      const { title, artist, tempo } = payload.report;
-      document.dispatchEvent(new CustomEvent("song-converted", {
-        detail: { title, artist, tempo, tracks: payload.report.tracks.length },
-      }));
-      if (window.ScoreView) {
-        const lyricsTrack = Boolean(payload.report.lyrics && payload.report.lyrics.track === LYRICS_TRACK);
-        window.ScoreView.show(gp5, payload.report.tracks.length, trackColors, payload.report.timed_lyrics, lyricsTrack);
-      }
+      openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report);
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);
     } finally {

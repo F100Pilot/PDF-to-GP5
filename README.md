@@ -32,7 +32,13 @@ Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre 
 
 ## Interface
 
-Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Converter** (PDFs das tracks, metadados e ritmo), **Resultado** (resumo, avisos, pré-visualização e download), **Tocar** (partitura, tab ou pista 3D, com os painéis do áudio e do vídeo ao lado), **Áudio** (escolher o áudio da música ou obtê-lo de um endereço) e **Definições** (estado do servidor e versão). Cada página tem o seu endereço (`#/converter`, `#/tocar`…): os botões recuar/avançar do browser funcionam e nada é recarregado ao mudar de página — a música continua a tocar. Tema claro ou escuro conforme o sistema; fontes Sora e IBM Plex Sans incluídas em `app/static/vendor/fonts/` (SIL OFL 1.1).
+Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Converter** (PDFs das tracks, metadados e ritmo), **Resultado** (resumo, avisos, pré-visualização e download), **Tocar** (partitura, tab ou pista 3D, com os painéis do áudio e do vídeo ao lado), **Áudio** (escolher o áudio da música ou obtê-lo de um endereço) e **Definições** (estado do servidor e versão). Cada página tem o seu endereço (`#/converter`, `#/tocar`…): os botões recuar/avançar do browser funcionam e nada é recarregado ao mudar de página — a música continua a tocar. Fontes Sora e IBM Plex Sans incluídas em `app/static/vendor/fonts/` (SIL OFL 1.1).
+
+- **Leitor**: barra de reprodução sempre visível em baixo, com as secções da música (Intro, Verse, Chorus…) por cima da barra de tempo — clicar numa secção salta para lá —, velocidade e **Loop A–B** (carregar no início e no fim do trecho; outra vez para desligar).
+- **Biblioteca**: cada música convertida fica guardada neste browser (IndexedDB) com o relatório e o áudio escolhido; "Tocar" reabre-a sem converter de novo, com o áudio e o acerto. Converter a mesma música outra vez substitui-a (mantendo o áudio). Nada sai do computador; numa janela privada a biblioteca não fica guardada.
+- **Atalhos**: Espaço tocar/pausa · ← → compasso anterior/seguinte · 1–4 vista · [ ] atrasar/adiantar a partitura 0,1 s (com áudio) · L loop A–B · **Ctrl K** (⌘K no Mac) procura páginas, músicas da biblioteca e comandos.
+- **Tema**: do sistema, claro ou escuro (Definições; fica guardado no browser).
+- **Tracks**: a ordem muda com as setas ou arrastando pela pega ⠿.
 
 ## Arranque rápido (Windows)
 

@@ -100,10 +100,16 @@ def test_favicon(client):
 def test_pages_navigation_and_fonts(client):
     """One page per subject in index.html (shown by nav.js from the URL hash), fonts served locally."""
     page = client.get("/").text
-    for name in ("converter", "resultado", "tocar", "audio", "definicoes"):
+    for name in ("converter", "resultado", "tocar", "audio", "biblioteca", "definicoes"):
         assert f'data-page="{name}"' in page and f'href="#/{name}"' in page
-    assert '<script src="nav.js" defer></script>' in page
-    assert client.get("/nav.js").headers["content-type"].startswith(("text/javascript", "application/javascript"))
+    # theme.js runs before the stylesheet (no flash of the other theme); the others after parsing.
+    assert page.index('<script src="theme.js"></script>') < page.index('href="styles.css"')
+    for script in ("nav.js", "library.js", "commands.js"):
+        assert f'<script src="{script}" defer></script>' in page
+    for script in ("theme.js", "nav.js", "library.js", "commands.js"):
+        assert (
+            client.get(f"/{script}").headers["content-type"].startswith(("text/javascript", "application/javascript"))
+        )
     for font in ("ibm-plex-sans.woff2", "sora.woff2"):
         response = client.get(f"/vendor/fonts/{font}")
         assert response.status_code == 200 and response.headers["content-type"] == "font/woff2"
