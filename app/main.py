@@ -13,13 +13,14 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import __revision__, __version__
+from . import __revision__, __version__, audio_download
 from .changelog import load_releases, version_key
 from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
@@ -55,6 +56,7 @@ app = FastAPI(
 rate_limiter = RateLimiter(settings.rate_limit_per_minute)
 inspect_limiter = RateLimiter(settings.inspect_rate_limit_per_minute)
 video_limiter = RateLimiter(settings.video_search_per_minute)
+audio_limiter = RateLimiter(settings.audio_jobs_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
 presence = Presence()  # enabled by the local launcher (python -m app)
 _JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
@@ -118,6 +120,9 @@ async def health() -> dict:
         "video_search": bool(settings.youtube_api_key),
         # Why automatic video search is off (shown in the video panel); never the key itself.
         "video_search_problem": "" if settings.youtube_api_key else youtube_key_status()[1],
+        # Audio from a URL (yt-dlp + FFmpeg), or why it is unavailable.
+        "audio_download": audio_download.available()[0],
+        "audio_download_problem": audio_download.available()[1],
     }
 
 
@@ -351,6 +356,67 @@ async def convert_binary(request: Request, file: FilesField, form: FormFields) -
             "X-Conversion-Warnings": str(len(result.report["warnings"])),
         },
     )
+
+
+class AudioJobRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=audio_download.MAX_URL_LENGTH)
+    bitrate: int = 192
+    authorized: bool = False  # the user confirms they may download this content
+
+
+@app.post("/api/audio/jobs", status_code=202)
+async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
+    """Start getting the audio of `url` as an MP3; poll GET /api/audio/jobs/{id} for progress."""
+    audio_download.jobs.sweep()
+    usable, problem = audio_download.available()
+    if not usable:
+        raise HTTPException(status_code=503, detail=f"Obter áudio de um URL não está disponível: {problem}.")
+    if not body.authorized:
+        raise HTTPException(status_code=422, detail="Confirme que tem autorização para descarregar este conteúdo.")
+    if body.bitrate not in audio_download.BITRATES:
+        raise HTTPException(status_code=422, detail="Qualidade inválida (128, 192, 256 ou 320 kbit/s).")
+    if not audio_limiter.allow(client_key(request.client.host if request.client else None)):
+        raise HTTPException(status_code=429, detail="Demasiados pedidos. Tente novamente dentro de um minuto.")
+    try:
+        url = await run_in_threadpool(audio_download.validate_url, body.url)  # resolves the host name
+    except audio_download.AudioDownloadError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if audio_download.jobs.active() >= settings.audio_concurrent_jobs:
+        raise HTTPException(status_code=503, detail="Já está a ser obtido um áudio. Aguarde que termine.")
+    return audio_download.jobs.create(url, body.bitrate).public()
+
+
+def _audio_job(job_id: str) -> audio_download.Job:
+    job = audio_download.jobs.get(job_id)  # the id is checked (32 hex digits) and only looked up
+    if job is None:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada (terminou ou expirou).")
+    return job
+
+
+@app.get("/api/audio/jobs/{job_id}")
+async def audio_job_status(job_id: str) -> dict:
+    audio_download.jobs.sweep()
+    return _audio_job(job_id).public()
+
+
+@app.get("/api/audio/jobs/{job_id}/file")
+async def audio_job_file(job_id: str) -> FileResponse:
+    """The MP3, once; its temporary folder is removed after it is sent."""
+    job = _audio_job(job_id)
+    if job.status != "done" or job.file is None or not job.file.is_file():
+        raise HTTPException(status_code=409, detail="O MP3 ainda não está pronto.")
+    return FileResponse(
+        job.file,
+        media_type="audio/mpeg",
+        filename=audio_download.download_name(job.title),
+        background=BackgroundTask(audio_download.jobs.remove, job.id),
+    )
+
+
+@app.delete("/api/audio/jobs/{job_id}", status_code=204)
+async def cancel_audio_job(job_id: str) -> Response:
+    audio_download.jobs.remove(_audio_job(job_id).id)
+    return Response(status_code=204)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

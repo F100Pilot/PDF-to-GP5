@@ -56,6 +56,16 @@ Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arr
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Áudio de um endereço (URL → MP3)
+
+Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor obtém o áudio com o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e converte-o para MP3 (128–320 kbit/s) com o FFmpeg, mostra o progresso e entrega o MP3, que fica logo a tocar com a partitura (e pode ser guardado).
+
+- **Só conteúdo que pode ser descarregado**: um ficheiro de áudio/vídeo direto, conteúdo com licença Creative Commons ou de domínio público (conforme o site indica), ou um site seu declarado em `AUDIO_DOWNLOAD_HOSTS`. O resto é recusado com o motivo — incluindo música comercial no YouTube (só vídeos Creative Commons). Não são usados cookies, contas nem formatos com DRM.
+- Segurança: só `http(s)`, sem credenciais no endereço, sem endereços da rede local (exceto sites declarados); o FFmpeg corre com argumentos em lista (sem shell); limite de tamanho e de duração, tempo máximo por tarefa; uma pasta temporária por tarefa, apagada depois do download, em caso de erro ou ao fim de 15 min.
+- Dependências (instaladas pelos scripts de arranque com `requirements.txt`): `yt-dlp` e `imageio-ffmpeg`, que traz o FFmpeg para Windows, macOS e Linux (sem instalação à parte). Sem elas, a secção avisa que não está disponível.
+- Variáveis: `AUDIO_DOWNLOAD_HOSTS` (ex.: `musica.meusite.pt,nas.local`), `AUDIO_MAX_MB` (200), `AUDIO_MAX_DURATION_S` (1200), `AUDIO_TIMEOUT_S` (300), `AUDIO_TTL_S` (900), `AUDIO_JOBS_PER_MINUTE` (5), `AUDIO_CONCURRENT_JOBS` (1).
+- API: `POST /api/audio/jobs` `{"url", "bitrate", "authorized": true}` → `{id, status, progress, message}`; `GET /api/audio/jobs/{id}` (progresso); `GET /api/audio/jobs/{id}/file` (o MP3, uma vez); `DELETE /api/audio/jobs/{id}` (cancelar).
+
 ## Repetições
 
 Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e os saltos D.C./D.S./To Coda/Fine passam para o ficheiro, tal como as mudanças de tempo. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).

@@ -1,0 +1,259 @@
+"""Audio from a URL: validation, the "may be downloaded" check, FFmpeg conversion and the job API.
+
+No network: yt-dlp is replaced by fakes; FFmpeg (from imageio-ffmpeg) really converts."""
+
+import dataclasses
+import math
+import shutil
+import struct
+import time
+import wave
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import audio_download as ad
+from app.main import app
+
+
+def _wav(path: Path, seconds: float = 1.0) -> Path:
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        frames = (int(8000 * math.sin(2 * math.pi * 440 * i / 8000)) for i in range(int(8000 * seconds)))
+        out.writeframes(b"".join(struct.pack("<h", f) for f in frames))
+    return path
+
+
+@pytest.fixture
+def public_dns(monkeypatch):
+    monkeypatch.setattr(ad, "_resolve", lambda host: ["127.0.0.1"] if host == "localhost" else ["93.184.216.34"])
+
+
+# --- URL validation ---
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://example.com/song.mp3", "http://example.com:8080/a?x=1", "https://nas.example.lan/music/a.ogg"],
+)
+def test_valid_urls(public_dns, url):
+    assert ad.validate_url(f"  {url} ") == url
+
+
+@pytest.mark.parametrize(
+    ("url", "reason"),
+    [
+        ("", "Indique"),
+        ("ftp://example.com/a.mp3", "http"),
+        ("javascript:alert(1)", "http"),
+        ("file:///etc/passwd", "http"),
+        ("https://user:pw@example.com/a.mp3", "palavra-passe"),
+        ("https://example.com/a b.mp3", "espaços"),
+        ("https://example.com/a.mp3;rm -rf /", "espaços"),
+        ("https://example.com/\x00a.mp3", "caracteres"),
+        ("http://localhost/a.mp3", "rede local"),
+        ("http://127.0.0.1/a.mp3", "rede local"),
+        ("https://example.com/" + "a" * 3000, "longo"),
+    ],
+)
+def test_invalid_urls(public_dns, monkeypatch, url, reason):
+    if "127.0.0.1" in url:
+        monkeypatch.setattr(ad, "_resolve", lambda host: [host])
+    with pytest.raises(ad.AudioDownloadError, match=reason):
+        ad.validate_url(url)
+
+
+def test_private_address_is_refused_unless_declared(monkeypatch):
+    monkeypatch.setattr(ad, "_resolve", lambda host: ["192.168.1.20"])
+    with pytest.raises(ad.AudioDownloadError, match="rede local"):
+        ad.validate_url("http://my-nas/a.mp3")
+    assert ad.validate_url("http://nas.example.lan/a.mp3")  # declared in AUDIO_DOWNLOAD_HOSTS
+
+
+# --- May it be downloaded? ---
+
+
+@pytest.mark.parametrize(
+    ("info", "url", "because"),
+    [
+        ({"direct": True}, "https://example.com/a.mp3", "direct"),
+        (
+            {"license": "Creative Commons Attribution license (reuse allowed)"},
+            "https://www.youtube.com/watch?v=x",
+            "licence",
+        ),
+        ({"license": "CC0"}, "https://archive.org/details/x", "licence"),
+        ({"license": "Public Domain Mark 1.0"}, "https://example.org/x", "licence"),
+        ({}, "https://nas.example.lan/page", "declared"),
+    ],
+)
+def test_content_that_may_be_downloaded(info, url, because):
+    assert ad.authorize(info, url) == because
+
+
+@pytest.mark.parametrize(
+    ("info", "url", "reason"),
+    [
+        ({"title": "A song"}, "https://www.youtube.com/watch?v=x", "não está disponível"),
+        ({"license": "Standard YouTube License"}, "https://youtu.be/x", "Standard YouTube License"),
+        ({"direct": True}, "https://rr1.googlevideo.com/videoplayback", "não está disponível"),
+        ({}, "https://example.com/page", "não está disponível"),
+        ({"direct": True, "is_live": True}, "https://example.com/live", "direto"),
+        ({"_type": "playlist", "entries": []}, "https://example.com/list", "Listas"),
+        ({"direct": True, "duration": 99_999}, "https://example.com/a.mp3", "máximo"),
+    ],
+)
+def test_content_that_may_not_be_downloaded(info, url, reason):
+    with pytest.raises(ad.AudioDownloadError, match=reason):
+        ad.authorize(info, url)
+
+
+def test_youtube_cannot_be_declared_as_own_site(monkeypatch):
+    monkeypatch.setattr(ad, "settings", dataclasses.replace(ad.settings, audio_download_hosts=("youtube.com",)))
+    with pytest.raises(ad.AudioDownloadError):
+        ad.authorize({}, "https://www.youtube.com/watch?v=x")
+
+
+# --- FFmpeg ---
+
+
+def test_ffmpeg_converts_to_mp3_with_progress(tmp_path):
+    source = _wav(tmp_path / "in.wav", 2.0)
+    target = tmp_path / "out.mp3"
+    seen = []
+    ad.convert_to_mp3(source, target, 128, 2.0, time.monotonic() + 60, seen.append, title='x"; rm -rf / #')
+    data = target.read_bytes()
+    assert data[:3] == b"ID3" or (data[0] == 0xFF and data[1] & 0xE0 == 0xE0)
+    assert seen and 0 < max(seen) <= 1
+
+
+def test_ffmpeg_reports_unreadable_input(tmp_path):
+    source = tmp_path / "in.mp3"
+    source.write_bytes(b"not audio at all" * 100)
+    with pytest.raises(ad.AudioDownloadError, match="FFmpeg"):
+        ad.convert_to_mp3(source, tmp_path / "out.mp3", 192, None, time.monotonic() + 60, lambda _: None)
+
+
+def test_download_name_is_safe():
+    assert ad.download_name("../../etc/passwd") == "etc_passwd.mp3"
+    assert ad.download_name("Canção: Ação?") == "Cancao_ Acao.mp3"
+    assert ad.download_name("") == "audio.mp3"
+
+
+# --- Job API (yt-dlp faked) ---
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+@pytest.fixture
+def fake_ytdlp(monkeypatch, public_dns):
+    """A direct file whose "download" writes a small WAV into the job's folder."""
+    state = {"info": {"direct": True, "title": "Test ../tone", "duration": 1.0}}
+
+    def probe(url, directory, hook):
+        return object(), dict(state["info"])
+
+    def download(ydl, info, directory):
+        hook_path = _wav(directory / "source.wav", 1.0)
+        return hook_path
+
+    monkeypatch.setattr(ad, "_probe", probe)
+    monkeypatch.setattr(ad, "_download", download)
+    return state
+
+
+def _wait(client, job_id, timeout=30):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        body = client.get(f"/api/audio/jobs/{job_id}").json()
+        if body["status"] not in ad.ACTIVE:
+            return body
+        time.sleep(0.05)
+    raise AssertionError("job did not finish")
+
+
+def test_job_downloads_converts_and_cleans_up(client, fake_ytdlp):
+    started = client.post(
+        "/api/audio/jobs", json={"url": "https://example.com/tone.wav", "bitrate": 192, "authorized": True}
+    )
+    assert started.status_code == 202
+    job_id = started.json()["id"]
+    folder = ad.jobs.get(job_id).directory
+    done = _wait(client, job_id)
+    assert done["status"] == "done" and done["progress"] == 100 and done["allowed_because"] == "direct"
+    assert done["filename"] == "Test _tone.mp3"
+    response = client.get(f"/api/audio/jobs/{job_id}/file")
+    assert response.status_code == 200 and response.headers["content-type"] == "audio/mpeg"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content[:3] == b"ID3" or response.content[0] == 0xFF
+    assert not folder.exists()  # removed once sent
+    assert client.get(f"/api/audio/jobs/{job_id}/file").status_code == 404
+
+
+def test_job_refused_when_not_downloadable_leaves_nothing(client, fake_ytdlp):
+    fake_ytdlp["info"] = {"title": "Song", "license": "Standard YouTube License"}
+    job_id = client.post(
+        "/api/audio/jobs", json={"url": "https://www.youtube.com/watch?v=abc", "bitrate": 192, "authorized": True}
+    ).json()["id"]
+    folder = ad.jobs.get(job_id).directory
+    done = _wait(client, job_id)
+    assert done["status"] == "error" and "não está disponível" in done["message"]
+    assert not folder.exists()
+    assert client.get(f"/api/audio/jobs/{job_id}/file").status_code == 409
+
+
+def test_request_validation(client, fake_ytdlp):
+    ok = {"url": "https://example.com/a.mp3", "bitrate": 192, "authorized": True}
+    assert client.post("/api/audio/jobs", json={**ok, "authorized": False}).status_code == 422
+    assert client.post("/api/audio/jobs", json={**ok, "bitrate": 999}).status_code == 422
+    bad = client.post("/api/audio/jobs", json={**ok, "url": "file:///etc/passwd"})
+    assert bad.status_code == 422 and "http" in bad.json()["detail"]
+    assert client.get("/api/audio/jobs/not-a-job").status_code == 404
+    assert client.get("/api/audio/jobs/..%2F..%2Fetc%2Fpasswd").status_code == 404
+    assert client.get("/api/audio/jobs/" + "0" * 32 + "/file").status_code == 404
+
+
+def test_cancel_removes_the_job(client, fake_ytdlp):
+    job_id = client.post("/api/audio/jobs", json={"url": "https://example.com/a.wav", "authorized": True}).json()["id"]
+    _wait(client, job_id)
+    folder = ad.jobs.get(job_id).directory
+    assert client.delete(f"/api/audio/jobs/{job_id}").status_code == 204
+    assert not folder.exists() and client.get(f"/api/audio/jobs/{job_id}").status_code == 404
+
+
+def test_health_reports_audio_download(client):
+    body = client.get("/api/health").json()
+    assert body["audio_download"] is True and body["audio_download_problem"] == ""
+
+
+def test_real_ytdlp_and_ffmpeg_on_a_direct_file(tmp_path):
+    """yt-dlp (not faked) fetches a WAV from a local web server; FFmpeg makes the MP3."""
+    import functools
+    import http.server
+    import tempfile
+    import threading
+
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+    _wav(tmp_path / "tone.wav", 1.0)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(tmp_path)))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        job = ad.Job("f" * 32, f"http://127.0.0.1:{server.server_port}/tone.wav", 128, Path(tempfile.mkdtemp()))
+        ad.run_job(job)
+        assert (job.status, job.reason) == ("done", "direct")
+        assert [p.name for p in job.directory.iterdir()] == ["audio.mp3"]  # the download itself is gone
+        page = ad.Job("e" * 32, f"http://127.0.0.1:{server.server_port}/", 128, Path(tempfile.mkdtemp()))
+        ad.run_job(page)  # a web page without audio
+        assert page.status == "error" and not page.directory.exists()
+    finally:
+        server.shutdown()
+        shutil.rmtree(job.directory, ignore_errors=True)

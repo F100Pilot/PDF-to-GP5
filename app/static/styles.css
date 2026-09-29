@@ -175,6 +175,18 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .result-head h2 { margin: 0; }
 .result-head .button { margin-top: 0; }
 .muted { color: var(--muted); }
+.error-text { color: var(--error); }
+.audio-url { margin-top: 10px; }
+.audio-url > summary { cursor: pointer; font-weight: 600; }
+.audio-url-form { background: none; border: 0; padding: 0; border-radius: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px 12px; align-items: end; margin-top: 10px; }
+.audio-url-form input, .audio-url-form select { background: var(--panel); }
+.audio-url-consent { grid-column: 1 / -1; }
+.audio-url-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.audio-url-actions button, .audio-url .button { margin: 0; }
+.audio-url .button { margin-top: 8px; }
+.audio-url-progress { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.audio-url-progress progress { flex: 1; height: 10px; accent-color: var(--accent); }
+@media (max-width: 700px) { .audio-url-form { grid-template-columns: minmax(0, 1fr); } }
 .audio-box { margin: 16px 0; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
 .audio-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .audio-head .hint { margin-top: 2px; }

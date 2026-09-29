@@ -188,9 +188,13 @@
   chooseButton.addEventListener("click", () => fileInput.click());
   removeButton.addEventListener("click", clearAudio);
 
-  fileInput.addEventListener("change", async () => {
+  fileInput.addEventListener("change", () => {
     const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
+    if (file) useAudioFile(file);
+  });
+
+  // Use `file` (chosen here, or obtained from a URL) as the song's audio.
+  async function useAudioFile(file) {
     if (file.size > MAX_AUDIO_BYTES) {
       clearAudio();
       setStatus(`O áudio tem ${Math.round(file.size / 1048576)} MB; o máximo é ${MAX_AUDIO_BYTES / 1048576} MB.`);
@@ -229,7 +233,7 @@
       startAudio();
     }
     showState();
-  });
+  }
 
   // Tocar here: the score (and so the audio) when they play together, else the audio alone.
   playButton.addEventListener("click", () => {
@@ -412,6 +416,136 @@
       player.playbackRate = rate;
     },
   };
+
+  // --- Audio from a URL: the server gets it (yt-dlp) and converts it to MP3 (FFmpeg) ---
+  // Only content that may be downloaded is processed (the server checks: direct file, Creative
+  // Commons / public domain, or a declared own site). Progress is polled; the MP3 is fetched once
+  // (the server then deletes it) and used here, with a link to save it.
+  const urlBox = document.getElementById("audio-url-box");
+  const urlForm = document.getElementById("audio-url-form");
+  const urlInput = document.getElementById("audio-url");
+  const bitrateSelect = document.getElementById("audio-bitrate");
+  const authorizedInput = document.getElementById("audio-authorized");
+  const startButton = document.getElementById("audio-url-start");
+  const cancelButton = document.getElementById("audio-url-cancel");
+  const progressBox = document.getElementById("audio-url-progress");
+  const progressBar = document.getElementById("audio-url-bar");
+  const progressText = document.getElementById("audio-url-percent");
+  const urlStatus = document.getElementById("audio-url-status");
+  const saveLink = document.getElementById("audio-url-save");
+  const POLL_MS = 700;
+  let urlJob = null; // id of the job in progress
+  let urlCancelled = false;
+  let savedUrl = null;
+
+  function setUrlStatus(text, error = false) {
+    urlStatus.textContent = text;
+    urlStatus.hidden = !text;
+    urlStatus.classList.toggle("error-text", error);
+  }
+
+  function setProgress(percent) {
+    progressBox.hidden = percent === null;
+    progressBar.value = percent || 0;
+    progressText.textContent = `${percent || 0}%`;
+  }
+
+  function busy(on) {
+    startButton.disabled = on;
+    urlInput.disabled = on;
+    bitrateSelect.disabled = on;
+    cancelButton.hidden = !on;
+  }
+
+  async function detail(response, fallback) {
+    const body = await response.json().catch(() => ({}));
+    return typeof body.detail === "string" ? body.detail : fallback;
+  }
+
+  fetch("/api/health")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((health) => {
+      if (!health.audio_download) {
+        const note = document.getElementById("audio-url-unavailable");
+        note.textContent = `Indisponível neste servidor: ${health.audio_download_problem || "falta o yt-dlp ou o FFmpeg"}.`;
+        note.hidden = false;
+        urlForm.hidden = true;
+      }
+    })
+    .catch(() => {});
+
+  urlForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (urlJob) return;
+    const url = urlInput.value.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      setUrlStatus("Indique um endereço que comece por http:// ou https://.", true);
+      return;
+    }
+    if (!authorizedInput.checked) {
+      setUrlStatus("Confirme que tem autorização para descarregar este conteúdo.", true);
+      return;
+    }
+    saveLink.hidden = true;
+    if (savedUrl) URL.revokeObjectURL(savedUrl);
+    savedUrl = null;
+    busy(true);
+    urlCancelled = false;
+    setProgress(0);
+    setUrlStatus("A pedir ao servidor…");
+    try {
+      const response = await fetch("/api/audio/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, bitrate: Number(bitrateSelect.value), authorized: true }),
+      });
+      if (!response.ok) throw new Error(await detail(response, "O pedido foi recusado."));
+      urlJob = (await response.json()).id;
+      await followJob(urlJob);
+    } catch (error) {
+      if (urlCancelled) setUrlStatus("Cancelado.");
+      else setUrlStatus(error instanceof Error ? error.message : "Não foi possível obter o áudio.", true);
+      setProgress(null);
+    } finally {
+      urlJob = null;
+      busy(false);
+    }
+  });
+
+  async function followJob(id) {
+    for (;;) {
+      const response = await fetch(`/api/audio/jobs/${encodeURIComponent(id)}`);
+      if (!response.ok) throw new Error(await detail(response, "A tarefa terminou sem resultado."));
+      const job = await response.json();
+      setProgress(job.progress);
+      if (job.status === "done") {
+        setUrlStatus("A receber o MP3…");
+        const file = await fetch(`/api/audio/jobs/${encodeURIComponent(id)}/file`);
+        if (!file.ok) throw new Error(await detail(file, "Não foi possível receber o MP3."));
+        const blob = await file.blob();
+        const name = job.filename || "audio.mp3";
+        savedUrl = URL.createObjectURL(blob);
+        saveLink.href = savedUrl;
+        saveLink.download = name;
+        saveLink.hidden = false;
+        setUrlStatus(`Pronto: ${name}. Já está a ser usado com a partitura.`);
+        await useAudioFile(new File([blob], name, { type: "audio/mpeg" }));
+        return;
+      }
+      if (job.status === "error" || job.status === "cancelled") throw new Error(job.message);
+      setUrlStatus(job.message);
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    }
+  }
+
+  cancelButton.addEventListener("click", () => {
+    if (!urlJob) return;
+    urlCancelled = true;
+    fetch(`/api/audio/jobs/${encodeURIComponent(urlJob)}`, { method: "DELETE" }).catch(() => {});
+  });
+  urlBox.addEventListener("toggle", () => {
+    if (urlBox.open) urlInput.focus();
+  });
 
   // With audio: build the .gp now and save it under the GP5's name with the .gp extension.
   download.addEventListener("click", async (event) => {

@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Obter o áudio de um endereço (URL → MP3): o servidor descarrega com o yt-dlp e converte para MP3 com o FFmpeg (qualidade 128–320 kbit/s), com progresso e cancelamento; o MP3 fica logo a tocar com a partitura e pode ser guardado. Só conteúdo que pode ser descarregado (ficheiro direto, Creative Commons / domínio público, ou site próprio em `AUDIO_DOWNLOAD_HOSTS`); o resto é recusado com o motivo. Validação do endereço (só http(s), sem credenciais nem rede local), FFmpeg sem shell, limites de tamanho, duração e tempo, e pasta temporária por tarefa apagada no fim. Novas dependências: `yt-dlp` e `imageio-ffmpeg` (FFmpeg incluído).
 - Partitura: só uma track de instrumento de cada vez (escolha por botão de opção), com a "Letra (voz)" opcional por baixo; a mesma track fica na pista 3D (e a letra deixa de aparecer na lista da pista 3D).
 - Pista 3D: a inclinação da câmara vai até à vista de cima, na vertical (slider todo à direita), para alinhar as notas com o desenho da música no chão sem perspetiva; o ângulo lateral não se aplica nessa vista.
 - O acerto do áudio fica guardado por música (artista – título) no browser: ao voltar a converter a mesma música, o início e o tempo da partitura voltam como estavam, e aparece o nome do áudio usado da última vez.

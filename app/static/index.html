@@ -108,6 +108,38 @@
           </div>
         </div>
         <p id="audio-status" class="hint" role="status" hidden></p>
+        <details id="audio-url-box" class="audio-url">
+          <summary>Obter o áudio de um endereço (URL) — conteúdo que pode descarregar</summary>
+          <p class="hint">Só é processado conteúdo disponível para download: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. Músicas comerciais (por exemplo no YouTube) são recusadas. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
+          <p id="audio-url-unavailable" class="hint error-text" hidden></p>
+          <form id="audio-url-form" class="audio-url-form" novalidate>
+            <label class="audio-url-field">Endereço
+              <input id="audio-url" type="url" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3" autocomplete="off" required>
+            </label>
+            <label>Formato
+              <select id="audio-format" disabled><option value="mp3" selected>MP3</option></select>
+            </label>
+            <label>Qualidade
+              <select id="audio-bitrate">
+                <option value="128">128 kbit/s</option>
+                <option value="192" selected>192 kbit/s</option>
+                <option value="256">256 kbit/s</option>
+                <option value="320">320 kbit/s</option>
+              </select>
+            </label>
+            <label class="check audio-url-consent"><input id="audio-authorized" type="checkbox"> Tenho autorização para descarregar este conteúdo</label>
+            <div class="audio-url-actions">
+              <button id="audio-url-start" type="submit">Obter MP3</button>
+              <button id="audio-url-cancel" type="button" class="icon" hidden>Cancelar</button>
+            </div>
+          </form>
+          <div id="audio-url-progress" class="audio-url-progress" hidden>
+            <progress id="audio-url-bar" max="100" value="0"></progress>
+            <span id="audio-url-percent" class="score-time">0%</span>
+          </div>
+          <p id="audio-url-status" class="hint" role="status" aria-live="polite" hidden></p>
+          <a id="audio-url-save" class="button" hidden download>Guardar o MP3</a>
+        </details>
       </div>
       <dl id="summary" class="summary"></dl>
       <div id="warnings-box" hidden>

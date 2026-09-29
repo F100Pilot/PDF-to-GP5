@@ -84,6 +84,18 @@ class Settings:
     )
     video_search_per_minute: int = _int("VIDEO_SEARCH_PER_MINUTE", 10)
     youtube_api_key: str = field(default_factory=_youtube_key, repr=False)
+    # Audio from a URL (yt-dlp + FFmpeg), for content the user may download.
+    audio_jobs_per_minute: int = _int("AUDIO_JOBS_PER_MINUTE", 5)
+    audio_concurrent_jobs: int = _int("AUDIO_CONCURRENT_JOBS", 1)
+    audio_max_bytes: int = _int("AUDIO_MAX_MB", 200) * 1024 * 1024  # downloaded media and the MP3
+    audio_max_duration_s: int = _int("AUDIO_MAX_DURATION_S", 20 * 60)
+    audio_timeout_s: int = _int("AUDIO_TIMEOUT_S", 300)  # the whole job: download and conversion
+    audio_ttl_s: int = _int("AUDIO_TTL_S", 15 * 60)  # finished jobs not downloaded are deleted after this
+    # Sites the owner of this installation publishes on and may download from (own server, NAS…);
+    # comma separated host names. Not YouTube: there only Creative Commons content is processed.
+    audio_download_hosts: tuple[str, ...] = tuple(
+        h.strip().lower() for h in os.environ.get("AUDIO_DOWNLOAD_HOSTS", "").split(",") if h.strip()
+    )
     enable_docs: bool = _bool("ENABLE_DOCS")
     enable_hsts: bool = _bool("ENABLE_HSTS")
 
