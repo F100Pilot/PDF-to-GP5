@@ -684,8 +684,8 @@
       lane.add(frame);
       // Chord name on top, when it changes (or comes back after more than a bar).
       if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
-        const name = label(chord.name, 0.5, true, "#ffffff");
-        name.position.set(chord.x, top + 0.4, -chord.tick * Z_PER_TICK);
+        const name = label(chord.name, 0.6, true, "#ffffff");
+        name.position.set(chord.x, top + 1.1, -chord.tick * Z_PER_TICK); // well above the notes
         lane.add(name);
       }
       if (chord.name) {
@@ -767,9 +767,10 @@
     gem.material.userData.solid = true;
     gem.position.set(x, y, 0);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowMap(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      // Soft halo; normal blending so the halos of a chord do not add up to white.
+      map: glowMap(), color, transparent: true, opacity: 0.35, depthWrite: false,
     }));
-    glow.scale.set(note.fret === 0 ? high - low + 3 : 2, 1.2, 1);
+    glow.scale.set(note.fret === 0 ? high - low + 1.6 : 1.3, 0.7, 1);
     glow.position.set(x, y, 0.1);
     const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
     text.position.set(x, y, open ? 0.14 : 0.16);
@@ -781,9 +782,9 @@
     frame.position.set(chord.x, (song.top + song.bottom) / 2, 0.02);
     frame.scale.set(1.04, 1.04, 1);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowMap(), color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending,
+      map: glowMap(), color: 0xffffff, transparent: true, opacity: 0.1, depthWrite: false,
     }));
-    glow.scale.set(chord.high - chord.low + 3, song.top - song.bottom + 1.5, 1);
+    glow.scale.set(chord.high - chord.low + 2, song.top - song.bottom + 0.8, 1);
     glow.position.set(chord.x, (song.top + song.bottom) / 2, 0.05);
     addEffect([frame, glow], chord.tick + TICKS_PER_QUARTER / 2);
   }
@@ -934,7 +935,7 @@
     for (const bar of stage.strings) {
       if (!bar) continue;
       bar.glow *= 0.9;
-      bar.material.emissiveIntensity = 0.25 + 1.5 * bar.glow;
+      bar.material.emissiveIntensity = 0.25 + 0.7 * bar.glow;
     }
 
     // Camera and floor highlight follow the fret window of the upcoming notes.

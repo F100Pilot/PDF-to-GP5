@@ -79,11 +79,17 @@
     api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
     api.renderFinished.on(() => setStatus(notice));
     api.scoreLoaded.on((score) => {
+      window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => {
+        api.masterVolume = muted ? 0 : 1; // listen to the video only
+      });
       buildTrackBar(score);
       buildHighwayTracks(score);
       if (in3D()) showHighway();
     });
-    api.playerPositionChanged.on((e) => window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek));
+    api.playerPositionChanged.on((e) => {
+      window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek);
+      window.VideoSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
+    });
     api.soundFontLoad.on((e) => {
       if (e.total) setStatus(`A carregar os sons… ${Math.round((100 * e.loaded) / e.total)}%`);
     });
@@ -96,6 +102,7 @@
       const playing = e.state === alphaTab.synth.PlayerState.Playing;
       playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
       window.Highway3D.setPlaying(playing);
+      window.VideoSync.playing(playing);
     });
   }
 
@@ -222,6 +229,7 @@
   stopButton.addEventListener("click", () => api && api.stop());
   speedSelect.addEventListener("change", () => {
     if (api) api.playbackSpeed = Number(speedSelect.value);
+    window.VideoSync.speed(Number(speedSelect.value));
   });
 
   // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position.

@@ -1,0 +1,187 @@
+// YouTube video beside the score / 3D highway, kept in step with the score playback.
+// The official embed player is driven through its postMessage protocol (enablejsapi=1), so no
+// YouTube script runs in this page; only the embed frame itself is allowed by the CSP (frame-src).
+(() => {
+  "use strict";
+
+  const ORIGIN = "https://www.youtube-nocookie.com";
+  const ID_RE = /^[A-Za-z0-9_-]{11}$/;
+  const DRIFT_S = 0.35; // re-sync the video when it drifts more than this from the score
+  const DRIFT_CHECK_MS = 2000;
+
+  const panel = document.getElementById("video-panel");
+  const toggle = document.getElementById("video-toggle");
+  const stageBox = document.getElementById("score-stage");
+  const urlInput = document.getElementById("video-url");
+  const loadButton = document.getElementById("video-load");
+  const frameBox = document.getElementById("video-frame");
+  const offsetInput = document.getElementById("video-offset");
+  const syncInput = document.getElementById("video-sync");
+  const muteInput = document.getElementById("video-mute-score");
+  const statusLine = document.getElementById("video-status");
+
+  let frame = null;
+  let ready = false;
+  let songKey = "";
+  let onMuteScore = () => {};
+  const song = { ms: 0, speed: 1, playing: false }; // score position (song time) and state
+  let lastDriftFix = 0;
+
+  function setStatus(text) {
+    statusLine.textContent = text;
+    statusLine.hidden = !text;
+  }
+
+  // "https://www.youtube.com/watch?v=ID&t=12s", "https://youtu.be/ID", "/embed/ID", "/shorts/ID" or the
+  // bare 11-character ID -> { id, start } (start in seconds from a "t" parameter), or null.
+  function parseVideo(text) {
+    const value = text.trim();
+    if (ID_RE.test(value)) return { id: value, start: null };
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      return null;
+    }
+    const host = url.hostname.replace(/^(www|m|music)\./, "");
+    let id = null;
+    if (host === "youtu.be") id = url.pathname.slice(1);
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      id = url.searchParams.get("v") || (url.pathname.match(/^\/(?:embed|shorts|live)\/([^/?#]+)/) || [])[1];
+    }
+    if (!id || !ID_RE.test(id)) return null;
+    const t = url.searchParams.get("t") || url.searchParams.get("start");
+    const start = t && /^\d+s?$/.test(t) ? Number.parseInt(t, 10) : null;
+    return { id, start };
+  }
+
+  function send(func, args = []) {
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), ORIGIN);
+  }
+
+  function offset() {
+    const value = Number(offsetInput.value);
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  // Where the video should be for the current score position (song time, independent of speed).
+  function expectedTime() {
+    return Math.max(0, offset() + song.ms / 1000);
+  }
+
+  function seekVideo() {
+    send("seekTo", [expectedTime(), true]);
+  }
+
+  function saveSettings() {
+    if (!songKey) return;
+    try {
+      localStorage.setItem(`pdf-to-gp5.video.${songKey}`, JSON.stringify({ url: urlInput.value, offset: offset() }));
+    } catch { /* storage unavailable */ }
+  }
+
+  function loadVideo() {
+    const parsed = parseVideo(urlInput.value);
+    if (!parsed) {
+      setStatus("Endereço do YouTube não reconhecido. Exemplo: https://www.youtube.com/watch?v=…");
+      return;
+    }
+    if (parsed.start !== null && !Number(offsetInput.value)) offsetInput.value = String(parsed.start);
+    ready = false;
+    frame = document.createElement("iframe");
+    frame.title = "Vídeo do YouTube";
+    frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    frame.referrerPolicy = "strict-origin-when-cross-origin"; // the embed needs to know the page origin
+    const params = new URLSearchParams({ enablejsapi: "1", origin: window.location.origin, rel: "0", playsinline: "1" });
+    frame.src = `${ORIGIN}/embed/${parsed.id}?${params}`;
+    frame.addEventListener("load", () => {
+      // Ask the player to report its state and time (infoDelivery messages).
+      frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: parsed.id, channel: "widget" }), ORIGIN);
+    });
+    frameBox.replaceChildren(frame);
+    setStatus("A carregar o vídeo… (precisa de ligação à internet)");
+    saveSettings();
+  }
+
+  window.addEventListener("message", (event) => {
+    if (!frame || event.origin !== ORIGIN || event.source !== frame.contentWindow) return;
+    let data;
+    try {
+      data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+    } catch {
+      return;
+    }
+    if (!data || typeof data !== "object") return;
+    if (data.event === "onReady" || (data.event === "infoDelivery" && !ready)) {
+      ready = true;
+      setStatus("");
+      send("setPlaybackRate", [song.speed]);
+    }
+    const time = data.event === "infoDelivery" && data.info ? data.info.currentTime : undefined;
+    if (typeof time === "number" && song.playing && syncInput.checked) {
+      const now = performance.now();
+      if (now - lastDriftFix > DRIFT_CHECK_MS && Math.abs(time - expectedTime()) > DRIFT_S) {
+        lastDriftFix = now;
+        seekVideo();
+      }
+    }
+  });
+
+  toggle.addEventListener("click", () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    stageBox.classList.toggle("with-video", open);
+    toggle.setAttribute("aria-pressed", String(open));
+    window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+  });
+  loadButton.addEventListener("click", loadVideo);
+  urlInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      loadVideo();
+    }
+  });
+  offsetInput.addEventListener("change", () => {
+    saveSettings();
+    if (syncInput.checked) seekVideo();
+  });
+  muteInput.addEventListener("change", () => onMuteScore(muteInput.checked));
+
+  window.VideoSync = {
+    // Called by the score viewer.
+    setSong(key, muteScore) {
+      songKey = key || "";
+      onMuteScore = muteScore;
+      onMuteScore(muteInput.checked);
+      try {
+        const saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
+        if (saved && typeof saved.url === "string") {
+          urlInput.value = saved.url;
+          offsetInput.value = String(Number(saved.offset) || 0);
+        }
+      } catch { /* storage unavailable or bad data */ }
+    },
+    // Score position: `realMs` as reported by alphaTab (scaled by the speed), `speed` the playback speed.
+    position(realMs, speed, isSeek) {
+      song.speed = speed || 1;
+      song.ms = realMs * song.speed;
+      if (isSeek && syncInput.checked) seekVideo();
+    },
+    playing(isPlaying) {
+      song.playing = isPlaying;
+      if (!syncInput.checked) return;
+      if (isPlaying) {
+        seekVideo();
+        send("playVideo");
+      } else {
+        send("pauseVideo");
+      }
+    },
+    speed(rate) {
+      song.speed = rate;
+      send("setPlaybackRate", [rate]);
+    },
+    parseVideo, // exposed for tests
+  };
+})();

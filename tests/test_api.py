@@ -67,7 +67,13 @@ def test_score_viewer_files_are_served(client):
 def test_3d_highway_files_are_served(client):
     page = client.get("/").text
     assert 'src="highway3d.js"' in page and 'value="3D"' in page and 'id="highway"' in page
-    assert 'id="highway-legend"' in page and 'id="score-3d-tilt"' in page and 'id="score-3d-side"' in page
+    assert (
+        'id="highway-legend"' in page
+        and 'id="video-panel"' in page
+        and 'src="video.js"' in page
+        and 'id="score-3d-tilt"' in page
+        and 'id="score-3d-side"' in page
+    )
     assert client.get("/highway3d.js").status_code == 200
     # ES modules are refused by browsers unless served with a JavaScript MIME type (nosniff).
     for path in ("/vendor/three/three.module.js", "/vendor/three/three.core.js", "/vendor/three/RoundedBoxGeometry.js"):

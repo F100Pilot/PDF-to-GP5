@@ -23,6 +23,8 @@ CSP = (
     "default-src 'self'; script-src 'self'; "
     f"style-src {_STYLE_SOURCES}; "
     "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; "
+    # Optional YouTube video beside the score: only the privacy-enhanced embed player may be framed.
+    "frame-src https://www.youtube-nocookie.com; "
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 )
 
