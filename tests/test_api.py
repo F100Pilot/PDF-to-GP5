@@ -54,6 +54,16 @@ def test_options(client):
     assert client.get("/api/options").headers["cache-control"] == "no-store"
 
 
+def test_score_viewer_files_are_served(client):
+    page = client.get("/").text
+    assert 'id="score-box"' in page and 'src="score.js"' in page
+    assert client.get("/score.js").status_code == 200
+    assert client.get("/vendor/alphatab/alphaTab.min.js").status_code == 200
+    font = client.get("/vendor/alphatab/font/Bravura.woff2")
+    assert font.status_code == 200 and font.headers["content-type"] == "font/woff2"
+    assert client.get("/vendor/alphatab/soundfont/sonivox.sf3").status_code == 200
+
+
 def test_page_files_are_revalidated(client):
     for path in ("/", "/app.js", "/styles.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"

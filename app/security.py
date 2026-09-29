@@ -11,9 +11,19 @@ from collections import OrderedDict, deque
 from fastapi import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+# The score viewer (vendored alphaTab) injects two fixed <style> blocks (its shared rules and
+# the @font-face for its music font); they are allowed by hash, not with 'unsafe-inline'.
+# Its audio synthesizer runs in a worker started from a blob: URL that imports alphaTab from 'self'.
+ALPHATAB_STYLE_HASHES = (
+    "sha256-EIR5s3Qp1PxPxW4Koopu9nVN+I2chNMT0ImH3VG/s+c=",  # shared rules (alphaTabStyleShared)
+    "sha256-t9NAmAR13X3WICTwMsEJq4wX4AYLiH6LxxmzV9VkUJ8=",  # @font-face for /vendor/alphatab/font/
+)
+_STYLE_SOURCES = " ".join(["'self'", *(f"'{h}'" for h in ALPHATAB_STYLE_HASHES)])
 CSP = (
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-    "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+    "default-src 'self'; script-src 'self'; "
+    f"style-src {_STYLE_SOURCES}; "
+    "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; "
+    "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 )
 
 

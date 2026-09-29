@@ -56,6 +56,10 @@ Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arr
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Partitura
+
+Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, só tab ou só pauta), com todas as tracks ou só as escolhidas, cada uma com a sua cor, e toca-a (tocar/pausa/parar, velocidade, silenciar tracks; clicar numa nota começa a tocar daí). Usa o [alphaTab](https://alphatab.net) 1.8.4, incluído em `app/static/vendor/alphatab/` (funciona sem internet) e carregado só quando há um resultado para mostrar. Licenças: alphaTab MPL-2.0, fonte Bravura SIL OFL 1.1, sons Sonivox Apache-2.0 (ficheiros de licença na mesma pasta).
+
 ## API
 
 | Método | Rota | Resposta |
@@ -87,7 +91,7 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 - Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux/macOS; Job Object em Windows); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
 - Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429; IPv6 agrupado por /64), verificados antes de ler o corpo do pedido; inspeção com orçamento próprio.
 - Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
-- Cabeçalhos: CSP estrita sem scripts inline, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
+- Cabeçalhos: CSP estrita sem scripts nem estilos inline (os dois blocos de estilo do alphaTab são autorizados pelo hash; workers só do próprio site), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
 - Erros internos nunca são expostos ao cliente; nomes de ficheiro e metadados GP5 são sanitizados.
 - Documentação OpenAPI desativada por defeito. `pip-audit` no CI.
 

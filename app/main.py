@@ -6,6 +6,7 @@ import asyncio
 import base64
 import json
 import logging
+import mimetypes
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,9 @@ from .tunings import TUNINGS
 
 logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
+# Not in every platform's mimetypes table (score viewer font and sounds).
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("application/octet-stream", ".sf3")
 
 app = FastAPI(
     title="PDF to GP5",

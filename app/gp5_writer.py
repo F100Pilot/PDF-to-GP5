@@ -56,7 +56,8 @@ def _bend(note: ScoreNote) -> gp.BendEffect:
     peak = note.bend_semitones * 2
     if note.bend_pre:
         if note.bend_release:
-            points = [gp.BendPoint(0, peak), gp.BendPoint(4, peak), gp.BendPoint(8, 0), gp.BendPoint(12, 0)]
+            # Three points: readers such as alphaTab infer the shape from the points.
+            points = [gp.BendPoint(0, peak), gp.BendPoint(6, peak), gp.BendPoint(12, 0)]
             bend_type = gp.BendType.prebendRelease
         else:
             points = [gp.BendPoint(0, peak), gp.BendPoint(12, peak)]

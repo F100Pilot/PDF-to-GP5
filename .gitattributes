@@ -1,2 +1,4 @@
 # Windows batch files need CRLF line endings.
 *.bat text eol=crlf
+# Third-party files are kept byte-for-byte (the CSP style hashes depend on alphaTab).
+app/static/vendor/** -text

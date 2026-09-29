@@ -336,11 +336,11 @@
     document.getElementById("track-results").replaceChildren(...report.tracks.map(renderTrackResult));
   }
 
-  function base64ToBlob(b64) {
+  function base64ToBytes(b64) {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], { type: "application/octet-stream" });
+    return bytes;
   }
 
   form.addEventListener("submit", async (event) => {
@@ -361,6 +361,7 @@
     }
     submit.disabled = true;
     result.hidden = true;
+    if (window.ScoreView) window.ScoreView.hide();
     showStatus(tracks.length > 1 ? `A converter ${tracks.length} tracks…` : "A converter…", false);
     try {
       const response = await fetch("/api/convert", { method: "POST", body });
@@ -369,12 +370,14 @@
         throw new Error(typeof payload.detail === "string" ? payload.detail : "Pedido inválido.");
       }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      objectUrl = URL.createObjectURL(base64ToBlob(payload.gp5_base64));
+      const gp5 = base64ToBytes(payload.gp5_base64);
+      objectUrl = URL.createObjectURL(new Blob([gp5], { type: "application/octet-stream" }));
       download.href = objectUrl;
       download.download = payload.filename;
       renderResult(payload.report);
       status.hidden = true;
       result.hidden = false;
+      if (window.ScoreView) window.ScoreView.show(gp5, payload.report.tracks.length, trackColors);
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);
     } finally {

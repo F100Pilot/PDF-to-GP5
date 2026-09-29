@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PDF para GP5</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="score.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -85,6 +86,34 @@
         <h3>Avisos</h3>
         <ul id="warnings"></ul>
       </div>
+      <section id="score-box" class="score-box" aria-labelledby="score-title" hidden>
+        <h3 id="score-title">Partitura</h3>
+        <div class="score-toolbar">
+          <label>Vista
+            <select id="score-view">
+              <option value="Default" selected>Pauta e tab</option>
+              <option value="Tab">Só tab</option>
+              <option value="Score">Só pauta</option>
+            </select>
+          </label>
+          <div class="score-player">
+            <button id="score-play" type="button" disabled>▶ Tocar</button>
+            <button id="score-stop" type="button" disabled>■ Parar</button>
+            <label>Velocidade
+              <select id="score-speed">
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1" selected>100%</option>
+                <option value="1.25">125%</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div id="score-tracks" class="score-tracks"></div>
+        <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
+        <div id="score" class="score"></div>
+        <p class="hint">Clique numa nota para começar a tocar a partir daí. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>.</p>
+      </section>
       <div id="track-results"></div>
       <p class="hint">Confirme as notas antes de usar. Legenda da pré-visualização: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
     </section>

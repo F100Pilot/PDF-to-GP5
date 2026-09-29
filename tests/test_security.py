@@ -42,3 +42,26 @@ def test_client_key_groups_ipv6_by_64():
     assert client_key("203.0.113.9") == "203.0.113.9"
     assert client_key("2001:db8:1:2:aaaa::1") == client_key("2001:db8:1:2:bbbb::2") == "2001:db8:1:2::/64"
     assert client_key(None) == "unknown"
+
+
+# The CSP style hashes in app/security.py were measured for this exact alphaTab build
+# (see app/static/vendor/alphatab/README.md): upgrading alphaTab means re-measuring them.
+ALPHATAB_SHA256 = "2d0335501b875453d52359de23cd9cebfcf71aed3d5739f1cf95117acfd52bec"
+
+
+def test_vendored_alphatab_is_the_pinned_build():
+    import hashlib
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "app/static/vendor/alphatab/alphaTab.min.js"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == ALPHATAB_SHA256
+
+
+def test_csp_allows_score_viewer_without_unsafe_inline():
+    from app.security import ALPHATAB_STYLE_HASHES, CSP
+
+    assert "unsafe-inline" not in CSP and "unsafe-eval" not in CSP
+    assert "script-src 'self';" in CSP
+    assert "worker-src 'self' blob:;" in CSP
+    assert len(ALPHATAB_STYLE_HASHES) == 2
+    assert all(f"'{h}'" in CSP for h in ALPHATAB_STYLE_HASHES)

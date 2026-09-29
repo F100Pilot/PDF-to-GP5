@@ -141,3 +141,27 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .track-result > summary { cursor: pointer; font-weight: 600; }
 .track-result .summary { margin: 8px 0; }
 .track-result details summary { cursor: pointer; }
+
+.score-box { margin-top: 20px; }
+.score-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
+.score-player { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.score-player button { margin: 0; padding: 8px 14px; }
+.score-tracks { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.score-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--track, var(--border));
+  border-radius: 8px;
+  padding: 4px 6px 4px 8px;
+}
+.score-track label { flex-direction: row; align-items: center; gap: 6px; font-weight: 600; }
+.score-track input { padding: 0; }
+.score-track button[aria-pressed="true"] { opacity: 0.6; }
+/* Printed-paper look in both themes: alphaTab draws black notation on a transparent canvas. */
+.score { background: #ffffff; color: #000000; border-radius: 8px; padding: 8px; overflow-x: auto; }
+.at-cursor-bar { background: rgba(255, 242, 0, 0.25); }
+.at-selection div { background: rgba(64, 64, 255, 0.1); }
+.at-cursor-beat { background: rgba(64, 64, 255, 0.75); width: 3px; }
+.at-highlight * { fill: #0078ff; stroke: #0078ff; }
