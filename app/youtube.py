@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 
 API_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
-MAX_RESULTS = 5
+MAX_RESULTS = 10  # several candidates: many official videos cannot be embedded
 MAX_REPLY_BYTES = 256 * 1024
 TIMEOUT_S = 8
 CACHE_SIZE = 200

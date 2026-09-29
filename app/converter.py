@@ -12,7 +12,7 @@ from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
 from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
-from .model import Score, ScoreBeat, ScoreMeasure, TabSystem
+from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
 from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
 from .tunings import TUNINGS, resolve_tuning
@@ -256,6 +256,57 @@ def _lyrics_text(
     return (start_bar, text), sorted(dropped)
 
 
+VOCAL_TRACK_NAME = "Letra (voz)"
+VOICE_PROGRAM = 53  # General MIDI "Voice Oohs"; the track is muted anyway
+
+
+def _vocal_score(
+    syllables: list[tuple[int, float, str, bool]], measures: int, numerator: int, denominator: int
+) -> Score:
+    """A silent track with a short note on each lyric syllable, where it is printed.
+
+    Guitar Pro keeps lyrics on the played notes of one track, so no guitar part can carry all of
+    them (the parts rest while the singer sings). This track gives every syllable its own note in
+    its place, so the whole text reaches the GP5 (and tools that read it, e.g. for Rocksmith vocals).
+    """
+    units = numerator * 32 // denominator
+    by_bar: dict[int, list[float]] = {}
+    for bar, position, *_ in syllables:
+        by_bar.setdefault(bar, []).append(position)
+    result: list[ScoreMeasure] = []
+    for number in range(1, measures + 1):
+        positions = by_bar.get(number, [])
+        grid = 2 if len(positions) <= units // 2 else 1  # 16ths, or 32nds for very dense text
+        onsets: list[int] = []
+        for position in positions:
+            onset = min(units - grid, round(position * units / grid) * grid)
+            if onsets and onset <= onsets[-1]:
+                onset = onsets[-1] + grid
+            if onset < units:  # more syllables than slots: the rest share the last note ("+")
+                onsets.append(onset)
+        beats: list[ScoreBeat] = []
+        cursor = 0
+        for i, onset in enumerate(onsets):
+            beats.extend(ScoreBeat(part) for part in split_units(onset - cursor))
+            end = onsets[i + 1] if i + 1 < len(onsets) else units
+            parts = split_units(end - onset)
+            beats.append(ScoreBeat(parts[0], [ScoreNote(string=1, fret=0)]))
+            beats.extend(ScoreBeat(part) for part in parts[1:])  # no ties: they would take a syllable
+            cursor = end
+        beats.extend(ScoreBeat(part) for part in split_units(units - cursor))
+        result.append(ScoreMeasure(beats))
+    return Score(
+        6,
+        list(TUNINGS["standard"]),
+        result,
+        numerator,
+        denominator,
+        name=VOCAL_TRACK_NAME,
+        instrument=VOICE_PROGRAM,
+        muted=True,
+    )
+
+
 def _tuning_name(tuning: list[int]) -> str:
     return next((name for name, midi in TUNINGS.items() if list(midi) == tuning), "custom")
 
@@ -465,6 +516,7 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
     lyrics = None
     timed_lyrics: list[list] = []
     lyric_warnings: list[str] = []
+    lyrics_track_name = ""
     if lyric_candidates:
         # The lyrics printed in one PDF; they are sung over bars where that part may rest, and
         # Guitar Pro can only show a syllable on a played note. Bars are aligned across tracks,
@@ -477,13 +529,20 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             played = {n for n, m in enumerate(measures, start=1) if any(not b.is_rest for b in m.beats)}
             return sum(bar in played for bar, *_ in syllables), track_reports[index]["notes"]
 
-        chosen = max(range(len(scores)), key=coverage)
+        if len(scores) < MAX_TRACKS:
+            # A silent "Letra (voz)" track with a note per syllable: the whole text fits in the GP5.
+            scores.append(_vocal_score(syllables, total_measures, numerator, denominator))
+            chosen = len(scores) - 1
+            lyrics_track_name = VOCAL_TRACK_NAME
+        else:  # no room for another track: the part playing in most bars with lyrics
+            chosen = max(range(len(scores)), key=coverage)
+            lyrics_track_name = track_reports[chosen]["name"]
         line, dropped = _lyrics_text(syllables, scores[chosen])
         if line:
             lyrics = LyricsInfo(track=chosen + 1, lines=(line,))
         if dropped:
             lyric_warnings.append(
-                f"Letra: no GP5 fica na track {track_reports[chosen]['name']}, que não toca nos compassos "
+                f"Letra: no GP5 fica na track {lyrics_track_name}, que não toca nos compassos "
                 f"{_ranges(dropped)}; a letra desses compassos não pode ficar no GP5 (o Guitar Pro só mostra "
                 "uma sílaba numa nota tocada). A pista 3D da aplicação mostra a letra completa."
             )
@@ -513,7 +572,7 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         "measures": total_measures,
         "notes": sum(r["notes"] for r in track_reports),
         "sections": sections,
-        "lyrics": {"track": track_reports[lyrics.track - 1]["name"], "lines": len(lyrics.lines)} if lyrics else None,
+        "lyrics": {"track": lyrics_track_name, "lines": len(lyrics.lines)} if lyrics else None,
         "timed_lyrics": timed_lyrics,
         "warnings": warnings,
         "tracks": track_reports,

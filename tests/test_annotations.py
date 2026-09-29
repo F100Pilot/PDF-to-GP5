@@ -123,3 +123,17 @@ def test_written_tuning_and_custom_octaves():
     assert resolve_tuning("auto", 6, ["E", "B", "G", "D", "A", "D"])[0] == list(TUNINGS["drop_d"])
     tuning, warnings = resolve_tuning("auto", 6, ["E", "B", "G", "D"])
     assert tuning == list(TUNINGS["standard"]) and warnings
+
+
+def test_vocal_track_gives_every_syllable_its_own_note():
+    from app.converter import _vocal_score
+
+    syllables = [(1, 0.0, "one", False), (1, 0.5, "two", True), (1, 0.52, "three", False), (3, 0.25, "four", False)]
+    vocal = _vocal_score(syllables, 3, 4, 4)
+    assert vocal.muted and len(vocal.measures) == 3
+    for measure in vocal.measures:
+        assert sum(beat.units for beat in measure.beats) == 32
+    played = [[i for i, beat in enumerate(m.beats) if not beat.is_rest] for m in vocal.measures]
+    assert [len(p) for p in played] == [3, 0, 1]
+    line, dropped = _lyrics_text(syllables, vocal)
+    assert dropped == [] and line == (1, "one two-three four")

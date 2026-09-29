@@ -142,7 +142,7 @@ Colunas:
 | Capo ("Capo 3") | ⬜ | ⬜ | ✅ | — | |
 | Guitarra 4–7 cordas / baixo 4–5 cordas | ✅ | ✅ | ✅ | Happen To Me | |
 | 8 cordas ou mais | ⛔ | ⛔ | ⛔ | — | GP5 guarda no máximo 7 cordas (dá erro claro) |
-| Letra da música | ⬜ | ✅ | 🟡 | Happen To Me | Cada sílaba na nota tocada onde está impressa (notas sem letra saltadas), na track que toca em mais compassos com letra. GP5: só uma track de letra, por isso compassos onde ela não toca ficam sem letra (aviso). A pista 3D mostra a letra completa |
+| Letra da música | ⬜ | ✅ | ✅ | Happen To Me | Track "Letra (voz)" silenciada com uma nota por sílaba, no sítio onde está impressa: letra completa no GP5 (o GP5 só tem uma track de letra). Com 7 tracks, vai para a track que toca em mais compassos com letra (aviso dos compassos sem ela). A pista 3D mostra a letra completa |
 | Nomes de acordes / diagramas | ⬜ | ⬜ | ✅ | — | |
 | Texto livre sobre notas | ⬜ | ⬜ | ✅ | — | |
 | Segunda voz | ⬜ | ⬜ | ✅ | — | Hoje: uma voz por track |

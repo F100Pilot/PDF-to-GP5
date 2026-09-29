@@ -56,6 +56,10 @@ Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arr
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Letra
+
+A letra impressa no PDF vai completa para o GP5 numa track própria, "Letra (voz)", silenciada (volume 0): uma nota por sílaba, no sítio onde a sílaba está impressa. Assim o Guitar Pro, o TuxGuitar e os conversores de GP5 para o Rocksmith (PSARC) leem a letra toda. Com 7 tracks já ocupadas, a letra vai para a track que toca em mais compassos com letra e a página avisa dos compassos que ficam sem ela.
+
 ## Partitura
 
 Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, só tab ou só pauta), com todas as tracks ou só as escolhidas, cada uma com a sua cor, e toca-a (tocar/pausa/parar, velocidade, silenciar tracks; clicar numa nota começa a tocar daí). Usa o [alphaTab](https://alphatab.net) 1.8.4, incluído em `app/static/vendor/alphatab/` (funciona sem internet) e carregado só quando há um resultado para mostrar. Licenças: alphaTab MPL-2.0, fonte Bravura SIL OFL 1.1, sons Sonivox Apache-2.0 (ficheiros de licença na mesma pasta).
@@ -132,7 +136,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 - Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
 - Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
-- Repetições, letras, acordes por extenso e marcações de palm-mute não são convertidos.
+- Repetições, acordes por extenso e marcações de palm-mute não são convertidos.
 
 ## Versões
 

@@ -140,3 +140,4 @@ class Score:
     warnings: list[str] = field(default_factory=list)
     name: str = "Guitar"
     instrument: int = 25  # General MIDI program
+    muted: bool = False  # silent track (e.g. the lyrics carrier)

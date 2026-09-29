@@ -158,6 +158,9 @@ def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
     track.channel.channel = _MELODIC_CHANNELS[2 * (number - 1)]
     track.channel.effectChannel = _MELODIC_CHANNELS[2 * (number - 1) + 1]
     track.channel.instrument = score.instrument
+    if score.muted:
+        track.isMute = True
+        track.channel.volume = 0
     max_fret = max((n.fret for m in score.measures for b in m.beats for n in b.notes), default=0)
     track.fretCount = max(24, max_fret)
     track.measures = []

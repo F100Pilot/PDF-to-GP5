@@ -8,6 +8,7 @@
   // first refuses to play in this page (some browsers' tracking protection breaks it).
   const PLAYER_HOSTS = ["https://www.youtube-nocookie.com", "https://www.youtube.com"];
   const RETRY_CODES = new Set([5, 152, 153]); // player / configuration errors, not the video owner's choice
+  const OWNER_BLOCKED = new Set([101, 150]); // the owner does not allow the video outside YouTube
   const READY_TIMEOUT_MS = 10000;
   const ID_RE = /^[A-Za-z0-9_-]{11}$/;
   const DRIFT_S = 0.35; // re-sync the video when it drifts more than this from the score
@@ -194,6 +195,8 @@
       const message = PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`;
       if (RETRY_CODES.has(code)) {
         playerFailed(message);
+      } else if (OWNER_BLOCKED.has(code) && tryNextResult()) {
+        // another search result is loading
       } else {
         clearTimeout(readyTimer);
         setStatus(message);
@@ -238,9 +241,26 @@
     return `https://www.youtube.com/watch?v=${id}`;
   }
 
+  // Search results already tried in this page (skipped when the owner blocks embedding).
+  const tried = new Set();
+
+  function tryNextResult() {
+    if (!current) return false;
+    tried.add(current.id);
+    const next = Array.from(resultsSelect.options).find((option) => !tried.has(option.value));
+    if (!next) return false;
+    resultsSelect.value = next.value;
+    urlInput.value = watchUrl(next.value);
+    setStatus("O dono deste vídeo não permite vê-lo fora do YouTube: a tentar o resultado seguinte…");
+    showPlayer(next.value, 0);
+    saveSettings();
+    return true;
+  }
+
   // Find the song's video ("artist title") and show the first result; the others stay selectable.
   async function findVideo(query) {
     resultsLabel.hidden = true;
+    tried.clear();
     if (!canSearch || !query) return false;
     setStatus("A procurar o vídeo no YouTube…");
     try {
