@@ -72,7 +72,8 @@ Ao arrancar, a janela do servidor mostra uma destas linhas:
 - Se acontecer com todos os vídeos, é o browser a bloquear o leitor do YouTube dentro da página.
   Acontece no **Brave** (no Chrome e no Edge funciona): desligue os Shields para `127.0.0.1`
   (ícone do leão na barra de endereço → Shields em baixo) e recarregue a página, ou use o
-  Chrome/Edge. No Brave a própria mensagem do painel lembra isto. A aplicação já tenta o leitor normal do YouTube quando o "nocookie" falha.
+  Chrome/Edge (às vezes nem com os Shields desligados toca: use o Chrome, que os scripts de
+  arranque já abrem). No Brave a própria mensagem do painel lembra isto. A aplicação já tenta o leitor normal do YouTube quando o "nocookie" falha.
 
 ## Limites e problemas
 

@@ -35,8 +35,10 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Letra da música importada para o GP5 (até 5 blocos, na track com mais notas).
 - Afinação escrita no PDF ("Tuning: D A D G B E", "Drop D", "Eb standard"…) e afinações livres.
 - Dinâmicas (ppp … fff) aplicadas como velocidade das notas.
+- Os scripts de arranque abrem a aplicação no Chrome (no Brave o vídeo do YouTube não toca dentro da página); sem Chrome, no browser predefinido.
 - Scripts de arranque para Windows: `start-trabalho.bat` (ambiente virtual fora do OneDrive) e `start-casa.bat` (sem ambiente virtual); ambos fazem `git pull` e iniciam o servidor.
 ### Corrigido
+- Windows: deixa de aparecer no servidor o erro `ConnectionResetError: [WinError 10054]` (`_call_connection_lost`) quando o browser fecha uma ligação; era só ruído, nada falhava.
 - Depois de uma atualização, a página podia continuar a usar a versão antiga guardada no browser; os ficheiros da página passam a ser sempre revalidados.
 - Tabs com mais de 7 cordas passam a dar erro claro (o formato GP5 só guarda 7 cordas; antes gerava um ficheiro inválido). Removida a afinação de 8 cordas.
 - Pausas de vários compassos no início da música (a barra grossa da pausa partia a deteção da pauta e perdia-se a primeira linha).
