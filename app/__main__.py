@@ -23,6 +23,15 @@ class _HidePresenceReports(logging.Filter):
         return "/api/presence" not in record.getMessage()
 
 
+class _HideClientResets(logging.Filter):
+    """Windows' asyncio loop logs a traceback whenever the browser drops a connection it had
+    already given up on (WinError 10054 in ``_call_connection_lost``). Nothing is wrong: hide it."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        error = record.exc_info[1] if record.exc_info else None
+        return not (isinstance(error, ConnectionResetError) and "_call_connection_lost" in record.getMessage())
+
+
 # Browsers keep idle connections open for a while after a page is closed, and uvicorn waits for
 # them; on Windows their closing may never be noticed. Stop waiting after this, then force it.
 GRACEFUL_SHUTDOWN_S = 3
@@ -57,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         help="encerrar o servidor quando a última página da aplicação for fechada",
     )
     args = parser.parse_args(argv)
+    logging.getLogger("asyncio").addFilter(_HideClientResets())
     if settings.youtube_api_key:
         print("Vídeo do YouTube: pesquisa automática ligada.", flush=True)
     else:

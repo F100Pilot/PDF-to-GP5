@@ -47,7 +47,19 @@ netstat -an | find ":%PORT% " | find "LISTENING" >nul
 if not errorlevel 1 goto :port_busy
 echo [3/3] Servidor em http://%HOST%:%PORT%
 echo       Para parar: feche a pagina no browser (ou Ctrl+C nesta janela).
+rem Abrir no Chrome: no Brave o video do YouTube nao toca dentro da pagina.
+rem Sem Chrome instalado, abre o browser predefinido.
+set "BROWSER="
+if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "BROWSER=%LocalAppData%\Google\Chrome\Application\chrome.exe"
+if not defined BROWSER goto :open_default
+start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start "" "%BROWSER%" http://%HOST%:%PORT%"
+goto :run_server
+:open_default
+echo       Chrome nao encontrado: a abrir o browser predefinido.
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
+:run_server
 "%VENV%\Scripts\python.exe" -m app --host %HOST% --port %PORT% --close-with-browser
 if errorlevel 1 goto :server_failed
 rem Servidor encerrado normalmente (pagina fechada): fechar a janela.

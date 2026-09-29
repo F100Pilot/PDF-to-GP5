@@ -1,3 +1,4 @@
+import logging
 import socket
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.__main__ import _HideClientResets
 from app.presence import GRACE_S, STALE_S, Presence
 
 
@@ -93,6 +95,19 @@ def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+def _asyncio_error_record(message: str, error: Exception) -> logging.LogRecord:
+    return logging.LogRecord("asyncio", logging.ERROR, __file__, 1, message, None, (type(error), error, None))
+
+
+def test_launcher_hides_windows_client_reset_traceback():
+    hide = _HideClientResets()
+    reset = ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host")
+    callback = "Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)"
+    assert not hide.filter(_asyncio_error_record(callback, reset))
+    assert hide.filter(_asyncio_error_record(callback, ValueError("real bug")))
+    assert hide.filter(_asyncio_error_record("Exception in callback other()", reset))
 
 
 def test_launcher_stops_after_page_closes():
