@@ -3,7 +3,7 @@ import io
 import guitarpro as gp
 import pytest
 
-from app.gp5_writer import SongInfo, sanitize_text, write_gp5
+from app.gp5_writer import TRACK_COLORS, SongInfo, sanitize_text, write_gp5
 from app.model import Score, ScoreBeat, ScoreMeasure, ScoreNote
 from app.tunings import TUNINGS
 
@@ -83,6 +83,8 @@ def test_multi_track_song_structure():
     assert [t.name for t in song.tracks] == ["Guitar", "Bass"]
     assert [len(t.strings) for t in song.tracks] == [6, 4]
     assert song.tracks[1].measures[0].voices[0].beats[0].notes[0].value == 3
+    colors = [(t.color.r, t.color.g, t.color.b) for t in song.tracks]
+    assert colors == list(TRACK_COLORS[:2]) and colors[0] != colors[1]
 
 
 def test_tracks_must_have_equal_measure_counts_and_limit():

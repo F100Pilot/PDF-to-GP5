@@ -22,7 +22,7 @@ from . import __revision__, __version__
 from .changelog import load_releases, version_key
 from .config import settings
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
-from .gp5_writer import MAX_TRACKS
+from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
 from .security import (
@@ -133,6 +133,7 @@ async def options() -> dict:
         "max_upload_mb": settings.max_upload_bytes // (1024 * 1024),
         "max_total_upload_mb": settings.max_total_upload_bytes // (1024 * 1024),
         "max_tracks": MAX_TRACKS,
+        "track_colors": ["#{:02x}{:02x}{:02x}".format(*rgb) for rgb in TRACK_COLORS],
         "max_pages": settings.max_pages,
     }
 

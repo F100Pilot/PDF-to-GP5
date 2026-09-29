@@ -136,11 +136,23 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
 _MELODIC_CHANNELS = [c for c in range(16) if c != 9]
 MAX_TRACKS = len(_MELODIC_CHANNELS) // 2
 MAX_STRINGS = 7  # the GP5 track header has room for 7 string tunings
+# One colour per track position, shared with the web page (/api/options). Dark enough
+# for white text on top.
+TRACK_COLORS = (
+    (29, 78, 216),  # blue
+    (194, 65, 12),  # orange
+    (21, 128, 61),  # green
+    (126, 34, 206),  # purple
+    (190, 24, 93),  # pink
+    (15, 118, 110),  # teal
+    (161, 98, 7),  # ochre
+)
 
 
 def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
     track = gp.Track(song, number=number)
     track.name = sanitize_text(score.name, 40) or f"Track {number}"
+    track.color = gp.Color(*TRACK_COLORS[(number - 1) % len(TRACK_COLORS)])
     track.strings = [gp.GuitarString(n, value) for n, value in enumerate(score.tuning, start=1)]
     track.channel.channel = _MELODIC_CHANNELS[2 * (number - 1)]
     track.channel.effectChannel = _MELODIC_CHANNELS[2 * (number - 1) + 1]

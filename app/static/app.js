@@ -19,6 +19,7 @@
   let maxBytes = 10 * 1024 * 1024;
   let maxTotalBytes = 40 * 1024 * 1024;
   let maxTracks = 7;
+  let trackColors = []; // one per track position, same as in the GP5 file
   let inspecting = false;
   let tunings = ["auto"];
   let instruments = ["auto"];
@@ -43,6 +44,7 @@
       instruments = opts.instruments;
       maxBytes = opts.max_upload_mb * 1024 * 1024;
       maxTracks = opts.max_tracks || maxTracks;
+      trackColors = opts.track_colors || [];
       maxTotalBytes = (opts.max_total_upload_mb || 40) * 1024 * 1024;
       renderTracks();
     })
@@ -86,12 +88,23 @@
     renderTracks();
   }
 
+  // Colour the element (border and number badge) with the colour of track position `index`.
+  function paintTrack(element, index) {
+    const color = trackColors.length ? trackColors[index % trackColors.length] : "";
+    if (color) element.style.setProperty("--track", color);
+    const badge = document.createElement("span");
+    badge.className = "track-num";
+    badge.textContent = String(index + 1);
+    return badge;
+  }
+
   function renderTracks() {
     trackList.replaceChildren();
     tracksBox.hidden = tracks.length === 0;
     tracks.forEach((track, index) => {
       const li = document.createElement("li");
       li.className = "track";
+      const badge = paintTrack(li, index);
       const head = document.createElement("div");
       head.className = "track-head";
       const file = document.createElement("span");
@@ -109,7 +122,7 @@
         button("↓", "Mover para baixo", () => move(index, 1), index === tracks.length - 1),
         button("✕", "Remover", () => { tracks.splice(index, 1); renderTracks(); }),
       );
-      head.append(file, info, actions);
+      head.append(badge, file, info, actions);
 
       const fields = document.createElement("div");
       fields.className = "grid";
@@ -262,7 +275,7 @@
     details.className = "track-result";
     details.open = index === 0;
     const summary = document.createElement("summary");
-    summary.textContent = `${index + 1}. ${track.name}`;
+    summary.append(paintTrack(details, index), ` ${track.name}`);
     const rhythm = track.rhythm_from_notation
       ? `lido em ${track.rhythm_from_notation}/${track.rhythm_from_notation + track.rhythm_estimated} compassos`
       : "estimado";

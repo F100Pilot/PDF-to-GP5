@@ -1,5 +1,6 @@
 import base64
 import io
+import re
 
 import guitarpro as gp
 import pytest
@@ -47,6 +48,8 @@ def test_docs_disabled_by_default(client):
 
 def test_options(client):
     body = client.get("/api/options").json()
+    assert len(set(body["track_colors"])) == body["max_tracks"]
+    assert all(re.fullmatch(r"#[0-9a-f]{6}", c) for c in body["track_colors"])
     assert "auto" in body["tunings"] and "drop_d" in body["tunings"]
     assert client.get("/api/options").headers["cache-control"] == "no-store"
 
