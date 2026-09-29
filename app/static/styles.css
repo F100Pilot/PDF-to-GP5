@@ -265,6 +265,9 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .nudges { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; font-size: 0.9rem; }
 .nudges button { margin: 0; padding: 4px 10px; font-size: 0.85rem; white-space: nowrap; }
 button.mark { justify-self: start; padding: 6px 12px; }
+.tempo-row { display: flex; align-items: center; gap: 6px; }
+.tempo-row .audio-offset { flex: 1; }
+.tempo-row button { padding: 4px 10px; font-size: 0.85rem; }
 .score-main { min-width: 0; }
 /* minmax(0, 1fr): long result titles must not widen the panel past the screen */
 .video-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }

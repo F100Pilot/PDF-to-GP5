@@ -7,6 +7,9 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- "Tempo da partitura" no painel do áudio (±0,1 BPM, Repor): a partitura toca ao tempo da gravação quando esta não está exatamente ao BPM do PDF (o desacerto deixa de crescer ao longo da música); o vídeo e o áudio seguem-no e o .gp fica com esse tempo.
+- O início da música no áudio pode ficar antes do 0 (a partitura começa antes do áudio, que espera): "Adiantar a partitura" deixa de parar no 0.
+- Pista 3D: com áudio escolhido, a música aparece desenhada no chão (a intensidade ao longo do tempo), colocada com o mesmo início e tempo da reprodução, para alinhar as batidas com as notas e os tempos.
 - Botões "Atrasar a partitura" / "Adiantar a partitura" (0,1 s e 1 s) nos painéis do áudio e do vídeo, em vez dos ±, com a indicação do acerto feito; funcionam a tocar.
 - Controlos do áudio ao lado da partitura (na coluna do vídeo), sempre visíveis ao descer a página, com "Volume da música" e "Volume das notas" (guardados no browser); substituem a opção "Silenciar os sons da partitura" do áudio.
 - Áudio da música a tocar com a partitura: Tocar (no painel do áudio ou na partitura) toca os dois, e a Pausa, o Parar, a barra de tempo e a velocidade comandam também o áudio; "Marcar início" recomeça a partitura no compasso 1 no instante marcado, com botões ±0,1 s/±1 s para afinar; opções "Tocar com a partitura" e "Silenciar os sons da partitura". Painel do áudio com o aspeto do resto da página (sem o leitor do browser).

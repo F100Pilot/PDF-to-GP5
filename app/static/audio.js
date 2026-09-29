@@ -24,6 +24,7 @@
   const playButton = document.getElementById("audio-play");
   const timeLabel = document.getElementById("audio-time");
   const offsetInput = document.getElementById("audio-offset");
+  const tempoInput = document.getElementById("audio-tempo");
   const syncInput = document.getElementById("audio-sync");
   const statusLine = document.getElementById("audio-status");
   const MUSIC_KEY = "pdf-to-gp5.music-volume";
@@ -33,7 +34,11 @@
   let playerUrl = null;
   let building = false;
   let lastDriftFix = 0;
-  const song = { ms: 0, speed: 1, playing: false }; // score position (song time) and state
+  let waiting = false; // playing, but bar 1 is set before the audio starts: the audio waits
+  let baseTempo = 120; // the score's printed tempo
+  const song = { ms: 0, speed: 1, playing: false }; // score position (song time), the audio's speed, state
+  const MIN_OFFSET = -60;
+  const MAX_OFFSET = 3600;
 
   function setStatus(text) {
     statusLine.textContent = text;
@@ -56,9 +61,10 @@
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
   }
 
+  // Where bar 1 starts in the audio (seconds); negative: before the audio starts.
   function offset() {
     const value = Number(offsetInput.value);
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    return Number.isFinite(value) ? Math.min(Math.max(value, MIN_OFFSET), MAX_OFFSET) : 0;
   }
 
   // The audio follows the score only when there is audio and "Tocar com a partitura" is on.
@@ -66,23 +72,33 @@
     return Boolean(audio) && syncInput.checked;
   }
 
-  // Where the audio should be for the current score position.
+  // Where the audio should be for the current score position (a score set to another tempo than
+  // the printed one covers the recording at that rate).
   function expectedTime() {
-    return offset() + song.ms / 1000;
+    return offset() + song.ms / 1000 / window.ScoreView.tempoFactor();
   }
 
   function seekAudio() {
     const target = expectedTime();
+    if (target < 0) {
+      // The score starts before the audio: hold the audio at its start until its time comes.
+      player.currentTime = 0;
+      waiting = true;
+      if (!player.paused) player.pause();
+      return;
+    }
+    waiting = false;
     player.currentTime = Number.isFinite(player.duration) ? Math.min(target, player.duration) : target;
   }
 
   function startAudio() {
+    if (waiting) return; // position() starts it when the score reaches the audio's start
     player.playbackRate = song.speed;
     player.play().catch(() => setStatus("O browser não deixou tocar o áudio: carregue outra vez em Tocar."));
   }
 
   function showState() {
-    const playing = following() ? song.playing : !player.paused;
+    const playing = following() ? song.playing : !player.paused && !waiting;
     playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
     timeLabel.textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
   }
@@ -127,7 +143,31 @@
     download.textContent = audio ? "Descarregar .gp (com áudio)" : "Descarregar .gp5";
   }
 
+  // Loudness of the audio every WAVE_STEP seconds (0…1), drawn on the 3D highway's floor.
+  const WAVE_STEP = 0.05;
+
+  async function waveform(bytes) {
+    const context = new OfflineAudioContext(1, 1, 44100);
+    const buffer = await context.decodeAudioData(bytes.slice().buffer); // decoding takes the buffer
+    const size = Math.max(1, Math.round(buffer.sampleRate * WAVE_STEP));
+    const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
+    const peaks = new Float32Array(Math.ceil(buffer.length / size));
+    let loudest = 0;
+    for (let i = 0; i < peaks.length; i += 1) {
+      let peak = 0;
+      const end = Math.min(buffer.length, (i + 1) * size);
+      for (const data of channels) {
+        for (let j = i * size; j < end; j += 4) peak = Math.max(peak, Math.abs(data[j]));
+      }
+      peaks[i] = peak;
+      loudest = Math.max(loudest, peak);
+    }
+    if (loudest > 0) for (let i = 0; i < peaks.length; i += 1) peaks[i] /= loudest;
+    return { peaks, step: WAVE_STEP };
+  }
+
   function clearAudio() {
+    window.Highway3D.setWaveform(null);
     player.pause();
     audio = null;
     fileInput.value = "";
@@ -174,6 +214,12 @@
     applyVolumes();
     setStatus("");
     updateLink();
+    window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
+    waveform(bytes)
+      .then((data) => {
+        if (audio === bytes) window.Highway3D.setWaveform(data);
+      })
+      .catch(() => setSyncStatus("Não foi possível desenhar o áudio na pista 3D (formato não suportado pelo browser)."));
     if (following() && song.playing) {
       seekAudio();
       startAudio();
@@ -218,9 +264,15 @@
     syncStatus.hidden = !text;
   }
 
+  const decimal = (value) => value.toFixed(2).replace(".", ",");
+
   function setOffset(seconds) {
-    offsetInput.value = String(Math.max(0, Math.round(seconds * 100) / 100));
-    if (following() && song.playing) seekAudio();
+    offsetInput.value = String(Math.min(Math.max(Math.round(seconds * 100) / 100, MIN_OFFSET), MAX_OFFSET));
+    if (following() && song.playing) {
+      seekAudio();
+      startAudio();
+    }
+    window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
   }
 
   // Delaying the score = bar 1 later in the audio (the audio is ahead of the score by more).
@@ -228,19 +280,41 @@
     const before = offset();
     setOffset(before + seconds);
     const moved = offset() - before;
-    const amount = Math.abs(moved).toFixed(2).replace(".", ",");
+    const where = offset() < 0 ? `${decimal(-offset())} s antes do início do áudio` : `aos ${decimal(offset())} s do áudio`;
     setSyncStatus(
       moved === 0
-        ? "A partitura já começa com o áudio: não pode ser adiantada mais."
-        : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${amount} s (compasso 1 aos ${offset().toFixed(2).replace(".", ",")} s do áudio).`,
+        ? "Limite do acerto atingido."
+        : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${decimal(Math.abs(moved))} s (compasso 1 ${where}).`,
     );
   }
 
+  // Tempo the score plays at, to follow a recording that is not exactly at the printed tempo.
+  function setTempo(bpm) {
+    const value = Math.min(Math.max(Math.round(bpm * 10) / 10, 20), 400);
+    tempoInput.value = String(value);
+    window.ScoreView.setTempo(value);
+    if (following() && song.playing) seekAudio();
+    window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
+    setSyncStatus(
+      value === baseTempo
+        ? `Tempo do PDF (${String(baseTempo).replace(".", ",")} BPM).`
+        : `Partitura a ${String(value).replace(".", ",")} BPM (no PDF: ${String(baseTempo).replace(".", ",")}).`,
+    );
+  }
+
+  tempoInput.addEventListener("change", () => setTempo(Number(tempoInput.value) || baseTempo));
+  for (const button of document.querySelectorAll("[data-tempo-nudge]")) {
+    button.addEventListener("click", () => setTempo((Number(tempoInput.value) || baseTempo) + Number(button.dataset.tempoNudge)));
+  }
+  document.getElementById("audio-tempo-reset").addEventListener("click", () => setTempo(baseTempo));
+
   offsetInput.addEventListener("change", () => setOffset(offset()));
+  tempoInput.value = String(baseTempo);
   // "Marcar início": bar 1 starts at the audio's current time; the score restarts there.
   document.getElementById("audio-mark").addEventListener("click", () => {
     offsetInput.value = String(Math.round(player.currentTime * 100) / 100);
     if (following()) window.ScoreView.restart();
+    window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
     setSyncStatus(`Início marcado aos ${offset().toFixed(2).replace(".", ",")} s do áudio.`);
   });
   for (const button of document.querySelectorAll("[data-audio-nudge]")) {
@@ -248,14 +322,25 @@
   }
 
   window.AudioSync = {
-    // Score position: `realMs` as reported by alphaTab (scaled by the speed), `speed` the playback speed.
-    position(realMs, speed, isSeek) {
-      song.speed = speed || 1;
-      song.ms = realMs * song.speed;
+    // A new song: its printed tempo, which the score plays at until the tempo is adjusted.
+    songLoaded(tempo) {
+      baseTempo = tempo > 0 ? tempo : 120;
+      tempoInput.value = String(baseTempo);
+    },
+    // Score position: `realMs` as reported by alphaTab (scaled by the speed), `scoreSpeed` the
+    // score's playback speed (the chosen speed times the tempo adjustment).
+    position(realMs, scoreSpeed, isSeek) {
+      song.ms = realMs * (scoreSpeed || 1);
       if (!following()) return;
       const now = performance.now();
       if (isSeek) {
         seekAudio();
+        if (song.playing) startAudio();
+      } else if (waiting) {
+        if (song.playing && expectedTime() >= 0) {
+          seekAudio(); // the score has reached the audio's start
+          startAudio();
+        }
       } else if (song.playing && now - lastDriftFix > DRIFT_CHECK_MS && Math.abs(player.currentTime - expectedTime()) > DRIFT_S) {
         lastDriftFix = now;
         seekAudio();
@@ -268,6 +353,7 @@
           seekAudio();
           startAudio();
         } else {
+          waiting = false;
           player.pause();
         }
       }

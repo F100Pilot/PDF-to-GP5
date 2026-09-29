@@ -533,6 +533,17 @@
     for (const { masterBar, tick } of order) offsets[masterBar.index].push(tick - masterBar.start);
     const linear = order.length === masterBars.length && offsets.every((list) => list.length === 1 && list[0] === 0);
     const last = order[order.length - 1];
+    // Playback time (ms, at the printed tempo) of each played bar, for placing the song's audio.
+    const tempoMap = [];
+    let tempo = score.tempo || 120;
+    let ms = 0;
+    for (const { masterBar, tick } of order) {
+      const automations = masterBar.tempoAutomations || [];
+      for (const automation of automations) if (automation.ratioPosition <= 0.001) tempo = automation.value;
+      tempoMap.push({ tick, ms, tempo });
+      ms += ((barLength(masterBar) / TICKS_PER_QUARTER) * 60000) / tempo;
+      for (const automation of automations) if (automation.ratioPosition > 0.001) tempo = automation.value;
+    }
     const barOf = (tick) => {
       let low = 0;
       let high = masterBars.length - 1;
@@ -546,6 +557,19 @@
     return {
       order,
       endTick: last ? last.tick + barLength(last.masterBar) : 1,
+      // Playback tick at `time` ms from bar 1 (before bar 1 and after the end: at the nearest tempo).
+      msToTick(time) {
+        if (!tempoMap.length) return 0;
+        let low = 0;
+        let high = tempoMap.length - 1;
+        while (low < high) {
+          const mid = (low + high + 1) >> 1;
+          if (tempoMap[mid].ms <= time) low = mid;
+          else high = mid - 1;
+        }
+        const entry = tempoMap[low];
+        return entry.tick + ((time - entry.ms) * entry.tempo * TICKS_PER_QUARTER) / 60000;
+      },
       // Copies of `items` ({ tick, … }) for every time their bar is played; `shift(item, offset)`
       // moves an item's other ticks too.
       unroll(items, shift = (item, offset) => ({ ...item, tick: item.tick + offset })) {
@@ -848,11 +872,68 @@
     clearEffects();
     song = {
       lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom, barCount: score.masterBars.length,
+      msToTick: timeline.msToTick, waveMesh: null,
       lyrics: collectLyrics(score, timedLyrics, timeline), nextHit: 0, nextChord: 0,
     };
     stage.hud.bar = -1;
     stage.hud.line = -1;
+    drawWaveform();
     seekHits(currentTick());
+  }
+
+  // The song's audio drawn on the floor of the highway (loudness along time), placed with the same
+  // start and tempo as the audio playback, so its beats can be lined up with the notes.
+  let wave = null; // { peaks: Float32Array (0…1), step: seconds per peak }
+  const waveSync = { offset: 0, factor: 1 }; // bar 1 in the audio (s); score tempo ÷ printed tempo
+  let waveMaterial = null;
+  const WAVE_Y = 0.012; // just above the floor, under the bar lines
+
+  function drawWaveform() {
+    if (!song) return;
+    if (song.waveMesh) {
+      song.lane.remove(song.waveMesh);
+      song.waveMesh.geometry.dispose();
+      song.waveMesh = null;
+    }
+    if (!wave) return;
+    const count = wave.peaks.length;
+    const positions = new Float32Array(count * 6);
+    const center = (FRETS - 1) / 2;
+    const half = ((FRETS + 1) / 2) * 0.9;
+    for (let i = 0; i < count; i += 1) {
+      const scoreMs = (i * wave.step - waveSync.offset) * waveSync.factor * 1000;
+      const z = -song.msToTick(scoreMs) * Z_PER_TICK;
+      const amplitude = Math.max(0.02, wave.peaks[i]) * half;
+      positions.set([center - amplitude, WAVE_Y, z, center + amplitude, WAVE_Y, z], i * 6);
+    }
+    const indices = [];
+    for (let i = 0; i + 1 < count; i += 1) {
+      const a = 2 * i;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    if (!waveMaterial) {
+      waveMaterial = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, clippingPlanes: laneClip(),
+      });
+    }
+    song.waveMesh = new THREE.Mesh(geometry, waveMaterial);
+    song.waveMesh.renderOrder = -1;
+    song.lane.add(song.waveMesh);
+  }
+
+  // `data`: { peaks, step } of the chosen audio, or null to remove it.
+  function setWaveform(data) {
+    wave = data && data.peaks && data.peaks.length > 1 ? data : null;
+    drawWaveform();
+  }
+
+  function setWaveformSync(offset, factor) {
+    waveSync.offset = Number(offset) || 0;
+    waveSync.factor = factor > 0 ? factor : 1;
+    drawWaveform();
   }
 
   // Hit effects at the strike line: when a note reaches the strings its number stays there, with a
@@ -1147,5 +1228,7 @@
     onSeek = handler;
   }
 
-  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt, setSide, setTime, setSeekHandler };
+  window.Highway3D = {
+    show, hide, setPosition, setPlaying, setTilt, setSide, setTime, setSeekHandler, setWaveform, setWaveformSync,
+  };
 })();

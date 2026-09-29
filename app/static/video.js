@@ -48,7 +48,7 @@
   let ready = false;
   let songKey = "";
   let onMuteScore = () => {};
-  const song = { ms: 0, speed: 1, playing: false }; // score position (song time) and state
+  const song = { ms: 0, speed: 1, playing: false }; // score position (song time), the video's speed, state
   let lastDriftFix = 0;
   // Last time reported by the player: { time (s), at (performance.now()), playing, rate }.
   let video = null;
@@ -111,7 +111,8 @@
 
   // Where the video should be for the current score position (song time, independent of speed).
   function expectedTime() {
-    return Math.max(0, offset() + song.ms / 1000);
+    // A score set to another tempo than the printed one covers the recording at that rate.
+    return Math.max(0, offset() + song.ms / 1000 / window.ScoreView.tempoFactor());
   }
 
   function seekVideo() {
@@ -413,9 +414,9 @@
       await loadSongVideo();
     },
     // Score position: `realMs` as reported by alphaTab (scaled by the speed), `speed` the playback speed.
-    position(realMs, speed, isSeek) {
-      song.speed = speed || 1;
-      song.ms = realMs * song.speed;
+    // `scoreSpeed`: the score's playback speed (the chosen speed times the tempo adjustment).
+    position(realMs, scoreSpeed, isSeek) {
+      song.ms = realMs * (scoreSpeed || 1);
       if (isSeek && syncInput.checked && !panel.hidden) seekVideo();
     },
     playing(isPlaying) {

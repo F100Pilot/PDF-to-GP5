@@ -35,6 +35,23 @@
   let lastBytes = null; // the converted GP5 file
   const mutedBy = new Set(); // "video": the score's own sounds are silenced for it
   let notesVolume = 1; // volume of the score's sounds (0…1), set beside the song's audio
+  // Tempo the score plays at ÷ its printed tempo, to follow a recording at another tempo.
+  let tempoFactor = 1;
+
+  function applySpeed() {
+    if (api) api.playbackSpeed = Number(speedSelect.value) * tempoFactor;
+  }
+
+  // The score's printed tempo (BPM at the start).
+  function baseTempo() {
+    return api && api.score ? api.score.tempo : 120;
+  }
+
+  // Play the score at `bpm` (its printed tempo scaled; tempo changes keep their proportion).
+  function setTempo(bpm) {
+    tempoFactor = bpm > 0 ? bpm / baseTempo() : 1;
+    applySpeed();
+  }
 
   function applyVolume() {
     if (api) api.masterVolume = mutedBy.size ? 0 : notesVolume;
@@ -133,6 +150,9 @@
     api.renderFinished.on(() => setStatus(notice));
     api.scoreLoaded.on((score) => {
       applyVolume();
+      tempoFactor = 1;
+      applySpeed();
+      window.AudioSync.songLoaded(score.tempo);
       window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
         [score.artist, score.title].filter(Boolean).join(" "));
       buildTrackBar(score);
@@ -295,7 +315,7 @@
   window.Highway3D.setSeekHandler(seekTo);
   stopButton.addEventListener("click", () => api && api.stop());
   speedSelect.addEventListener("change", () => {
-    if (api) api.playbackSpeed = Number(speedSelect.value);
+    applySpeed();
     window.VideoSync.speed(Number(speedSelect.value));
     window.AudioSync.speed(Number(speedSelect.value));
   });
@@ -334,12 +354,20 @@
   }
 
   // The converted song as a Guitar Pro 7/8 file (.gp) with `audio` (mp3/ogg/wav bytes) as its audio
-  // track, bar 1 starting `offsetMs` into the audio (one sync point; Guitar Pro follows the tempo).
+  // track, bar 1 starting `offsetMs` into the audio (one sync point; Guitar Pro follows the tempo,
+  // which is the one set for the recording).
   async function exportGp(audio, offsetMs) {
     if (!lastBytes) throw new Error("Converta primeiro uma música.");
     await loadAlphaTab();
     const settings = new alphaTab.Settings();
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(lastBytes, settings);
+    if (tempoFactor !== 1) {
+      const scale = (bpm) => Math.round(bpm * tempoFactor * 100) / 100;
+      score.tempo = scale(score.tempo);
+      for (const masterBar of score.masterBars) {
+        for (const automation of masterBar.tempoAutomations) automation.value = scale(automation.value);
+      }
+    }
     score.backingTrack = new alphaTab.model.BackingTrack();
     score.backingTrack.rawAudioFile = audio;
     score.applyFlatSyncPoints([{ barIndex: 0, barOccurence: 0, barPosition: 0, millisecondOffset: Math.round(offsetMs) }]);
@@ -356,7 +384,8 @@
   }
 
   window.ScoreView = {
-    show, hide, exportGp, muteFor, setNotesVolume, playPause, restart,
+    show, hide, exportGp, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
+    tempoFactor: () => tempoFactor,
     ready: () => Boolean(api) && !playButton.disabled,
   };
 })();
