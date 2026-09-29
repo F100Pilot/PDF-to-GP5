@@ -70,8 +70,9 @@ Ao arrancar, a janela do servidor mostra uma destas linhas:
   seguinte da pesquisa. Se nenhum tocar, aparece "O dono do vídeo não permite vê-lo fora do YouTube":
   escolha outro vídeo na lista, cole outro endereço ou use "Abrir o vídeo no YouTube".
 - Se acontecer com todos os vídeos, é o browser a bloquear o leitor do YouTube dentro da página.
-  No **Brave**, desligue os Shields para `127.0.0.1` (ícone do leão na barra de endereço) ou use o
-  Edge/Chrome. A aplicação já tenta o leitor normal do YouTube quando o "nocookie" falha.
+  Acontece no **Brave** (no Chrome e no Edge funciona): desligue os Shields para `127.0.0.1`
+  (ícone do leão na barra de endereço → Shields em baixo) e recarregue a página, ou use o
+  Chrome/Edge. No Brave a própria mensagem do painel lembra isto. A aplicação já tenta o leitor normal do YouTube quando o "nocookie" falha.
 
 ## Limites e problemas
 

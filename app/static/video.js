@@ -126,6 +126,9 @@
   }
 
   // Link to watch the video on youtube.com (from the start of the song) when it cannot play here.
+  // Brave's Shields stop the embedded YouTube player on this page (it plays in Chrome / Edge).
+  const BRAVE_HINT = navigator.brave ? " No Brave: desligue os Shields nesta página (ícone do leão) ou use o Chrome / Edge." : "";
+
   function offerOpenOnYouTube(show) {
     openLink.hidden = !show || !current;
     if (current) {
@@ -141,7 +144,7 @@
       showPlayer(current.id, current.host + 1); // try the regular player
       return;
     }
-    setStatus(message);
+    setStatus(message + BRAVE_HINT);
     offerOpenOnYouTube(true);
   }
 
@@ -202,7 +205,7 @@
       } else {
         clearTimeout(readyTimer);
         const count = resultsSelect.options.length;
-        setStatus(OWNER_BLOCKED.has(code) && count > 1 ? `Nenhum dos ${count} vídeos encontrados pode ser visto fora do YouTube. Cole o endereço de outro vídeo.` : message);
+        setStatus(OWNER_BLOCKED.has(code) && count > 1 ? `Nenhum dos ${count} vídeos encontrados pode ser visto fora do YouTube. Cole o endereço de outro vídeo.` + BRAVE_HINT : message);
         offerOpenOnYouTube(true);
       }
       return;
