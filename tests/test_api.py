@@ -88,6 +88,14 @@ def test_audio_for_gp_download_is_offered_and_can_play_locally(client):
     assert client.get("/audio.js").status_code == 200
 
 
+def test_favicon(client):
+    assert 'rel="icon" href="favicon.svg"' in client.get("/").text
+    redirect = client.get("/favicon.ico", follow_redirects=False)
+    assert redirect.status_code == 301 and redirect.headers["location"] == "/favicon.svg"
+    icon = client.get("/favicon.svg")
+    assert icon.status_code == 200 and icon.headers["content-type"].startswith("image/svg+xml")
+
+
 def test_page_files_are_revalidated(client):
     for path in ("/", "/app.js", "/styles.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"

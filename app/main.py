@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -351,6 +351,12 @@ async def convert_binary(request: Request, file: FilesField, form: FormFields) -
             "X-Conversion-Warnings": str(len(result.report["warnings"])),
         },
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> RedirectResponse:
+    """Browsers ask for /favicon.ico on their own; the page's icon is an SVG."""
+    return RedirectResponse("/favicon.svg", status_code=301)
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
