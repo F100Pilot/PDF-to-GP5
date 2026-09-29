@@ -94,6 +94,10 @@ def _slides(note: ScoreNote) -> list[gp.SlideType]:
     return slides
 
 
+# An artificial harmonic without a pitch is written an octave above the fretted note.
+_HARMONICS = {"natural": gp.NaturalHarmonic, "pinch": gp.PinchHarmonic, "artificial": gp.ArtificialHarmonic}
+
+
 def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
     if note.dead:
         note_type = gp.NoteType.dead
@@ -109,7 +113,7 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
         hammer=note.hammer,
         slides=_slides(note),
         bend=_bend(note) if note.bend_semitones and not note.dead else None,
-        harmonic=gp.NaturalHarmonic() if note.harmonic == "natural" else None,
+        harmonic=_HARMONICS[note.harmonic]() if note.harmonic in _HARMONICS else None,
         staccato=note.staccato,
     )
     velocity = note.velocity or gp.Velocities.default

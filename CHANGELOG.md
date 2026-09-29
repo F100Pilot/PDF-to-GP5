@@ -7,6 +7,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Harmónicos pinch (PH), artificiais (AH) e naturais (N.H.) nas tabs de editor: o texto por cima da pauta com traço até ao fim do intervalo marca as notas desse intervalo, também quando continua na linha seguinte; no GP5 ficam como harmónico pinch / artificial (uma oitava acima) / natural.
+- Bend numa nota ligada (haste sem número, depois de uma ligadura): a curva do bend que começa nessa haste passa a dobrar a nota ligada, com o release quando a seta desce mais à frente; antes o bend perdia-se.
 - Tercinas e sextinas nas tabs de editor (MuseScore): as notas por baixo de um "3" ou "6" com parêntese recto são lidas como tercina (3 no tempo de 2) e escritas como tal no GP5; antes o compasso inteiro passava a ritmo estimado pelo espaçamento. Outros números (5, 7…) continuam a dar ritmo estimado.
 - Notas de passagem (grace notes) nas tabs de editor (MuseScore): os números pequenos antes de uma nota passam a nota de passagem dessa nota no GP5 (com hammer-on quando há "H"/"P"), em vez de notas normais que estragavam o ritmo do compasso; a haste cortada deixa de contar como tempo. Uma nota de passagem sem nota na mesma corda a seguir é ignorada.
 - Staccato (ponto por cima da nota) nas tabs de editor.

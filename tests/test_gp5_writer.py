@@ -71,6 +71,16 @@ def test_roundtrip_triplet():
     ]
 
 
+def test_roundtrip_pinch_and_artificial_harmonics():
+    measure = ScoreMeasure(
+        [ScoreBeat(16, [ScoreNote(3, 9, harmonic="pinch")]), ScoreBeat(16, [ScoreNote(1, 12, harmonic="artificial")])]
+    )
+    beats = _roundtrip(_score([measure], tuning="standard")).tracks[0].measures[0].voices[0].beats
+    assert isinstance(beats[0].notes[0].effect.harmonic, gp.PinchHarmonic)
+    artificial = beats[1].notes[0].effect.harmonic
+    assert isinstance(artificial, gp.ArtificialHarmonic) and artificial.octave == gp.Octave.ottava
+
+
 def test_roundtrip_odd_time_signature_and_dotted():
     measure = ScoreMeasure([ScoreBeat(12, [ScoreNote(2, 1)]), ScoreBeat(12, [ScoreNote(2, 3)])])
     song = _roundtrip(_score([measure], numerator=6, denominator=8))

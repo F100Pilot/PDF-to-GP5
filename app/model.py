@@ -43,7 +43,7 @@ class TabEvent:
     velocity: int | None = None  # MIDI velocity from the dynamic in force (None = default)
     slide_in: str | None = None  # "below" or "above": slide into the note from an unpitched start
     slide_out: str | None = None  # "down" or "up": slide away from the note to no target
-    harmonic: str | None = None  # "natural"
+    harmonic: str | None = None  # "natural", "pinch" (PH) or "artificial" (AH)
     tapped: bool = False  # right-hand tap
     grace: bool = False  # printed small: a grace note, played just before the next note on its string
     grace_fret: int | None = None  # the grace note played just before this note
@@ -110,7 +110,7 @@ class ScoreNote:
     slide_shift: bool = False  # shift slide (next note picked again)
     slide_in: str | None = None  # "below" / "above"
     slide_out: str | None = None  # "down" / "up"
-    harmonic: str | None = None  # "natural"
+    harmonic: str | None = None  # "natural", "pinch" or "artificial"
     tapped: bool = False
     grace_fret: int | None = None  # grace note just before this note
     grace_hammer: bool = False

@@ -24,7 +24,14 @@ STACCATO = "\ue4a2"  # SMuFL articStaccatoAbove
 # high strings at the top of the tab) is played low-to-high: a downstroke.
 _ARROWHEADS = {"\ueb78": "down", "\ueb7c": "up"}
 # Text that opens a dashed range applying an effect to every note under it.
-_RANGE_MARKS = {"letring": "let_ring", "P.M.": "palm_mute"}
+# Marks followed by a dashed line to the end of their range: (attribute, value, printed above the staff).
+_RANGE_MARKS = {
+    "letring": ("let_ring", True, False),
+    "P.M.": ("palm_mute", True, False),
+    "PH": ("harmonic", "pinch", True),
+    "AH": ("harmonic", "artificial", True),
+    "N.H.": ("harmonic", "natural", True),
+}
 
 
 @dataclass
@@ -227,21 +234,31 @@ def _apply_staccato(chars: list[Char], staff: list[_StaffLine], spacing: float, 
 
 
 def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLine], float]]) -> None:
-    """Apply "let ring" / "P.M." dashed ranges to the notes of the staff above them."""
+    """Apply dashed ranges to the notes of their staff: "let ring" / "P.M." under it, pinch /
+    artificial / natural harmonics ("PH", "AH", "N.H.") over it."""
     for line in group_lines(page.chars):
         text = line.text
         height = line.bottom - line.top
-        for mark, attribute in _RANGE_MARKS.items():
+        for mark, (attribute, value, above) in _RANGE_MARKS.items():
             start = text.find(mark)
             while start != -1:
                 first_char = line.chars[start]
-                end_x = line.chars[start + len(mark) - 1].x1
-                owner = min(
-                    (item for item in placed if 0 < line.yc - item[1][-1].y < 8 * item[2]),
-                    key=lambda item: line.yc - item[1][-1].y,
-                    default=None,
+                last_char = line.chars[start + len(mark) - 1]
+                end_x = last_char.x1
+                # A mark above the staff is a word of its own: no letter touching it ("PHASE").
+                neighbours = [line.chars[i] for i in (start - 1, start + len(mark)) if 0 <= i < len(line.chars)]
+                part_of_word = any(
+                    c.text.isalpha()
+                    and (0 <= first_char.x0 - c.x1 < 0.5 * height or 0 <= c.x0 - last_char.x1 < 0.5 * height)
+                    for c in neighbours
                 )
-                if owner is not None:
+                distances = [
+                    (item[1][0].y - line.yc if above else line.yc - item[1][-1].y, index)
+                    for index, item in enumerate(placed)
+                ]
+                nearest = min(((d, i) for d, i in distances if 0 < d < 8 * placed[i][2]), default=None)
+                owner = placed[nearest[1]] if nearest is not None else None
+                if owner is not None and not (above and part_of_word):
                     system, _, spacing = owner
                     dashes = sorted(
                         (
@@ -256,8 +273,8 @@ def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLi
                             break
                         end_x = max(end_x, seg.x1)
                     for event in system.events:
-                        if first_char.x0 - spacing <= event.x <= end_x:
-                            setattr(event, attribute, True)
+                        if first_char.x0 - spacing <= event.x <= end_x and not (above and event.dead):
+                            setattr(event, attribute, value)
                 start = text.find(mark, start + len(mark))
 
 
@@ -365,12 +382,17 @@ def _bend_amount(page: Page, head: Segment, spacing: float) -> int:
     return _BEND_AMOUNTS.get(label.strip().lower(), 2)
 
 
-def _apply_bends(page: Page, staff: list[_StaffLine], spacing: float, events: list[TabEvent]) -> None:
+def _apply_bends(
+    page: Page, staff: list[_StaffLine], spacing: float, events: list[TabEvent], stems: list[float] = ()
+) -> None:
     """Bend arrows drawn as a stroke ending in a filled arrowhead.
 
     Up arrow from a note: bend (curved) or pre-bend (straight, from the note's top);
-    a curve may also come in from the left onto a tied note (a held bend).
-    Down arrow: release of the bend that starts where the arrow starts.
+    a curve may also come in from the left onto a tied note (a held bend). A curve starting on
+    a stem without a fret (the note tied over from before) bends that tied note: it becomes a
+    parenthesised repeat of the fret, i.e. a tie that carries the bend.
+    Down arrow: release of the bend that starts where the arrow starts, else of the last bend
+    before it on a string with no other note in between.
     """
     top, bottom = staff[0].y, staff[-1].y
     heads = [
@@ -425,10 +447,46 @@ def _apply_bends(page: Page, staff: list[_StaffLine], spacing: float, events: li
             note = min(candidates, key=lambda e: abs(origin_x - e.x))
             note.bend_semitones = _bend_amount(page, head, spacing)
             note.bend_pre = straight
+        elif not straight:
+            tied = _tied_bend(events, stems, y_of, up, origin_x, spacing)
+            if tied is not None:
+                tied.bend_semitones = _bend_amount(page, head, spacing)
+                events.append(tied)
     for down in releases:
         bent = [e for e in events if e.bend_semitones and abs(e.x - down.x0) <= 1.8 * spacing]
+        if not bent:
+            # A release after a held bend: the last bend before it, with nothing struck in between.
+            bent = [
+                e
+                for e in events
+                if e.bend_semitones
+                and e.x <= down.x0 + 0.5 * spacing
+                and not any(o.string == e.string and e.x < o.x <= down.x0 for o in events)
+            ]
+            bent = [max(bent, key=lambda e: e.x)] if bent else []
         if bent:
             min(bent, key=lambda e: abs(e.x - down.x0)).bend_release = True
+
+
+def _tied_bend(
+    events: list[TabEvent], stems: list[float], y_of: dict[int, float], up: Segment, origin_x: float, spacing: float
+) -> TabEvent | None:
+    """The tied note a bend curve starts on: a stem with no fret just left of the curve, on the
+    string the curve rises from, holding the fret struck before it on that string."""
+    free = [
+        x
+        for x in stems
+        if -0.5 * spacing <= origin_x - x <= 1.8 * spacing and not any(abs(e.x - x) <= 0.6 * spacing for e in events)
+    ]
+    strings = [n for n, y in y_of.items() if y - 1.2 * spacing <= up.bottom <= y + 0.5 * spacing]
+    if not free or not strings:
+        return None
+    stem = max(free)
+    string = min(strings, key=lambda n: abs(y_of[n] - up.bottom))
+    struck = [e for e in events if e.string == string and e.fret is not None and e.x < stem]
+    if not struck:
+        return None
+    return TabEvent(x=stem, string=string, fret=max(struck, key=lambda e: e.x).fret, parenthesized=True)
 
 
 def _apply_vibrato(
@@ -539,13 +597,14 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         spacing = (staff[-1].y - staff[0].y) / (len(staff) - 1)
         events = _numbers_on_staff(page.chars, staff, spacing, page.curves)
         _apply_legato_marks(page.chars, staff, spacing, events)
-        _apply_bends(page, staff, spacing, events)
+        top, bottom = staff[0].y, staff[-1].y
+        x0, x1 = staff[0].x0, staff[0].x1
+        rhythm = read_rhythm(page, top, bottom, x0, x1, spacing)
+        _apply_bends(page, staff, spacing, events, [m.x for m in rhythm if not m.is_rest])
         _apply_slides(page, staff, spacing, events)
         vibrato_ranges = _apply_vibrato(page, staves, staff, spacing, events)
         _apply_staccato(page.chars, staff, spacing, events)
         events, grace_columns = _attach_grace_notes(events, spacing)
-        top, bottom = staff[0].y, staff[-1].y
-        x0, x1 = staff[0].x0, staff[0].x1
         arrows = _strum_arrows(page, staff, spacing)
         _apply_strums(arrows, events, spacing)
         bar_xs = [
@@ -591,7 +650,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             jumps=jumps,
             rhythm=[
                 replace(m, vibrato=True) if not m.is_rest and any(a <= m.x <= b for a, b in vibrato_ranges) else m
-                for m in read_rhythm(page, top, bottom, x0, x1, spacing)
+                for m in rhythm
                 if not any(abs(m.x - g) <= 0.6 * spacing for g in grace_columns)
             ],
         )

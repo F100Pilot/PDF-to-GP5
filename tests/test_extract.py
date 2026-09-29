@@ -1,6 +1,6 @@
 from app.extract.ascii_tab import extract_ascii_systems
 from app.extract.engraved_tab import extract_engraved_systems
-from app.extract.pdf_reader import read_pages
+from app.extract.pdf_reader import Segment, read_pages
 from tests.pdf_factory import ascii_tab_pdf, engraved_tab_pdf
 
 STANDARD = [
@@ -197,6 +197,38 @@ def test_prebend_and_release():
     release, down_head = Segment(100, 160, 84, 98), Segment(157, 163, 98, 104)
     event = extract_engraved_systems(_bend_page([release, down_head, straight, up_head]))[0].events[0]
     assert (event.bend_semitones, event.bend_pre, event.bend_release) == (2, True, True)
+
+
+def test_bend_starting_on_a_tied_stem_bends_the_tied_note():
+    """ "10" (stem at 100) tied over to a stem with no fret (200); the bend curve starts there and
+    is released later: a parenthesised 10 at the stem carries the bend and its release."""
+    from app.extract.pdf_reader import Char, Page, Segment
+
+    lines = [Segment(50, 550, 100 + 10 * i, 100 + 10 * i) for i in range(6)]
+    bars = [Segment(x, x, 100, 150) for x in (50, 550)]
+    stems = [Segment(x, x, 155, 175) for x in (100, 200)]
+    note = [Char("1", 95, 100, 106, 114), Char("0", 100, 105, 106, 114)]
+    curve, head, label = Segment(205, 228, 88, 108), Segment(224, 230, 82, 88), Char("½", 225, 229, 74, 81)
+    release, down_head = Segment(230, 280, 84, 98), Segment(277, 283, 98, 104)
+    page = Page(1, 600, 800, [*note, label], [*lines, *bars, *stems], [curve, head, release, down_head])
+    events = sorted(extract_engraved_systems(page)[0].events, key=lambda e: e.x)
+    assert [(e.x, e.fret, e.parenthesized, e.bend_semitones, e.bend_release) for e in events] == [
+        (100, 10, False, 0, False),
+        (200, 10, True, 1, True),
+    ]
+
+
+def test_pinch_harmonic_range_above_the_staff():
+    dash = Segment(110, 300, 84, 84)
+    chars = [*_text("PH", 95, 80), *_text("PHASE", 400, 80)]  # a word containing "PH" is not a mark
+    systems = extract_engraved_systems(
+        _signs_page(notes=((100, "3"), (350, "5"), (420, "7")), chars=chars, segments=[dash])
+    )
+    assert [(e.fret, e.harmonic) for e in sorted(systems[0].events, key=lambda e: e.x)] == [
+        (3, "pinch"),
+        (5, None),
+        (7, None),
+    ]
 
 
 def test_vibrato_wiggle_line_above_staff():

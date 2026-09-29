@@ -438,7 +438,8 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
       (the note sustains; editors print tied notes in parentheses, and tools
       such as Rocksmith importers turn ties into sustain); a parenthesised
       fret that differs from the previous one is a ghost note;
-    * a bend is held on a tied note unless the bend was released.
+    * a bend is held on a tied note unless the bend was released; a bend drawn on a tied note
+      after an unbent one starts there.
     """
     last: dict[int, ScoreNote] = {}
     for measure in measures:
@@ -450,8 +451,8 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
                         note.tie = True
                     else:
                         note.ghost = True
-                if note.tie and note.bend_semitones:
-                    note.bend_pre = True  # a bend marked on a tied note is held, not re-bent
+                if note.tie and note.bend_semitones and prev is not None and prev.bend_semitones:
+                    note.bend_pre = True  # a bend going on over a tie is held, not re-bent
                 elif note.tie and prev is not None and prev.bend_semitones and not prev.bend_release:
                     note.bend_semitones, note.bend_pre = prev.bend_semitones, True  # hold the bend
                 if note.link is not None and prev is not None and not prev.dead:
