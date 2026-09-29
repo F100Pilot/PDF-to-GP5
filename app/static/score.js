@@ -33,13 +33,23 @@
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
   let timedLyrics = null; // complete lyrics from the PDF with their place in the music
   let lastBytes = null; // the converted GP5 file
-  const mutedBy = new Set(); // "video" / "audio": the score's own sounds are silenced for them
+  const mutedBy = new Set(); // "video": the score's own sounds are silenced for it
+  let notesVolume = 1; // volume of the score's sounds (0…1), set beside the song's audio
 
-  // Silence the score's sounds while the video or the song's audio plays instead.
+  function applyVolume() {
+    if (api) api.masterVolume = mutedBy.size ? 0 : notesVolume;
+  }
+
+  // Silence the score's sounds while the video plays instead.
   function muteFor(source, muted) {
     if (muted) mutedBy.add(source);
     else mutedBy.delete(source);
-    if (api) api.masterVolume = mutedBy.size ? 0 : 1;
+    applyVolume();
+  }
+
+  function setNotesVolume(volume) {
+    notesVolume = Math.min(Math.max(volume, 0), 1);
+    applyVolume();
   }
   let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
   // Last player position (alphaTab ticks; song time in ms, as at 100% speed) and whether the
@@ -122,7 +132,7 @@
     api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
     api.renderFinished.on(() => setStatus(notice));
     api.scoreLoaded.on((score) => {
-      api.masterVolume = mutedBy.size ? 0 : 1;
+      applyVolume();
       window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
         [score.artist, score.title].filter(Boolean).join(" "));
       buildTrackBar(score);
@@ -345,5 +355,8 @@
     if (api && !playButton.disabled) api.tickPosition = 0;
   }
 
-  window.ScoreView = { show, hide, exportGp, muteFor, playPause, restart, ready: () => Boolean(api) && !playButton.disabled };
+  window.ScoreView = {
+    show, hide, exportGp, muteFor, setNotesVolume, playPause, restart,
+    ready: () => Boolean(api) && !playButton.disabled,
+  };
 })();

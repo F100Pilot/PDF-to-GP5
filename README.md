@@ -62,7 +62,7 @@ Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e
 
 ## Áudio (ficheiro .gp)
 
-Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 100 MB). O áudio toca em sincronia com a partitura, a pista 3D e o vídeo (Tocar, Pausa, Parar, barra de tempo e velocidade). Com áudio, "Descarregar" dá um ficheiro `.gp` (Guitar Pro 7/8) com o áudio como faixa de áudio e um ponto de sincronização no compasso 1 ("Marcar início" enquanto ouve o áudio na página; a sincronização pode ser afinada no Guitar Pro). Sem áudio, o download é o `.gp5` de sempre (o formato GP5 não guarda áudio). O `.gp` é criado no browser pelo alphaTab: o áudio não sai do computador. Confirme que o seu conversor (por exemplo para Rocksmith) aceita `.gp`; senão use o `.gp5`.
+Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 100 MB). O áudio toca em sincronia com a partitura, a pista 3D e o vídeo (Tocar, Pausa, Parar, barra de tempo e velocidade). Os controlos (Tocar, início da música, "Marcar início", volume da música e volume das notas) ficam ao lado da partitura. Com áudio, "Descarregar" dá um ficheiro `.gp` (Guitar Pro 7/8) com o áudio como faixa de áudio e um ponto de sincronização no compasso 1 ("Marcar início" enquanto ouve o áudio na página; a sincronização pode ser afinada no Guitar Pro). Sem áudio, o download é o `.gp5` de sempre (o formato GP5 não guarda áudio). O `.gp` é criado no browser pelo alphaTab: o áudio não sai do computador. Confirme que o seu conversor (por exemplo para Rocksmith) aceita `.gp`; senão use o `.gp5`.
 
 ## Letra
 

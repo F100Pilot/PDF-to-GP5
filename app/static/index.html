@@ -97,7 +97,7 @@
         <div class="audio-head">
           <div>
             <strong>Áudio da música</strong> <span class="muted">(opcional)</span>
-            <p class="hint">Com áudio, o download é um .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, é .gp5. O áudio fica só no seu computador.</p>
+            <p class="hint">Toca com a partitura (os controlos aparecem ao lado dela) e, com áudio, o download é um .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, é .gp5. O áudio fica só no seu computador.</p>
           </div>
           <div class="audio-file">
             <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav" hidden>
@@ -106,29 +106,7 @@
             <button id="audio-remove" type="button" class="icon" hidden>Remover</button>
           </div>
         </div>
-        <audio id="audio-preview" preload="auto"></audio>
-        <div id="audio-tools" class="audio-tools" hidden>
-          <div class="audio-transport">
-            <button id="audio-play" type="button">▶ Tocar</button>
-            <span id="audio-time" class="score-time">0:00 / 0:00</span>
-          </div>
-          <label class="audio-offset">Início da música no áudio (s)
-            <input id="audio-offset" type="number" min="0" step="0.01" value="0">
-          </label>
-          <div class="video-offset-tools">
-            <button id="audio-mark" type="button" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-            <button type="button" class="icon" data-audio-nudge="-1">−1 s</button>
-            <button type="button" class="icon" data-audio-nudge="-0.1">−0,1 s</button>
-            <button type="button" class="icon" data-audio-nudge="0.1">+0,1 s</button>
-            <button type="button" class="icon" data-audio-nudge="1">+1 s</button>
-          </div>
-          <div class="audio-options">
-            <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
-            <label class="check"><input id="audio-mute-score" type="checkbox" checked> Silenciar os sons da partitura</label>
-          </div>
-        </div>
         <p id="audio-status" class="hint" role="status" hidden></p>
-        <p id="audio-help" class="hint" hidden>Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante); os botões ± afinam, mesmo a tocar. O mesmo início vai para o .gp.</p>
       </div>
       <dl id="summary" class="summary"></dl>
       <div id="warnings-box" hidden>
@@ -181,6 +159,33 @@
             <p id="highway-legend" class="hint" hidden>Pista 3D: linhas claras = compassos (com o número), linhas ténues = tempos; em cima, o compasso atual, o progresso e a letra (sílaba atual a amarelo) · nome do acorde por cima do quadro (calculado pelas notas) · ao tocar, a nota brilha e o número fica na corda enquanto soa · rasto a subir = bend (↑1 = um tom), ↑↓ bend e release, PB pre-bend · rasto inclinado = slide (nota de destino translúcida = não se ataca) · H/P hammer-on/pull-off · PM palm mute · losango = harmónico (AH/PH/TH/SH) · rasto ondulado = vibrato · T tapping · (n) ghost note · X nota morta · ↓/↑ ao lado do acorde = rasgueado.</p>
             <div id="score" class="score"></div>
           </div>
+          <div class="score-side">
+          <aside id="audio-panel" class="side-panel" aria-label="Áudio da música" hidden>
+            <audio id="audio-preview" preload="auto"></audio>
+            <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
+            <div class="audio-transport">
+              <button id="audio-play" type="button">▶ Tocar</button>
+              <span id="audio-time" class="score-time">0:00 / 0:00</span>
+            </div>
+            <label class="audio-offset">Início da música no áudio (s)
+              <input id="audio-offset" type="number" min="0" step="0.01" value="0">
+            </label>
+            <div class="video-offset-tools">
+              <button id="audio-mark" type="button" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+              <button type="button" class="icon" data-audio-nudge="-1">−1 s</button>
+              <button type="button" class="icon" data-audio-nudge="-0.1">−0,1 s</button>
+              <button type="button" class="icon" data-audio-nudge="0.1">+0,1 s</button>
+              <button type="button" class="icon" data-audio-nudge="1">+1 s</button>
+            </div>
+            <label class="volume"><span class="volume-head">Volume da música <span id="music-volume-value" class="muted">100%</span></span>
+              <input id="music-volume" type="range" min="0" max="100" step="1" value="100">
+            </label>
+            <label class="volume"><span class="volume-head">Volume das notas <span id="notes-volume-value" class="muted">50%</span></span>
+              <input id="notes-volume" type="range" min="0" max="100" step="1" value="50">
+            </label>
+            <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
+            <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante); os botões ± afinam, mesmo a tocar. O mesmo início vai para o .gp.</p>
+          </aside>
           <aside id="video-panel" class="video-panel" aria-label="Vídeo do YouTube" hidden>
             <div class="video-load">
               <label>Vídeo do YouTube
@@ -212,6 +217,7 @@
             <label class="check"><input id="video-mute-score" type="checkbox"> Silenciar os sons da partitura (ouvir só o vídeo)</label>
             <p class="hint">O vídeo vem do YouTube (youtube-nocookie.com) e precisa de internet. Acerte o início da música no vídeo para as notas coincidirem.</p>
           </aside>
+          </div>
         </div>
         <p class="hint">Clique numa nota para começar a tocar a partir daí. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>.</p>
       </section>

@@ -252,7 +252,8 @@
 
   function showPanel(open) {
     panel.hidden = !open;
-    stageBox.classList.toggle("with-video", open);
+    // The side column beside the score holds this panel and the song's audio panel.
+    stageBox.classList.toggle("with-side", open || !document.getElementById("audio-panel").hidden);
     toggle.setAttribute("aria-pressed", String(open));
     window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
     if (open) {

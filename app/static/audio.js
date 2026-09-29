@@ -1,6 +1,7 @@
 // The song's audio (mp3/ogg/wav) chosen by the user.
 // * It plays in step with the score, like the video: Tocar (here or on the score), pause, stop,
-//   the time bar and the speed drive both. Bar 1 starts "offset" seconds into the audio.
+//   the time bar and the speed drive both. Bar 1 starts "offset" seconds into the audio. Its
+//   controls (with the music's and the notes' volumes) sit beside the score.
 // * With it, the download is a Guitar Pro 7/8 file (.gp) carrying the audio as its audio track,
 //   built in the browser (the audio never leaves this computer); without it, the GP5 file.
 (() => {
@@ -14,15 +15,19 @@
   const chooseButton = document.getElementById("audio-choose");
   const removeButton = document.getElementById("audio-remove");
   const nameLabel = document.getElementById("audio-name");
-  const tools = document.getElementById("audio-tools");
+  const panel = document.getElementById("audio-panel");
+  const stageBox = document.getElementById("score-stage");
+  const panelName = document.getElementById("audio-panel-name");
+  const musicVolume = document.getElementById("music-volume");
+  const notesVolume = document.getElementById("notes-volume");
   const player = document.getElementById("audio-preview");
   const playButton = document.getElementById("audio-play");
   const timeLabel = document.getElementById("audio-time");
   const offsetInput = document.getElementById("audio-offset");
   const syncInput = document.getElementById("audio-sync");
-  const muteInput = document.getElementById("audio-mute-score");
   const statusLine = document.getElementById("audio-status");
-  const help = document.getElementById("audio-help");
+  const MUSIC_KEY = "pdf-to-gp5.music-volume";
+  const NOTES_KEY = "pdf-to-gp5.notes-volume";
 
   let audio = null; // Uint8Array of the chosen file
   let playerUrl = null;
@@ -82,6 +87,42 @@
     timeLabel.textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
   }
 
+  // The panel sits in the column beside the score (with the video panel, when open).
+  function showPanel(open) {
+    panel.hidden = !open;
+    stageBox.classList.toggle("with-side", open || !document.getElementById("video-panel").hidden);
+    window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+  }
+
+  // Volumes (0–100), remembered in this browser; the notes' volume applies while there is audio.
+  function stored(key, fallback) {
+    try {
+      const value = Number(localStorage.getItem(key));
+      return localStorage.getItem(key) !== null && Number.isFinite(value) ? Math.min(Math.max(value, 0), 100) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function applyVolumes() {
+    player.volume = Number(musicVolume.value) / 100;
+    document.getElementById("music-volume-value").textContent = `${musicVolume.value}%`;
+    document.getElementById("notes-volume-value").textContent = `${notesVolume.value}%`;
+    window.ScoreView.setNotesVolume(audio ? Number(notesVolume.value) / 100 : 1);
+  }
+
+  for (const [input, key] of [[musicVolume, MUSIC_KEY], [notesVolume, NOTES_KEY]]) {
+    input.value = String(stored(key, Number(input.value)));
+    input.addEventListener("input", () => {
+      applyVolumes();
+      try {
+        localStorage.setItem(key, input.value);
+      } catch { /* storage unavailable */ }
+    });
+  }
+
+  applyVolumes();
+
   function updateLink() {
     download.textContent = audio ? "Descarregar .gp (com áudio)" : "Descarregar .gp5";
   }
@@ -94,11 +135,10 @@
     player.load();
     if (playerUrl) URL.revokeObjectURL(playerUrl);
     playerUrl = null;
-    tools.hidden = true;
-    help.hidden = true;
+    showPanel(false);
     removeButton.hidden = true;
     nameLabel.textContent = "Nenhum ficheiro";
-    window.ScoreView.muteFor("audio", false);
+    applyVolumes();
     setStatus("");
     updateLink();
   }
@@ -127,10 +167,11 @@
     player.src = playerUrl;
     nameLabel.textContent = file.name;
     nameLabel.title = file.name;
-    tools.hidden = false;
-    help.hidden = false;
+    panelName.textContent = file.name;
+    panelName.title = file.name;
+    showPanel(true);
     removeButton.hidden = false;
-    window.ScoreView.muteFor("audio", muteInput.checked);
+    applyVolumes();
     setStatus("");
     updateLink();
     if (following() && song.playing) {
@@ -169,7 +210,6 @@
     }
     showState();
   });
-  muteInput.addEventListener("change", () => window.ScoreView.muteFor("audio", Boolean(audio) && muteInput.checked));
 
   function setOffset(seconds) {
     offsetInput.value = String(Math.max(0, Math.round(seconds * 100) / 100));
