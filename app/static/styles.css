@@ -147,6 +147,9 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .score-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 24px; }
 .score-player { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .score-player button { margin: 0; padding: 8px 14px; }
+.score-seek { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.score-seek input { flex: 1; min-width: 0; padding: 0; cursor: pointer; }
+.score-time { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .score-tracks { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .score-track {
   display: flex;
@@ -193,7 +196,20 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
   pointer-events: none;
   text-shadow: 0 1px 2px #000000;
 }
-.hw-progress { flex: 1; height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; overflow: hidden; }
+/* The progress bar takes clicks (seek); a taller transparent border makes it easy to hit. */
+.hw-progress {
+  flex: 1;
+  height: 22px; /* 6px bar + 8px of transparent border above and below (border-box) */
+  background: rgba(255, 255, 255, 0.15);
+  background-clip: padding-box;
+  border: 8px solid transparent;
+  border-width: 8px 0;
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.hw-time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hw-progress-fill { height: 100%; width: 0; background: #f97316; }
 #score-3d-tilt, #score-3d-side { padding: 0; min-width: 160px; }
 .hw-lyrics {

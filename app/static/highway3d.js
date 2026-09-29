@@ -164,7 +164,14 @@
     const fill = document.createElement("div");
     fill.className = "hw-progress-fill";
     progress.appendChild(fill);
-    hud.append(position, progress);
+    progress.title = "Clique para avançar ou recuar";
+    progress.addEventListener("pointerdown", (event) => {
+      const box = progress.getBoundingClientRect();
+      if (box.width > 0) onSeek(Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1));
+    });
+    const time = document.createElement("span");
+    time.className = "hw-time";
+    hud.append(position, progress, time);
     const lyricsLine = document.createElement("div");
     lyricsLine.className = "hw-lyrics";
     host.replaceChildren(renderer.domElement, hud, lyricsLine);
@@ -233,7 +240,7 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, time, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
   }
 
   // Headstock at the left of the strings: wooden head with a rounded tip, a bone nut where the
@@ -1005,5 +1012,17 @@
     side = Math.min(1, Math.max(-1, value));
   }
 
-  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt, setSide };
+  // Song time shown beside the progress bar ("0:42 / 3:51"), and who handles a click on the bar
+  // (`fraction` 0…1 of the song).
+  let onSeek = () => {};
+
+  function setTime(text) {
+    if (stage && stage.hud.time.textContent !== text) stage.hud.time.textContent = text;
+  }
+
+  function setSeekHandler(handler) {
+    onSeek = handler;
+  }
+
+  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt, setSide, setTime, setSeekHandler };
 })();

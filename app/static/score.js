@@ -22,6 +22,9 @@
   const sideLabel = document.getElementById("score-3d-side-label");
   const sideInput = document.getElementById("score-3d-side");
   const SIDE_KEY = "pdf-to-gp5.highway-side";
+  const seekInput = document.getElementById("score-seek");
+  const timeLabel = document.getElementById("score-time");
+  const SEEK_STEPS = Number(seekInput.max);
 
   let loading = null;
   let api = null;
@@ -30,6 +33,36 @@
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
   let timedLyrics = null; // complete lyrics from the PDF with their place in the music
   let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
+  // Last player position (alphaTab ticks; song time in ms, as at 100% speed) and whether the
+  // time bar is being dragged (its thumb then follows the mouse, not the player).
+  let timeline = { tick: 0, endTick: 0, time: 0, endTime: 0 };
+  let dragging = false;
+
+  function formatTime(ms) {
+    const seconds = Math.max(0, Math.floor(ms / 1000));
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  function showTime(ms) {
+    const text = `${formatTime(ms)} / ${formatTime(timeline.endTime)}`;
+    timeLabel.textContent = text;
+    window.Highway3D.setTime(text);
+  }
+
+  function updateTimeline(e) {
+    // alphaTab reports real playing time (longer at 50%); show the song's own time instead.
+    const speed = api.playbackSpeed || 1;
+    timeline = { tick: e.currentTick, endTick: e.endTick, time: e.currentTime * speed, endTime: e.endTime * speed };
+    if (dragging) return;
+    seekInput.value = String(e.endTick > 0 ? Math.round((SEEK_STEPS * e.currentTick) / e.endTick) : 0);
+    showTime(timeline.time);
+  }
+
+  // Jump to `fraction` (0…1) of the song; the video and the 3D highway follow (isSeek position).
+  function seekTo(fraction) {
+    if (!api || !timeline.endTick) return;
+    api.tickPosition = Math.round(Math.min(Math.max(fraction, 0), 1) * timeline.endTick);
+  }
 
   function in3D() {
     return viewSelect.value === "3D";
@@ -88,6 +121,7 @@
       if (in3D()) showHighway();
     });
     api.playerPositionChanged.on((e) => {
+      updateTimeline(e);
       window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek);
       window.VideoSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
     });
@@ -97,6 +131,7 @@
     api.playerReady.on(() => {
       playButton.disabled = false;
       stopButton.disabled = false;
+      seekInput.disabled = false;
       setStatus("");
     });
     api.playerStateChanged.on((e) => {
@@ -177,6 +212,7 @@
     api.updateSettings();
     try {
       await window.Highway3D.show(highway, api.score, Number(highwayTrack.value || 0), timedLyrics);
+      showTime(timeline.time);
       notice = "";
       setStatus("");
     } catch (error) {
@@ -227,6 +263,15 @@
     if (api && api.score && in3D()) showHighway();
   });
   playButton.addEventListener("click", () => api && api.playPause());
+  seekInput.addEventListener("input", () => {
+    dragging = true; // show where the thumb is; seek when it is released
+    showTime((Number(seekInput.value) / SEEK_STEPS) * timeline.endTime);
+  });
+  seekInput.addEventListener("change", () => {
+    dragging = false;
+    seekTo(Number(seekInput.value) / SEEK_STEPS);
+  });
+  window.Highway3D.setSeekHandler(seekTo);
   stopButton.addEventListener("click", () => api && api.stop());
   speedSelect.addEventListener("change", () => {
     if (api) api.playbackSpeed = Number(speedSelect.value);
@@ -242,6 +287,10 @@
     box.hidden = false;
     playButton.disabled = true;
     stopButton.disabled = true;
+    seekInput.disabled = true;
+    seekInput.value = "0";
+    timeline = { tick: 0, endTick: 0, time: 0, endTime: 0 };
+    showTime(0);
     playButton.textContent = "▶ Tocar";
     setStatus("A carregar o visualizador…");
     try {

@@ -129,6 +129,10 @@
             <button id="video-toggle" type="button" aria-pressed="false">Vídeo YouTube</button>
           </div>
         </div>
+        <div class="score-seek">
+          <span id="score-time" class="score-time">0:00 / 0:00</span>
+          <input id="score-seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="Posição na música (clique ou arraste para avançar ou recuar)">
+        </div>
         <div id="score-tracks" class="score-tracks"></div>
         <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
         <div id="score-stage" class="score-stage">
