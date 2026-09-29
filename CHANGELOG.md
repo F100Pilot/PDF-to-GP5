@@ -24,6 +24,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Corrigido
+- Conversão e análise do PDF falhavam ("zip() argument 2 is longer than argument 1") quando uma linha por baixo da tab só tinha marcações como "let ring" ou "PM".
 - Letra: marcações "let ring", "P.M." e "palm mute" impressas na mesma linha da letra deixam de entrar na letra.
 
 ## [0.6.0] - 2026-09-29

@@ -100,6 +100,8 @@ def lyrics(page: Page, bottom: float, x0: float, x1: float, spacing: float) -> l
         if _NOT_LYRICS.match(text) or not _LETTERS.search(text):
             continue
         words = _without_techniques([w for w in _words(line.chars) if "".join(c.text for c in w) not in _HYPHENS])
+        if not words:  # only technique marks on this line ("- let ring", "PM")
+            continue
         hyphen_chars = [c for c in line.chars if c.text in _HYPHENS]
         for current, following in zip(words, [*words[1:], None], strict=True):
             joins = False

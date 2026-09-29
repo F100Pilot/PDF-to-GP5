@@ -182,3 +182,9 @@ def test_technique_marks_on_the_lyrics_line_are_not_lyrics():
         *_word("Letring", 460, 170),
     ]
     assert [s for _, s, _ in lyrics(_page(chars), BOTTOM, 50, 550, SPACING)] == ["la", "da"]
+
+
+def test_line_with_only_technique_marks_is_skipped():
+    # Lines not starting with the mark itself, so only the word filter removes them.
+    chars = [*_word("-", 40, 170), *_word("Let", 60, 170), *_word("Ring", 90, 170), *_word("PM", 300, 190)]
+    assert lyrics(_page(chars), BOTTOM, 50, 550, SPACING) == []
