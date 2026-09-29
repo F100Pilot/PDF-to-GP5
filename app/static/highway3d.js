@@ -4,6 +4,7 @@
   "use strict";
 
   const THREE_URL = "/vendor/three/three.module.js";
+  const ROUNDED_BOX_URL = "/vendor/three/RoundedBoxGeometry.js";
   const TICKS_PER_QUARTER = 960; // alphaTab MIDI resolution
   const Z_PER_TICK = 4 / TICKS_PER_QUARTER; // highway length of a quarter note: 4 units
   const VIEW_AHEAD = 16 * TICKS_PER_QUARTER; // notes shown this far ahead of the strike line
@@ -20,6 +21,7 @@
   const INLAYS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
   let THREE = null;
+  let RoundedBox = null;
   let loading = null;
   let stage = null; // renderer, scene, camera and the static parts of the highway
   let song = null; // the current track: notes, anchors and the moving lane
@@ -31,8 +33,9 @@
   function loadThree() {
     if (THREE) return Promise.resolve(THREE);
     if (!loading) {
-      loading = import(THREE_URL).then((module) => {
+      loading = Promise.all([import(THREE_URL), import(ROUNDED_BOX_URL)]).then(([module, rounded]) => {
         THREE = module;
+        RoundedBox = rounded.RoundedBoxGeometry;
         return THREE;
       }, (error) => {
         loading = null;
@@ -90,6 +93,48 @@
       labelCache.set(key, material);
     }
     return labelCache.get(key);
+  }
+
+  // Shared geometries (kept across tracks, never disposed with a song).
+  function shared(geometry) {
+    geometry.userData.shared = true;
+    return geometry;
+  }
+
+  const roundedCache = new Map();
+  // Box with rounded edges, shared by size (gems, open-string bars and their hit copies).
+  function roundedBox(width, height, depth, radius) {
+    const key = [width, height, depth, radius].map((value) => value.toFixed(2)).join(":");
+    if (!roundedCache.has(key)) roundedCache.set(key, shared(new RoundedBox(width, height, depth, 4, radius)));
+    return roundedCache.get(key);
+  }
+
+  // Fret number printed on the front face of a gem (a sprite would cut through the gem when the
+  // camera is tilted). Clipped decals are shared; unclipped ones are copies the caller may fade.
+  let decalPlane = null;
+  const decalCache = new Map();
+  function faceLabel(text, height, clipped = true) {
+    if (!decalPlane) decalPlane = shared(new THREE.PlaneGeometry(1, 1));
+    let material = decalCache.get(text);
+    if (!material) {
+      material = new THREE.MeshBasicMaterial({
+        map: labelMaterial(text, false, "#ffffff").map,
+        transparent: true,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+        clippingPlanes: laneClip(),
+      });
+      decalCache.set(text, material);
+    }
+    if (!clipped) {
+      material = material.clone();
+      material.clippingPlanes = null;
+    }
+    const mesh = new THREE.Mesh(decalPlane, material);
+    mesh.scale.set((height * material.map.image.width) / 128, height, 1);
+    return mesh;
   }
 
   // Text that always faces the camera; `height` in highway units.
@@ -188,7 +233,27 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [] };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], tuning: [] };
+  }
+
+  // Open-string note names at the left of the strings, like the headstock ("E A D G B e").
+  function buildTuning(tuning, count) {
+    for (const old of stage.tuning) stage.scene.remove(old);
+    stage.tuning = [];
+    const names = [];
+    for (let string = 1; string <= count; string += 1) {
+      const midi = tuning[count - string]; // alphaTab lists the tuning from the top (highest) string
+      names[string] = midi === undefined ? "" : NOTE_NAMES[((midi % 12) + 12) % 12];
+    }
+    if (count > 1 && names[1] && names[1] === names[count]) names[count] = names[count].toLowerCase();
+    for (let string = 1; string <= count; string += 1) {
+      if (!names[string]) continue;
+      const color = `#${stringColor(string, count).toString(16).padStart(6, "0")}`;
+      const sprite = label(names[string], 0.42, false, color);
+      sprite.position.set(-1, stringY(string, count), 0.05);
+      stage.scene.add(sprite);
+      stage.tuning.push(sprite);
+    }
   }
 
   function buildStrings(count) {
@@ -389,7 +454,8 @@
     clearEffects(); // effects share the chord frame geometry disposed below
     stage.scene.remove(song.lane);
     song.lane.traverse((object) => {
-      if (object.geometry && !object.isSprite) object.geometry.dispose(); // sprites share one geometry
+      // Sprites share one geometry; rounded boxes and decal planes are shared too.
+      if (object.geometry && !object.isSprite && !object.geometry.userData.shared) object.geometry.dispose();
     });
     for (const material of song.materials) material.dispose();
     song = null;
@@ -400,11 +466,12 @@
     const track = score.tracks[trackIndex];
     const count = track.staves[0].tuning.length;
     buildStrings(count);
+    buildTuning(track.staves[0].tuning, count);
     const { notes, chords } = collectNotes(track);
     const anchors = computeAnchors(notes);
     const lane = new THREE.Group();
 
-    const gem = new THREE.BoxGeometry(0.8, 0.26, 0.26);
+    const gem = roundedBox(0.8, 0.28, 0.28, 0.09);
     const diamond = new THREE.OctahedronGeometry(0.22);
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const gemMaterials = [];
@@ -472,24 +539,26 @@
       const z = -note.tick * Z_PER_TICK;
       const material = note.dead ? deadMaterial : note.unpicked ? unpickedMaterials[note.string] : gemMaterials[note.string];
       let x;
+      let body;
+      let front; // distance from the gem centre to its front face
       if (note.fret === 0 && !note.dead) {
         // Open string: a bar across the fret window being played.
         const { low, high } = anchors[i];
-        const bar = new THREE.Mesh(unit, material);
-        bar.scale.set(high - low + 1, 0.16, 0.22);
+        body = new THREE.Mesh(roundedBox(high - low + 1, 0.18, 0.22, 0.07), material);
         x = (fretX(low) + fretX(high)) / 2;
-        bar.position.set(x, y, z);
-        lane.add(bar);
+        front = 0.11;
       } else {
         x = fretX(note.fret);
-        const mesh = new THREE.Mesh(note.harmonic && !note.dead ? diamond : gem, material);
-        mesh.position.set(x, y, z);
-        lane.add(mesh);
+        const harmonic = note.harmonic && !note.dead;
+        body = new THREE.Mesh(harmonic ? diamond : gem, material);
+        front = harmonic ? 0.22 : 0.14;
       }
+      body.position.set(x, y, z);
       const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
-      const text = label(fretText, 0.42, true);
-      text.position.set(x, y + 0.02, z + 0.2);
-      lane.add(text);
+      const text = faceLabel(fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36);
+      text.position.set(x, y, z + front + 0.005);
+      lane.add(body, text);
+      note.parts = [body, text]; // hidden when the note reaches the strings (a glowing copy takes over)
 
       // Technique marks above the note.
       const marks = [note.legato, note.tap ? "T" : "", HARMONIC_TAGS[note.harmonic] || "", note.palmMute ? "PM" : ""]
@@ -613,7 +682,6 @@
   }
 
   const FADE_MS = 300;
-  let hitGem = null;
 
   function addEffect(parts, until, bendCurve = null) {
     for (const part of parts) stage.scene.add(part);
@@ -640,18 +708,17 @@
     const y = stringY(note.string, song.count);
     const { low, high } = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH };
     const x = note.fret === 0 && !note.dead ? (fretX(low) + fretX(high)) / 2 : fretX(note.fret);
-    if (!hitGem) hitGem = new THREE.BoxGeometry(0.86, 0.3, 0.3);
-    const gem = new THREE.Mesh(hitGem, new THREE.MeshBasicMaterial({ color, transparent: true }));
+    const open = note.fret === 0 && !note.dead;
+    const shape = open ? roundedBox(high - low + 1.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
+    const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color, transparent: true }));
     gem.position.set(x, y, 0);
-    if (note.fret === 0 && !note.dead) gem.scale.set(high - low + 1.2, 0.55, 1);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowMap(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     glow.scale.set(note.fret === 0 ? high - low + 3 : 2, 1.2, 1);
     glow.position.set(x, y, 0.1);
-    const text = new THREE.Sprite(labelMaterial(note.dead ? "X" : String(note.fret), false, "#ffffff").clone());
-    text.scale.set(0.55, 0.55, 1);
-    text.position.set(x, y + 0.02, 0.3);
+    const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
+    text.position.set(x, y, open ? 0.14 : 0.16);
     addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve);
   }
 
@@ -773,6 +840,9 @@
     if (!song) return;
     song.nextHit = indexAt(tick);
     song.nextChord = indexOf(song.chords, tick);
+    song.notes.forEach((note, i) => {
+      for (const part of note.parts) part.visible = i >= song.nextHit;
+    });
     clearEffects();
   }
 
@@ -790,6 +860,7 @@
       if (clock.playing) {
         if (bar) bar.glow = 1;
         spawnNoteHit(note, song.nextHit);
+        for (const part of note.parts) part.visible = false;
       }
       song.nextHit += 1;
     }
@@ -811,6 +882,9 @@
     stage.cameraX += (centre - stage.cameraX) * 0.04;
     stage.anchor.scale.x = high - low + 1;
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
+    // Tuning names stay just left of the fret window being played.
+    const headstockX = stage.anchor.position.x - stage.anchor.scale.x / 2 - 0.7;
+    for (const name of stage.tuning) name.position.x = headstockX;
     const midY = stringY(Math.ceil(song.count / 2), song.count);
     // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
     // Side angle: the camera moves sideways and keeps looking down the highway (diagonal view).
