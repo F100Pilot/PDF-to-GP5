@@ -92,7 +92,8 @@ class Settings:
     audio_timeout_s: int = _int("AUDIO_TIMEOUT_S", 300)  # the whole job: download and conversion
     audio_ttl_s: int = _int("AUDIO_TTL_S", 15 * 60)  # finished jobs not downloaded are deleted after this
     # Sites the owner of this installation publishes on and may download from (own server, NAS…);
-    # comma separated host names. Not YouTube: there only Creative Commons content is processed.
+    # comma separated host names. Not YouTube: a YouTube video's audio is processed for personal
+    # use when the app is used on the computer it runs on, otherwise only if Creative Commons.
     audio_download_hosts: tuple[str, ...] = tuple(
         h.strip().lower() for h in os.environ.get("AUDIO_DOWNLOAD_HOSTS", "").split(",") if h.strip()
     )

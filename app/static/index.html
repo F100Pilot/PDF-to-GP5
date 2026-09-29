@@ -109,8 +109,8 @@
         </div>
         <p id="audio-status" class="hint" role="status" hidden></p>
         <details id="audio-url-box" class="audio-url">
-          <summary>Obter o áudio de um endereço (URL) — conteúdo que pode descarregar</summary>
-          <p class="hint">Só é processado conteúdo disponível para download: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. Músicas comerciais (por exemplo no YouTube) são recusadas. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
+          <summary>Obter o áudio de um endereço (URL) — um vídeo do YouTube ou um ficheiro</summary>
+          <p class="hint"><b>YouTube:</b> o áudio de um vídeo, para uso pessoal, com a aplicação aberta neste computador (em http://127.0.0.1 ou localhost). Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito. Outros endereços: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
           <p id="audio-url-unavailable" class="hint error-text" hidden></p>
           <p id="audio-url-youtube" class="hint" hidden></p>
           <form id="audio-url-form" class="audio-url-form" novalidate>
@@ -128,7 +128,7 @@
                 <option value="320">320 kbit/s</option>
               </select>
             </label>
-            <label class="check audio-url-consent"><input id="audio-authorized" type="checkbox"> Tenho autorização para descarregar este conteúdo</label>
+            <label class="check audio-url-consent"><input id="audio-authorized" type="checkbox"> É para uso pessoal, ou tenho autorização para descarregar este conteúdo</label>
             <div class="audio-url-actions">
               <button id="audio-url-start" type="submit">Obter MP3</button>
               <button id="audio-url-cancel" type="button" class="icon" hidden>Cancelar</button>
