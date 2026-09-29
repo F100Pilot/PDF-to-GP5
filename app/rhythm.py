@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Literal
 
 from .model import Link, RhythmMark, ScoreBeat, ScoreMeasure, ScoreNote, TabEvent, TabSystem
@@ -128,8 +129,19 @@ def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> l
     """Lay out (notes, length) items across measures, tying over bar lines."""
     measures: list[ScoreMeasure] = []
     current: list[ScoreBeat] = []
-    filled = 0
-    for notes, length in items:
+    filled: int | Fraction = 0
+    for notes, length, *tuplet in items:
+        if tuplet and tuplet[0]:
+            # A triplet note is never split: a notated bar holds whole triplets.
+            if isinstance(notes, _TiePrevious):
+                current.append(ScoreBeat(length, tie_previous=True, tie_vibrato=notes.vibrato, tuplet=True))
+            else:
+                current.append(ScoreBeat(length, notes, tuplet=True))
+            filled += Fraction(2 * length, 3)
+            if filled >= measure_units:
+                measures.append(ScoreMeasure(current))
+                current, filled = [], 0
+            continue
         first = True
         while length > 0:
             take = min(measure_units - filled, length)
@@ -145,7 +157,7 @@ def _sequence(items: list[tuple[list[ScoreNote], int]], measure_units: int) -> l
                 measures.append(ScoreMeasure(current))
                 current, filled = [], 0
     if current:
-        current.extend(ScoreBeat(part) for part in split_units(measure_units - filled))
+        current.extend(ScoreBeat(part) for part in split_units(int(measure_units - filled)))
         measures.append(ScoreMeasure(current))
     return measures
 
@@ -216,7 +228,7 @@ def _bar_span(numbers: list[int | None], index: int, next_number: int | None) ->
 
 def _notated_items(
     cols: list[_Column], marks: list[RhythmMark], units: int, tolerance: float
-) -> list[tuple[list[ScoreNote], int]] | None:
+) -> list[tuple[list[ScoreNote], int, bool]] | None:
     """Durations from printed stems/rests, or None if they don't account for the bar exactly.
 
     A note without a stem is a whole note (editors draw none for it).
@@ -224,25 +236,27 @@ def _notated_items(
     stems = [m for m in marks if not m.is_rest]
     if any(m.units is None for m in marks):
         return None
-    entries: list[tuple[float, list[ScoreNote], int]] = []
+    entries: list[tuple[float, list[ScoreNote], int, bool]] = []
     used: set[int] = set()
     for col in cols:
         index = min(range(len(stems)), key=lambda i: abs(stems[i].x - col.x), default=None)
         if index is None or abs(stems[index].x - col.x) > tolerance:
-            entries.append((col.x, _to_notes(col.events), WHOLE_NOTE_UNITS))
+            entries.append((col.x, _to_notes(col.events), WHOLE_NOTE_UNITS, False))
             continue
         if index in used:
             return None
         used.add(index)
-        entries.append((col.x, _to_notes(col.events), stems[index].units or 0))
+        entries.append((col.x, _to_notes(col.events), stems[index].units or 0, stems[index].tuplet))
     # A stem without a fret continues the previous notes (editors may hide tied frets).
     entries.extend(
-        (stem.x, _TiePrevious(stem.vibrato), stem.units or 0) for i, stem in enumerate(stems) if i not in used
+        (stem.x, _TiePrevious(stem.vibrato), stem.units or 0, stem.tuplet)
+        for i, stem in enumerate(stems)
+        if i not in used
     )
-    entries.extend((m.x, [], m.units or 0) for m in marks if m.is_rest)
-    if sum(length for _, _, length in entries) != units:
+    entries.extend((m.x, [], m.units or 0, m.tuplet) for m in marks if m.is_rest)
+    if sum(Fraction(2 * length, 3) if tuplet else length for *_, length, tuplet in entries) != units:
         return None
-    return [(notes, length) for _, notes, length in sorted(entries, key=lambda e: e[0])]
+    return [(notes, length, tuplet) for _, notes, length, tuplet in sorted(entries, key=lambda e: e[0])]
 
 
 def signature_units(signature: tuple[int, int]) -> int:

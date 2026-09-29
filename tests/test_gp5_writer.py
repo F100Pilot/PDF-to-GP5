@@ -58,6 +58,19 @@ def test_roundtrip_grace_note_and_staccato():
     assert beats[2].notes[0].effect.grace.transition == gp.GraceEffectTransition.none
 
 
+def test_roundtrip_triplet():
+    triplet = [ScoreBeat(4, [ScoreNote(3, fret)], tuplet=True) for fret in (9, 11, 9)]
+    measure = ScoreMeasure([*triplet, ScoreBeat(8, [ScoreNote(3, 7)]), ScoreBeat(16)])
+    beats = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats
+    assert [(b.duration.value, b.duration.tuplet.enters, b.duration.tuplet.times) for b in beats] == [
+        (8, 3, 2),
+        (8, 3, 2),
+        (8, 3, 2),
+        (4, 1, 1),
+        (2, 1, 1),
+    ]
+
+
 def test_roundtrip_odd_time_signature_and_dotted():
     measure = ScoreMeasure([ScoreBeat(12, [ScoreNote(2, 1)]), ScoreBeat(12, [ScoreNote(2, 3)])])
     song = _roundtrip(_score([measure], numerator=6, denominator=8))

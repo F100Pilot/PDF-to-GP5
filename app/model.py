@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from fractions import Fraction
 
 
 class Link(str, Enum):
@@ -55,11 +56,12 @@ class RhythmMark:
     """A printed rhythm symbol: a note stem (with beams/flags/dots) or a rest.
 
     ``units`` is the duration in 32nd notes, or None when the symbol was found
-    but cannot be expressed (e.g. inside a tuplet).
+    but cannot be expressed (e.g. inside a tuplet other than a triplet).
     """
 
     x: float
     units: int | None
+    tuplet: bool = False  # under a "3" (or "6") bracket: played in 2/3 of its written length
     is_rest: bool = False
     vibrato: bool = False  # under a vibrato line (matters for stem-only tied notes)
 
@@ -126,15 +128,21 @@ class ScoreNote:
 
 @dataclass
 class ScoreBeat:
-    units: int  # length in 32nd notes (1..48, always a representable value)
+    units: int  # written length in 32nd notes (1..48, always a representable value)
     notes: list[ScoreNote] = field(default_factory=list)
     # Printed stem without a fret: continues (ties) the notes sounding before it.
     tie_previous: bool = False
     tie_vibrato: bool = False
+    tuplet: bool = False  # triplet: three in the time of two (sounds 2/3 of ``units``)
 
     @property
     def is_rest(self) -> bool:
         return not self.notes
+
+    @property
+    def duration(self) -> Fraction | int:
+        """Sounding length in 32nd notes (a fraction inside a triplet)."""
+        return Fraction(2 * self.units, 3) if self.tuplet else self.units
 
 
 @dataclass
@@ -151,9 +159,10 @@ class ScoreMeasure:
     jump: str | None = None  # after this bar: "Da Capo", "Da Segno al Coda", … or "Da Coda" (To Coda)
 
     @property
-    def units(self) -> int:
-        """Length of the bar's contents in 32nd notes."""
-        return sum(beat.units for beat in self.beats)
+    def units(self) -> int | Fraction:
+        """Length of the bar's contents in 32nd notes (whole unless a triplet is incomplete)."""
+        total = sum((beat.duration for beat in self.beats), Fraction(0))
+        return int(total) if total.denominator == 1 else total
 
 
 @dataclass

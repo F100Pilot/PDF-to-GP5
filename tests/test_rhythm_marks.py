@@ -44,6 +44,15 @@ def test_rest_glyph_and_tuplet_number():
     assert [(m.units, m.is_rest) for m in marks] == [(None, False), (None, False), (8, True)]
 
 
+def test_bracketed_three_makes_a_triplet():
+    """ "3" between the arms of a bracket under three beamed eighths: written eighths, played as a
+    triplet; the quarter after it is not part of it."""
+    three = Char("3", 38, 43, STEM_BOTTOM + 3, STEM_BOTTOM + 9)
+    arms = [Segment(18, 36, STEM_BOTTOM + 6, STEM_BOTTOM + 6), Segment(45, 62, STEM_BOTTOM + 6, STEM_BOTTOM + 6)]
+    marks = _read(segments=[_stem(20), _stem(40), _stem(60), _stem(80), *arms], curves=[_beam(20, 60)], chars=[three])
+    assert [(m.units, m.tuplet) for m in marks] == [(4, True), (4, True), (4, True), (8, False)]
+
+
 def test_staff_without_stems_has_no_marks():
     assert _read(segments=[Segment(0, 500, TOP, TOP)]) == []
 
@@ -69,6 +78,15 @@ def test_notated_bar_uses_printed_durations_and_rests():
     measures = build_measures([_system(events, rhythm)], RhythmOptions(), [], None, stats)
     assert [(b.units, [n.fret for n in b.notes]) for b in measures[0].beats] == [(4, [0]), (4, [2]), (8, []), (16, [3])]
     assert (stats.notated, stats.estimated) == (1, 0)
+
+
+def test_triplet_bar_sums_to_the_bar_and_keeps_the_written_lengths():
+    events = [TabEvent(x=x, string=3, fret=f) for x, f in ((10, 9), (20, 11), (30, 9), (50, 7), (70, 5))]
+    rhythm = [*(RhythmMark(x, 4, tuplet=True) for x in (10, 20, 30)), RhythmMark(50, 8), RhythmMark(70, 16)]
+    stats = RhythmStats()
+    measures = build_measures([_system(events, rhythm)], RhythmOptions(), [], None, stats)
+    assert [(b.units, b.tuplet) for b in measures[0].beats] == [(4, True)] * 3 + [(8, False), (16, False)]
+    assert measures[0].units == 32 and (stats.notated, stats.estimated) == (1, 0)
 
 
 def test_stemless_single_note_is_a_whole_note():

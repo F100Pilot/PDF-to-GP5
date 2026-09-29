@@ -70,8 +70,24 @@ def _beam_shapes(page: Page, spacing: float) -> list[Segment]:
     ]
 
 
+TRIPLET_DIGITS = ("3", "6")  # 3 in the time of 2, 6 in the time of 4: both 2/3
+
+
 def _overlaps(char: Char, low: float, high: float) -> bool:
     return char.bottom >= low and char.top <= high
+
+
+def _tuplet_span(page: Page, digit: Char, spacing: float) -> tuple[float, float] | None:
+    """The x span of a triplet / sextuplet bracket: a "3" or "6" between two horizontal strokes
+    (the bracket's arms); None for other numbers or an unbracketed digit."""
+    if digit.text not in TRIPLET_DIGITS:
+        return None
+    arms = [s for s in page.segments if s.is_horizontal and abs((s.top + s.bottom) / 2 - digit.yc) <= 0.6 * spacing]
+    left = [s for s in arms if digit.x0 - spacing <= s.x1 <= digit.x0 + 1 and s.x1 - s.x0 <= 8 * spacing]
+    right = [s for s in arms if digit.x1 - 1 <= s.x0 <= digit.x1 + spacing and s.x1 - s.x0 <= 8 * spacing]
+    if not left or not right:
+        return None
+    return min(s.x0 for s in left), max(s.x1 for s in right)
 
 
 def _dot_candidates(page: Page, spacing: float) -> tuple[list[Char], list[Segment]]:
@@ -120,9 +136,10 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     dots = _dot_candidates(page, spacing)
     zone_low = min(s.top for s in stems)
     zone_high = max(s.bottom for s in stems)
-    # Tuplet numbers sit just beyond the beams; any digit there makes durations unreliable.
-    tuplet_xs = [
-        c.xc
+    # Tuplet numbers sit just beyond the beams. A bracketed "3" / "6" spans a triplet / sextuplet
+    # (2/3 of the written lengths); any other digit there makes durations unreliable.
+    tuplet_digits = [
+        c
         for c in page.chars
         if c.text.isdigit()
         and x0 < c.xc < x1
@@ -132,6 +149,11 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
             else _overlaps(c, zone_low - 1.2 * spacing, zone_low)
         )
     ]
+    spans = [span for c in tuplet_digits if (span := _tuplet_span(page, c, spacing)) is not None]
+    tuplet_xs = [c.xc for c in tuplet_digits if _tuplet_span(page, c, spacing) is None]
+
+    def in_triplet(x: float) -> bool:
+        return any(a - 0.3 * spacing <= x <= b + 0.3 * spacing for a, b in spans)
 
     marks: list[RhythmMark] = []
     for stem in stems:
@@ -159,7 +181,7 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
         units = _apply_dot(units, _has_dot(x, stem.top, stem.bottom, dots, spacing))
         if any(abs(t - x) <= 1.5 * spacing for t in tuplet_xs):
             units = None
-        marks.append(RhythmMark(x=x, units=units))
+        marks.append(RhythmMark(x=x, units=units, tuplet=in_triplet(x)))
 
     staff_center = (top + bottom) / 2
     for char in page.chars:
@@ -169,5 +191,6 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
             continue
         rest_ys = glyph_ys(char)
         dotted = _has_dot(char.x1, min(rest_ys) - spacing, max(rest_ys) + spacing, dots, spacing)
-        marks.append(RhythmMark(x=char.xc, units=_apply_dot(REST_UNITS[char.text], dotted), is_rest=True))
+        units = _apply_dot(REST_UNITS[char.text], dotted)
+        marks.append(RhythmMark(x=char.xc, units=units, is_rest=True, tuplet=in_triplet(char.xc)))
     return sorted(marks, key=lambda m: m.x)

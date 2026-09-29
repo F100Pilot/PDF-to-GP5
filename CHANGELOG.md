@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Tercinas e sextinas nas tabs de editor (MuseScore): as notas por baixo de um "3" ou "6" com parêntese recto são lidas como tercina (3 no tempo de 2) e escritas como tal no GP5; antes o compasso inteiro passava a ritmo estimado pelo espaçamento. Outros números (5, 7…) continuam a dar ritmo estimado.
 - Notas de passagem (grace notes) nas tabs de editor (MuseScore): os números pequenos antes de uma nota passam a nota de passagem dessa nota no GP5 (com hammer-on quando há "H"/"P"), em vez de notas normais que estragavam o ritmo do compasso; a haste cortada deixa de contar como tempo. Uma nota de passagem sem nota na mesma corda a seguir é ignorada.
 - Staccato (ponto por cima da nota) nas tabs de editor.
 - Crescendo e diminuendo (os "<" / ">" desenhados por baixo da pauta): o volume das notas muda gradualmente ao longo do sinal, também quando continua na linha seguinte, até à dinâmica que vem a seguir (ex.: f → ppp); sem dinâmica a seguir, sobe/desce dois níveis e fica nesse nível. No GP5 são os 8 níveis do Guitar Pro (ppp … fff).

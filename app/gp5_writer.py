@@ -121,9 +121,12 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
 
 def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
     value, dotted = _UNITS_TO_DURATION[beat.units]
+    duration = gp.Duration(value=value, isDotted=dotted)
+    if beat.tuplet:
+        duration.tuplet = gp.Tuplet(3, 2)
     gp_beat = gp.Beat(
         voice,
-        duration=gp.Duration(value=value, isDotted=dotted),
+        duration=duration,
         status=gp.BeatStatus.rest if beat.is_rest else gp.BeatStatus.normal,
     )
     gp_beat.notes.extend(_make_note(gp_beat, n) for n in beat.notes)

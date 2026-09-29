@@ -269,13 +269,13 @@ def _lyrics_text(
     first_in_bar: dict[int, int] = {}
     for number in range(max(1, start_bar), len(score.measures) + 1):
         measure = score.measures[number - 1]
-        total = sum(beat.units for beat in measure.beats) or 1
+        total = measure.units or 1
         onset = 0
         for beat in measure.beats:
             if not beat.is_rest:
                 first_in_bar.setdefault(number, len(beats))
                 beats.append((number, onset / total))
-            onset += beat.units
+            onset += beat.duration
     if not beats:
         return None, sorted({bar for bar, *_ in syllables})
     chunks: list[list[tuple[str, bool]]] = [[] for _ in beats]
@@ -500,11 +500,11 @@ def _fit(beats: list[ScoreBeat], units: int) -> list[ScoreBeat]:
     fitted: list[ScoreBeat] = []
     filled = 0
     for beat in beats:
-        if filled + beat.units <= units:
+        if filled + beat.duration <= units:
             fitted.append(beat)
-            filled += beat.units
+            filled += beat.duration
             continue
-        parts = split_units(units - filled)
+        parts = split_units(int(units - filled))
         if parts:
             fitted.append(ScoreBeat(parts[0], beat.notes))
             fitted.extend(ScoreBeat(part) for part in parts[1:])
