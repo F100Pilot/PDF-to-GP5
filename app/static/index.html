@@ -112,9 +112,10 @@
           <summary>Obter o áudio de um endereço (URL) — conteúdo que pode descarregar</summary>
           <p class="hint">Só é processado conteúdo disponível para download: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. Músicas comerciais (por exemplo no YouTube) são recusadas. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
           <p id="audio-url-unavailable" class="hint error-text" hidden></p>
+          <p id="audio-url-youtube" class="hint" hidden></p>
           <form id="audio-url-form" class="audio-url-form" novalidate>
-            <label class="audio-url-field">Endereço
-              <input id="audio-url" type="url" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3" autocomplete="off" required>
+            <label class="audio-url-field">Endereço ou ID de vídeo do YouTube
+              <input id="audio-url" type="text" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3 ou https://youtu.be/…" autocomplete="off" spellcheck="false" required>
             </label>
             <label>Formato
               <select id="audio-format" disabled><option value="mp3" selected>MP3</option></select>

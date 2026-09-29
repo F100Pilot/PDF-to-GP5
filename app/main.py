@@ -123,6 +123,8 @@ async def health() -> dict:
         # Audio from a URL (yt-dlp + FFmpeg), or why it is unavailable.
         "audio_download": audio_download.available()[0],
         "audio_download_problem": audio_download.available()[1],
+        "audio_youtube": audio_download.youtube_ready()[0],
+        "audio_youtube_problem": audio_download.youtube_ready()[1],
     }
 
 
@@ -378,7 +380,9 @@ async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
     if not audio_limiter.allow(client_key(request.client.host if request.client else None)):
         raise HTTPException(status_code=429, detail="Demasiados pedidos. Tente novamente dentro de um minuto.")
     try:
-        url = await run_in_threadpool(audio_download.validate_url, body.url)  # resolves the host name
+        # YouTube: only the checked video id is kept (the server builds the address); anything else
+        # is validated as a URL (resolves the host name).
+        url = await run_in_threadpool(audio_download.resolve_source, body.url)
     except audio_download.AudioDownloadError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if audio_download.jobs.active() >= settings.audio_concurrent_jobs:

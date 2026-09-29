@@ -33,7 +33,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from .config import settings
 
@@ -48,6 +48,9 @@ _FREE_LICENCE = re.compile(
     r"creative\s*commons|\bcc[\s-]?(?:by|0|zero)\b|public\s*domain|dom[ií]nio\s+p[uú]blico", re.IGNORECASE
 )
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+_YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+# Pages whose path carries the video id: /shorts/<id>, /embed/<id>, /live/<id>, /v/<id>.
+_YOUTUBE_ID_PATHS = ("shorts", "embed", "live", "v")
 
 
 class AudioDownloadError(Exception):
@@ -111,12 +114,58 @@ def validate_url(url: str) -> str:
     return url
 
 
-# --- May this content be downloaded? ---------------------------------------------------------------
+def youtube_id(text: str) -> str | None:
+    """The video id of a YouTube link ("…/watch?v=ID", "youtu.be/ID", "…/shorts/ID", "…/embed/ID")
+    or of a bare 11-character id; None for anything else."""
+    text = (text or "").strip()
+    if _YOUTUBE_ID.fullmatch(text):
+        return text
+    try:
+        parts = urlsplit(text)
+    except ValueError:
+        return None
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not _is_youtube(host) or host.endswith("googlevideo.com"):
+        return None
+    segments = [segment for segment in parts.path.split("/") if segment]
+    if host == "youtu.be" or host.endswith(".youtu.be"):
+        candidate = segments[0] if segments else ""
+    elif segments[:1] == ["watch"]:
+        candidate = (parse_qs(parts.query).get("v") or [""])[0]
+    elif len(segments) >= 2 and segments[0] in _YOUTUBE_ID_PATHS:
+        candidate = segments[1]
+    else:
+        return None
+    return candidate if _YOUTUBE_ID.fullmatch(candidate) else None
 
 
-def authorize(info: dict, url: str) -> str:
-    """Why the content may be downloaded ("direct", "licence" or "declared"), or raise with the
-    reason it may not. ``info`` is yt-dlp's description of the page (no download yet)."""
+def youtube_url(video_id: str) -> str:
+    """The server-built address of a YouTube video (only the id comes from the user)."""
+    if not _YOUTUBE_ID.fullmatch(video_id):
+        raise AudioDownloadError("Identificador de vídeo do YouTube inválido.")
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def resolve_source(text: str) -> str:
+    """The address to process: for YouTube, rebuilt by the server from the checked video id (no
+    host, path or parameters from the user reach yt-dlp); anything else through validate_url()."""
+    video = youtube_id(text)
+    if video:
+        return youtube_url(video)
+    try:
+        host = (urlsplit((text or "").strip()).hostname or "").lower()
+    except ValueError:
+        host = ""
+    if _is_youtube(host):
+        raise AudioDownloadError("Indique um vídeo do YouTube (não uma lista de reprodução nem um canal).")
+    return validate_url(text)
+
+
+# --- Technical limits (whatever the content) -------------------------------------------------------
+
+
+def check_limits(info: dict) -> None:
+    """Refuse playlists, live streams and media longer than the limit (before any download)."""
     if info.get("_type") in ("playlist", "multi_video") or info.get("entries") is not None:
         raise AudioDownloadError("Listas de reprodução não são suportadas: indique um único ficheiro ou vídeo.")
     if info.get("is_live") or info.get("live_status") in ("is_live", "is_upcoming", "post_live"):
@@ -126,6 +175,15 @@ def authorize(info: dict, url: str) -> str:
         raise AudioDownloadError(
             f"O áudio tem {round(duration / 60)} min; o máximo é {settings.audio_max_duration_s // 60} min."
         )
+
+
+# --- May this content be downloaded? ---------------------------------------------------------------
+
+
+def authorize(info: dict, url: str) -> str:
+    """Why the content may be downloaded ("direct", "licence" or "declared"), or raise with the
+    reason it may not. ``info`` is yt-dlp's description of the page (no download yet); the
+    technical limits are checked separately (check_limits)."""
     page = info.get("webpage_url") or url
     host = (urlsplit(page).hostname or "").lower()
     licence = str(info.get("license") or "").strip()
@@ -167,6 +225,31 @@ def available() -> tuple[bool, str]:
     return True, ""
 
 
+# JavaScript runtimes yt-dlp can use for YouTube, highest priority first, with their program names.
+_JS_RUNTIMES = (("deno", ("deno",)), ("node", ("node",)), ("quickjs", ("qjs", "quickjs")), ("bun", ("bun",)))
+
+
+def js_runtimes() -> dict[str, dict]:
+    """The JavaScript runtimes installed on this computer, as yt-dlp's ``js_runtimes`` option."""
+    found: dict[str, dict] = {}
+    for name, programs in _JS_RUNTIMES:
+        path = next((p for p in map(shutil.which, programs) if p), None)
+        if path:
+            found[name] = {"path": path}
+    return found
+
+
+def youtube_ready() -> tuple[bool, str]:
+    """(ready, problem): YouTube needs the yt-dlp-ejs scripts and a JavaScript runtime."""
+    try:
+        import yt_dlp_ejs  # noqa: F401
+    except ImportError:
+        return False, "falta o yt-dlp-ejs (pip install -r requirements.txt instala o yt-dlp[default])"
+    if not js_runtimes():
+        return False, "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)"
+    return True, ""
+
+
 class _Stop(Exception):
     """Raised from yt-dlp's progress hook to stop a download (limit reached or cancelled)."""
 
@@ -205,6 +288,10 @@ def _options(directory: Path, hook: Callable[[dict], None]) -> dict:
         "cachedir": False,
         "overwrites": True,
         "progress_hooks": [hook],
+        # YouTube's player needs JavaScript: any runtime installed here (yt-dlp picks the best), with
+        # the scripts of the installed yt-dlp-ejs package — never code fetched at run time.
+        "js_runtimes": js_runtimes() or {"deno": {}},
+        "remote_components": [],
         # Never: cookies, credentials, unplayable (DRM) formats — defaults kept on purpose.
     }
 
@@ -234,7 +321,12 @@ def _download(ydl: object, info: dict, directory: Path) -> Path:
         raise AudioDownloadError("O download falhou.") from exc
     finally:
         ydl.close()
-    files = [p for p in directory.glob("source.*") if p.is_file() and not p.name.endswith(".part")]
+    root = directory.resolve()
+    files = [
+        p
+        for p in directory.glob("source.*")
+        if p.is_file() and not p.is_symlink() and not p.name.endswith(".part") and p.resolve().parent == root
+    ]
     if not files:
         raise AudioDownloadError("O download não produziu nenhum ficheiro (talvez tenha excedido o tamanho máximo).")
     return files[0]
@@ -417,6 +509,7 @@ def run_job(job: Job) -> None:
         job.status = "checking"
         ydl, info = _probe(job.url, job.directory, hook)
         try:
+            check_limits(info)
             job.reason = authorize(info, job.url)
         except AudioDownloadError:
             close = getattr(ydl, "close", None)

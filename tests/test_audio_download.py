@@ -101,14 +101,81 @@ def test_content_that_may_be_downloaded(info, url, because):
         ({"license": "Standard YouTube License"}, "https://youtu.be/x", "Standard YouTube License"),
         ({"direct": True}, "https://rr1.googlevideo.com/videoplayback", "não está disponível"),
         ({}, "https://example.com/page", "não está disponível"),
-        ({"direct": True, "is_live": True}, "https://example.com/live", "direto"),
-        ({"_type": "playlist", "entries": []}, "https://example.com/list", "Listas"),
-        ({"direct": True, "duration": 99_999}, "https://example.com/a.mp3", "máximo"),
     ],
 )
 def test_content_that_may_not_be_downloaded(info, url, reason):
     with pytest.raises(ad.AudioDownloadError, match=reason):
         ad.authorize(info, url)
+
+
+@pytest.mark.parametrize(
+    ("info", "reason"),
+    [
+        ({"direct": True, "is_live": True}, "direto"),
+        ({"live_status": "is_upcoming"}, "direto"),
+        ({"_type": "playlist", "entries": []}, "Listas"),
+        ({"direct": True, "duration": 99_999}, "máximo"),
+        # Technical limits apply whatever the licence.
+        ({"license": "Creative Commons Attribution license (reuse allowed)", "is_live": True}, "direto"),
+    ],
+)
+def test_technical_limits_are_checked_separately(info, reason):
+    with pytest.raises(ad.AudioDownloadError, match=reason):
+        ad.check_limits(info)
+
+
+def test_technical_limits_accept_a_single_short_video():
+    ad.check_limits({"duration": 180, "license": ""})  # no error; the licence is authorize()'s business
+
+
+# --- YouTube: only the video id is taken from the user ---
+
+
+@pytest.mark.parametrize(
+    ("text", "video"),
+    [
+        ("https://www.youtube.com/watch?v=abcDEF12345", "abcDEF12345"),
+        ("https://www.youtube.com/watch?v=abcDEF12345&list=PL123&t=42s", "abcDEF12345"),
+        ("https://youtu.be/abcDEF12345?si=xyz", "abcDEF12345"),
+        ("https://m.youtube.com/shorts/abcDEF12345", "abcDEF12345"),
+        ("https://www.youtube-nocookie.com/embed/abcDEF12345", "abcDEF12345"),
+        ("https://music.youtube.com/watch?v=abc_EF-2345", "abc_EF-2345"),
+        (" abcDEF12345 ", "abcDEF12345"),
+        ("https://www.youtube.com/playlist?list=PL123", None),
+        ("https://www.youtube.com/@channel", None),
+        ("https://www.youtube.com/watch?v=short", None),
+        ("https://www.youtube.com/watch?v=abcDEF12345;rm", None),
+        ("https://rr1.googlevideo.com/videoplayback?v=abcDEF12345", None),
+        ("https://example.com/watch?v=abcDEF12345", None),
+        ("javascript:abcDEF12345", None),
+    ],
+)
+def test_youtube_id(text, video):
+    assert ad.youtube_id(text) == video
+
+
+def test_resolve_source_rebuilds_youtube_addresses(public_dns):
+    built = "https://www.youtube.com/watch?v=abcDEF12345"
+    assert ad.resolve_source("https://youtu.be/abcDEF12345?list=PL1&t=9") == built
+    assert ad.resolve_source("abcDEF12345") == built
+    with pytest.raises(ad.AudioDownloadError, match="lista de reprodução"):
+        ad.resolve_source("https://www.youtube.com/playlist?list=PL123")
+    assert ad.resolve_source("https://example.com/a.mp3") == "https://example.com/a.mp3"  # validate_url
+    with pytest.raises(ad.AudioDownloadError, match="http"):
+        ad.resolve_source("ftp://example.com/a.mp3")
+    with pytest.raises(ad.AudioDownloadError):
+        ad.youtube_url("../../etc")
+
+
+def test_js_runtimes_found_on_this_computer(monkeypatch):
+    paths = {"node": "/usr/bin/node", "qjs": "/usr/bin/qjs"}
+    monkeypatch.setattr(ad.shutil, "which", lambda name: paths.get(name))
+    assert ad.js_runtimes() == {"node": {"path": "/usr/bin/node"}, "quickjs": {"path": "/usr/bin/qjs"}}
+    options = ad._options(Path("/tmp"), lambda _: None)
+    assert options["js_runtimes"] == ad.js_runtimes() and options["remote_components"] == []
+    assert "cookiefile" not in options and "cookiesfrombrowser" not in options and "username" not in options
+    monkeypatch.setattr(ad.shutil, "which", lambda name: None)
+    assert ad.youtube_ready() == (False, "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)")
 
 
 def test_youtube_cannot_be_declared_as_own_site(monkeypatch):
@@ -199,9 +266,12 @@ def test_job_downloads_converts_and_cleans_up(client, fake_ytdlp):
 def test_job_refused_when_not_downloadable_leaves_nothing(client, fake_ytdlp):
     fake_ytdlp["info"] = {"title": "Song", "license": "Standard YouTube License"}
     job_id = client.post(
-        "/api/audio/jobs", json={"url": "https://www.youtube.com/watch?v=abc", "bitrate": 192, "authorized": True}
+        "/api/audio/jobs",
+        json={"url": "https://youtu.be/abcDEF12345?list=PL1", "bitrate": 192, "authorized": True},
     ).json()["id"]
-    folder = ad.jobs.get(job_id).directory
+    job = ad.jobs.get(job_id)
+    folder = job.directory
+    assert job.url == "https://www.youtube.com/watch?v=abcDEF12345"  # rebuilt from the id alone
     done = _wait(client, job_id)
     assert done["status"] == "error" and "não está disponível" in done["message"]
     assert not folder.exists()

@@ -470,6 +470,10 @@
         note.textContent = `Indisponível neste servidor: ${health.audio_download_problem || "falta o yt-dlp ou o FFmpeg"}.`;
         note.hidden = false;
         urlForm.hidden = true;
+      } else if (!health.audio_youtube) {
+        const note = document.getElementById("audio-url-youtube");
+        note.textContent = `Vídeos do YouTube: ${health.audio_youtube_problem || "indisponíveis"}. Os outros endereços funcionam.`;
+        note.hidden = false;
       }
     })
     .catch(() => {});
@@ -478,8 +482,10 @@
     event.preventDefault();
     if (urlJob) return;
     const url = urlInput.value.trim();
-    if (!/^https?:\/\/\S+$/i.test(url)) {
-      setUrlStatus("Indique um endereço que comece por http:// ou https://.", true);
+    // YouTube: only the video id is sent (the server checks it again and builds the address).
+    const video = window.VideoSync && window.VideoSync.parseVideo(url);
+    if (!video && !/^https?:\/\/\S+$/i.test(url)) {
+      setUrlStatus("Indique um endereço que comece por http:// ou https://, ou o ID de um vídeo do YouTube.", true);
       return;
     }
     if (!authorizedInput.checked) {
@@ -497,7 +503,7 @@
       const response = await fetch("/api/audio/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, bitrate: Number(bitrateSelect.value), authorized: true }),
+        body: JSON.stringify({ url: video ? video.id : url, bitrate: Number(bitrateSelect.value), authorized: true }),
       });
       if (!response.ok) throw new Error(await detail(response, "O pedido foi recusado."));
       urlJob = (await response.json()).id;
