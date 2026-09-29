@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import itertools
 import re
 from collections import Counter
@@ -14,6 +15,7 @@ from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
+from .repeats import playback_order
 from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, signature_units, split_units
 from .tunings import TUNINGS, resolve_tuning
 
@@ -58,6 +60,7 @@ class ConversionOptions:
     max_pages: int = 40
     max_events: int = 50_000
     max_measures: int = 2000
+    expand_repeats: bool = False  # write repeated passages out (Rocksmith has no repeats)
 
     def track(self, index: int) -> TrackOptions:
         return self.tracks[index] if index < len(self.tracks) else TrackOptions()
@@ -480,6 +483,26 @@ def _drop_opening_signature(systems: list[TabSystem]) -> None:
             return
 
 
+def _expand_repeats(scores: list[Score], track_reports: list[dict], order: list[int]) -> None:
+    """Write every track out in playing order (bars copied, repeat signs removed), and move the
+    lyric syllables of each bar to every place the bar is played."""
+    for score in scores:
+        measures = score.measures
+        score.measures = [copy.deepcopy(measures[index]) for index in order]
+        for number, measure in enumerate(score.measures, start=1):
+            measure.number = number
+            measure.repeat_open, measure.repeat_times, measure.endings = False, 0, ()
+    for report in track_reports:
+        by_bar: dict[int, list[tuple[int, float, str, bool]]] = {}
+        for syllable in report["_lyrics"]:
+            by_bar.setdefault(syllable[0], []).append(syllable)
+        report["_lyrics"] = [
+            (number, position, text, joins)
+            for number, index in enumerate(order, start=1)
+            for _, position, text, joins in by_bar.get(index + 1, [])
+        ]
+
+
 def _pad(score: Score, measures: int) -> int:
     """Append full-bar rests so every track has the same number of bars; returns bars added."""
     missing = measures - len(score.measures)
@@ -570,6 +593,19 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         track_reports[track]["warnings"].append(
             f"Compasso {bar}: as notas não cabem na métrica do compasso; o excesso foi cortado."
         )
+    repeats = sum(1 for measure in scores[0].measures if measure.repeat_times)
+    song_warnings: list[str] = []
+    expanded = False
+    if options.expand_repeats and any(m.repeat_times or m.endings for m in scores[0].measures):
+        order = playback_order(scores[0].measures, options.max_measures + 1)
+        if len(order) > options.max_measures:
+            song_warnings.append(
+                f"Repetições por extenso: a música teria mais de {options.max_measures} compassos; ficam as repetições."
+            )
+        else:
+            _expand_repeats(scores, track_reports, order)
+            total_measures = len(order)
+            expanded = True
     meters = [measure.time_signature or (numerator, denominator) for measure in scores[0].measures]
 
     lyric_candidates = [i for i, r in enumerate(track_reports) if r["_lyrics"]]
@@ -618,7 +654,11 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             sections.append({"bar": index + 1, "name": name})
 
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))
-    warnings = [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]] + lyric_warnings
+    warnings = (
+        [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]]
+        + song_warnings
+        + lyric_warnings
+    )
     report = {
         "title": title,
         "artist": artist,
@@ -630,7 +670,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             for bar, (previous, (n, d)) in enumerate(itertools.pairwise(meters), start=2)
             if (n, d) != previous
         ],
-        "repeats": sum(1 for measure in scores[0].measures if measure.repeat_times),
+        "repeats": repeats,
+        "repeats_expanded": expanded,  # written out in playing order (no repeat signs in the file)
         "auto": {
             "title": not options.title.strip() and bool(detected.title),
             "artist": not options.artist.strip() and bool(detected.artist),

@@ -184,6 +184,7 @@ class ConvertForm:
     time_signature: str
     rhythm_mode: str
     fixed_value: int
+    expand_repeats: bool
     track_names: list[str]
     tunings: list[str]
     instruments: list[str]
@@ -196,6 +197,7 @@ def convert_form(
     time_signature: Annotated[str, Form(max_length=5)] = "auto",
     rhythm_mode: Annotated[Literal["auto", "spacing", "fixed"], Form()] = "auto",
     fixed_value: Annotated[int, Form()] = 8,
+    expand_repeats: Annotated[bool, Form()] = False,
     track_name: Annotated[list[str] | None, Form()] = None,
     tuning: Annotated[list[str] | None, Form()] = None,
     instrument: Annotated[list[str] | None, Form()] = None,
@@ -207,6 +209,7 @@ def convert_form(
         time_signature,
         rhythm_mode,
         fixed_value,
+        expand_repeats,
         track_name or [],
         tuning or [],
         instrument or [],
@@ -254,6 +257,7 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
         ),
         rhythm_mode=form.rhythm_mode,
         fixed_value=form.fixed_value,
+        expand_repeats=form.expand_repeats,
         max_pages=settings.max_pages,
         max_events=settings.max_events,
         max_measures=settings.max_measures,

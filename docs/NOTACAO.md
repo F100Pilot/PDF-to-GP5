@@ -62,7 +62,7 @@ Colunas:
 | Tempo inicial (♩ = 118, "Tempo: 120", "120 bpm") | ✅ | ✅ | ✅ | Happen To Me | |
 | Mudança de tempo a meio | ⬜ | ⬜ | ✅ | — | |
 | Armação de clave | ⬜ | ⬜ | ✅ | — | |
-| Repetições `‖: :‖` e "x3" | ✅ `\|: :\|` | ✅ | ✅ | — | Gravada: pontos de repetição SMuFL e "x3" por cima; texto: `\|:` `:\|` `\|*` `\|o` e "x3" depois da linha (sem sinais: a linha inteira repete). Sem número: 2 vezes |
+| Repetições `‖: :‖` e "x3" | ✅ `\|: :\|` | ✅ | ✅ | — | Gravada: pontos de repetição SMuFL e "x3" por cima; texto: `\|:` `:\|` `\|*` `\|o` e "x3" depois da linha (sem sinais: a linha inteira repete). Sem número: 2 vezes. Opção "por extenso" (Rocksmith): compassos copiados pela ordem de reprodução |
 | Casas de 1.ª/2.ª vez (voltas) | ⬜ | ✅ | ✅ | — | "1.", "2.", "1., 2." por cima da pauta com a linha do colchete |
 | Coda, Segno, D.C., D.S., Fine | ⬜ | ⬜ | ✅ | — | |
 | Secções (Intro, Verse, Chorus…) → marcadores | ✅ | ✅ | ✅ | Happen To Me | Gravada: texto a negrito acima da pauta; texto: `[Chorus]`, `Verse 2:` |

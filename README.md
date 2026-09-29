@@ -56,6 +56,10 @@ Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arr
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Repetições
+
+Os sinais de repetição, o número de vezes ("x3") e as voltas (1.ª/2.ª vez) passam para o ficheiro. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).
+
 ## Áudio (ficheiro .gp)
 
 Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 100 MB). Com áudio, "Descarregar" dá um ficheiro `.gp` (Guitar Pro 7/8) com o áudio como faixa de áudio e um ponto de sincronização no compasso 1 ("Marcar início" enquanto ouve o áudio na página; a sincronização pode ser afinada no Guitar Pro). Sem áudio, o download é o `.gp5` de sempre (o formato GP5 não guarda áudio). O `.gp` é criado no browser pelo alphaTab: o áudio não sai do computador. Confirme que o seu conversor (por exemplo para Rocksmith) aceita `.gp`; senão use o `.gp5`.

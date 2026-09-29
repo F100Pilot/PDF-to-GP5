@@ -325,7 +325,7 @@
       ...((report.time_signature_changes || []).length
         ? [["Mudanças de compasso", report.time_signature_changes.map((c) => `${c.time_signature} no c. ${c.bar}`).join(", ")]]
         : []),
-      ...(report.repeats ? [["Repetições", report.repeats]] : []),
+      ...(report.repeats ? [["Repetições", `${report.repeats}${report.repeats_expanded ? " (por extenso)" : ""}`]] : []),
       ["Tracks", report.tracks.length], ["Compassos", report.measures], ["Notas", report.notes],
       ["Secções", report.sections && report.sections.length ? report.sections.length : "—"],
       ["Letra", report.lyrics ? `${report.lyrics.track}` : "—"],
@@ -347,6 +347,18 @@
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
     return bytes;
   }
+
+  // Remember the "repeats written out" choice (e.g. always on for Rocksmith).
+  const expandRepeats = document.getElementById("expand_repeats");
+  const EXPAND_KEY = "pdf-to-gp5.expand-repeats";
+  try {
+    expandRepeats.checked = localStorage.getItem(EXPAND_KEY) === "1";
+  } catch { /* storage unavailable */ }
+  expandRepeats.addEventListener("change", () => {
+    try {
+      localStorage.setItem(EXPAND_KEY, expandRepeats.checked ? "1" : "0");
+    } catch { /* storage unavailable */ }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

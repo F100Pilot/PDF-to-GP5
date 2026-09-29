@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Opção "Escrever as repetições por extenso (para o Rocksmith, que não tem repetições)" (em Ritmo; a escolha fica guardada): o GP5/.gp fica com os compassos repetidos copiados pela ordem em que se tocam (voltas e repetições dentro de repetições incluídas, na mesma ordem que o leitor da página), sem sinais de repetição; a letra, os marcadores de secção e a pista 3D seguem cada passagem.
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ## [0.6.0] - 2026-09-29
