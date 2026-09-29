@@ -3,286 +3,393 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF para GP5</title>
+  <title>PDF → GP5</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="vendor/fonts/ibm-plex-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
   <script src="highway3d.js" defer></script>
   <script src="video.js" defer></script>
   <script src="score.js" defer></script>
   <script src="audio.js" defer></script>
   <script src="app.js" defer></script>
+  <script src="nav.js" defer></script>
 </head>
 <body>
-  <main>
-    <section id="news" class="news" aria-labelledby="news-title" hidden>
-      <div class="news-head">
-        <h2 id="news-title">Novidades</h2>
-        <button id="news-close" type="button" class="news-close">Fechar</button>
+  <a class="skip-link" href="#page">Saltar para o conteúdo</a>
+  <div class="shell">
+    <nav class="rail" aria-label="Principal">
+      <a class="brand" href="#/converter">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16M9 5v14"/></svg>
+        </span>
+        <span class="brand-text"><span class="brand-name">PDF → GP5</span><span class="brand-sub">Tabs para Guitar Pro</span></span>
+      </a>
+      <p class="rail-heading">Criar</p>
+      <ul class="rail-links">
+        <li><a data-nav="converter" href="#/converter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Converter</span></a></li>
+        <li><a data-nav="resultado" href="#/resultado"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>Resultado</span></a></li>
+      </ul>
+      <p class="rail-heading">Praticar</p>
+      <ul class="rail-links">
+        <li><a data-nav="tocar" href="#/tocar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg><span>Tocar</span></a></li>
+        <li><a data-nav="audio" href="#/audio"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><span>Áudio</span></a></li>
+      </ul>
+      <p class="rail-heading">Geral</p>
+      <ul class="rail-links">
+        <li><a data-nav="definicoes" href="#/definicoes"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Definições</span></a></li>
+      </ul>
+      <div id="rail-song" class="rail-song" hidden>
+        <span class="rail-heading">Música aberta</span>
+        <strong id="rail-song-title"></strong>
+        <span id="rail-song-meta" class="muted"></span>
       </div>
-      <div id="news-body"></div>
-    </section>
-    <header>
-      <h1>PDF → Guitar Pro 5</h1>
-      <p class="lead">Converte tablaturas em PDF (texto ou exportadas de editores) para ficheiros <code>.gp5</code>.
-        O ficheiro é processado em memória e não é guardado.</p>
-    </header>
+      <p class="rail-status"><span id="server-dot" class="dot" aria-hidden="true"></span><span id="server-text">A ligar ao servidor…</span></p>
+    </nav>
 
-    <form id="form" novalidate>
-      <div class="form-main">
-      <label id="drop" class="drop" for="file">
-        <input id="file" type="file" accept="application/pdf,.pdf" multiple>
-        <span id="drop-text">Arraste os PDFs da música (um por track) ou clique para escolher</span>
-      </label>
+    <div class="content">
+      <main id="page" tabindex="-1">
+        <!-- 1. Converter -->
+        <section class="page" data-page="converter" aria-labelledby="h-converter">
+          <header class="page-head">
+            <div>
+              <h1 id="h-converter" tabindex="-1">Converter</h1>
+              <p class="page-sub">Tablaturas em PDF (texto ou exportadas de editores) → ficheiro Guitar Pro. Os PDFs são processados em memória e não são guardados.</p>
+            </div>
+          </header>
 
-      <p id="inspect-status" class="hint" role="status" aria-live="polite" hidden></p>
+          <section id="news" class="news" aria-labelledby="news-title" hidden>
+            <div class="news-head">
+              <h2 id="news-title">Novidades</h2>
+              <button id="news-close" type="button" class="news-close">Fechar</button>
+            </div>
+            <div id="news-body"></div>
+          </section>
 
-      <fieldset id="tracks-box" hidden>
-        <legend>Tracks <span class="hint">(ordem no ficheiro GP5)</span></legend>
-        <ol id="tracks" class="tracks"></ol>
-      </fieldset>
-      </div>
+          <form id="form" novalidate>
+            <div class="form-main card">
+              <h2 class="card-title">Tracks <span class="hint-inline">uma por PDF · a ordem é a do ficheiro GP5</span></h2>
+              <label id="drop" class="drop" for="file">
+                <input id="file" type="file" accept="application/pdf,.pdf" multiple>
+                <svg class="drop-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+                <span id="drop-text">Arraste os PDFs da música (um por track) ou clique para escolher</span>
+                <span class="hint-inline">Tabs de editor (MuseScore, Guitar Pro) ou tabs em texto</span>
+              </label>
 
-      <div class="form-side">
+              <p id="inspect-status" class="hint" role="status" aria-live="polite" hidden></p>
 
-      <fieldset id="meta" hidden>
-        <legend>Metadados <span class="hint">(detetados no PDF — pode corrigir)</span></legend>
-        <div class="grid">
-          <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
-          <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
-          <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Não detetado (120)"></label>
-        </div>
-      </fieldset>
+              <fieldset id="tracks-box" hidden>
+                <legend class="sr-only">Tracks</legend>
+                <ol id="tracks" class="tracks"></ol>
+              </fieldset>
+            </div>
 
-      <fieldset>
-        <legend>Ritmo</legend>
-        <div class="grid">
-          <label>Compasso
-            <select name="time_signature" id="time_signature">
-              <option value="auto" selected>Automático (do PDF)</option>
-              <option>2/4</option><option>3/4</option><option>4/4</option><option>5/4</option>
-              <option>6/8</option><option>7/8</option><option>9/8</option><option>12/8</option><option>2/2</option>
-            </select>
-          </label>
-          <label>Modo
-            <select name="rhythm_mode" id="rhythm_mode">
-              <option value="auto">Automático</option>
-              <option value="spacing">Pelo espaçamento</option>
-              <option value="fixed">Duração fixa</option>
-            </select>
-          </label>
-          <label>Duração fixa
-            <select name="fixed_value">
-              <option value="4">Semínima (1/4)</option>
-              <option value="8" selected>Colcheia (1/8)</option>
-              <option value="16">Semicolcheia (1/16)</option>
-            </select>
-          </label>
-        </div>
-        <label class="check"><input id="expand_repeats" name="expand_repeats" type="checkbox" value="true"> Escrever as repetições por extenso (para o Rocksmith, que não tem repetições)</label>
-        <p class="hint">Se o PDF tiver a notação rítmica (hastes e colcheias por baixo da tab), as durações são lidas diretamente. Caso contrário: “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
-      </fieldset>
+            <div class="form-side card">
+              <h2 class="card-title">Música</h2>
+              <fieldset id="meta" hidden>
+                <legend>Metadados <span class="hint-inline">(detetados no PDF — pode corrigir)</span></legend>
+                <div class="grid">
+                  <label>Título <input name="title" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
+                  <label>Artista <input name="artist" maxlength="100" autocomplete="off" placeholder="Não detetado"></label>
+                  <label>Tempo (BPM) <input name="tempo" type="number" min="20" max="400" placeholder="Não detetado (120)"></label>
+                </div>
+              </fieldset>
 
-      <button id="submit" type="submit">Converter</button>
-      </div>
-    </form>
+              <fieldset>
+                <legend>Ritmo</legend>
+                <div class="grid">
+                  <label>Compasso
+                    <select name="time_signature" id="time_signature">
+                      <option value="auto" selected>Automático (do PDF)</option>
+                      <option>2/4</option><option>3/4</option><option>4/4</option><option>5/4</option>
+                      <option>6/8</option><option>7/8</option><option>9/8</option><option>12/8</option><option>2/2</option>
+                    </select>
+                  </label>
+                  <label>Modo
+                    <select name="rhythm_mode" id="rhythm_mode">
+                      <option value="auto">Automático</option>
+                      <option value="spacing">Pelo espaçamento</option>
+                      <option value="fixed">Duração fixa</option>
+                    </select>
+                  </label>
+                  <label>Duração fixa
+                    <select name="fixed_value">
+                      <option value="4">Semínima (1/4)</option>
+                      <option value="8" selected>Colcheia (1/8)</option>
+                      <option value="16">Semicolcheia (1/16)</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="check"><input id="expand_repeats" name="expand_repeats" type="checkbox" value="true"> Escrever as repetições por extenso (para o Rocksmith, que não tem repetições)</label>
+                <p class="hint">Se o PDF tiver a notação rítmica (hastes e colcheias por baixo da tab), as durações são lidas diretamente. Caso contrário: “Pelo espaçamento” estima as durações pela posição das notas dentro de cada compasso; “Duração fixa” atribui a mesma duração a todas as notas.</p>
+              </fieldset>
 
-    <section id="status" role="status" aria-live="polite" hidden></section>
-
-    <section id="result" hidden>
-      <div class="result-head">
-        <h2>Resultado</h2>
-        <a id="download" class="button" download>Descarregar .gp5</a>
-      </div>
-      <div class="audio-box">
-        <div class="audio-head">
-          <div>
-            <strong>Áudio da música</strong> <span class="muted">(opcional)</span>
-            <p class="hint">Toca com a partitura (os controlos aparecem ao lado dela) e, com áudio, o download é um .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, é .gp5. O áudio fica só no seu computador.</p>
-          </div>
-          <div class="audio-file">
-            <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav" hidden>
-            <button id="audio-choose" type="button" class="icon">Escolher áudio…</button>
-            <span id="audio-name" class="audio-name">Nenhum ficheiro</span>
-            <span id="audio-last" class="audio-name" hidden></span>
-            <button id="audio-remove" type="button" class="icon" hidden>Remover</button>
-          </div>
-        </div>
-        <p id="audio-status" class="hint" role="status" hidden></p>
-        <details id="audio-url-box" class="audio-url">
-          <summary>Obter o áudio de um endereço (URL) — um vídeo do YouTube ou um ficheiro</summary>
-          <p class="hint"><b>YouTube:</b> o áudio de um vídeo, para uso pessoal, com a aplicação aberta neste computador (em http://127.0.0.1 ou localhost). Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito. Outros endereços: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
-          <p id="audio-url-unavailable" class="hint error-text" hidden></p>
-          <p id="audio-url-youtube" class="hint" hidden></p>
-          <form id="audio-url-form" class="audio-url-form" novalidate>
-            <label class="audio-url-field">Endereço ou ID de vídeo do YouTube
-              <input id="audio-url" type="text" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3 ou https://youtu.be/…" autocomplete="off" spellcheck="false" required>
-            </label>
-            <label>Formato
-              <select id="audio-format" disabled><option value="mp3" selected>MP3</option></select>
-            </label>
-            <label>Qualidade
-              <select id="audio-bitrate">
-                <option value="128">128 kbit/s</option>
-                <option value="192" selected>192 kbit/s</option>
-                <option value="256">256 kbit/s</option>
-                <option value="320">320 kbit/s</option>
-              </select>
-            </label>
-            <label class="check audio-url-consent"><input id="audio-authorized" type="checkbox"> É para uso pessoal, ou tenho autorização para descarregar este conteúdo</label>
-            <div class="audio-url-actions">
-              <button id="audio-url-start" type="submit">Obter MP3</button>
-              <button id="audio-url-cancel" type="button" class="icon" hidden>Cancelar</button>
+              <button id="submit" type="submit" class="primary-action">Converter
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
             </div>
           </form>
-          <div id="audio-url-progress" class="audio-url-progress" hidden>
-            <progress id="audio-url-bar" max="100" value="0"></progress>
-            <span id="audio-url-percent" class="score-time">0%</span>
-          </div>
-          <p id="audio-url-status" class="hint" role="status" aria-live="polite" hidden></p>
-          <a id="audio-url-save" class="button" hidden download>Guardar o MP3</a>
-        </details>
-      </div>
-      <dl id="summary" class="summary"></dl>
-      <div id="warnings-box" hidden>
-        <h3>Avisos</h3>
-        <ul id="warnings"></ul>
-      </div>
-      <section id="score-box" class="score-box" aria-labelledby="score-title" hidden>
-        <h3 id="score-title">Partitura</h3>
-        <div class="score-toolbar">
-          <label>Vista
-            <select id="score-view">
-              <option value="Default" selected>Pauta e tab</option>
-              <option value="Tab">Só tab</option>
-              <option value="Score">Só pauta</option>
-              <option value="3D">Pista 3D (Rocksmith)</option>
-            </select>
-          </label>
-          <label id="score-3d-track-label" hidden>Track na pista 3D
-            <select id="score-3d-track"></select>
-          </label>
-          <label id="score-3d-tilt-label" hidden title="Todo à direita: vista de cima, na vertical (bom para alinhar as notas com o desenho da música)">Inclinação da câmara (→ vista de cima)
-            <input id="score-3d-tilt" type="range" min="0" max="150" value="50">
-          </label>
-          <label id="score-3d-side-label" hidden>Ângulo lateral
-            <input id="score-3d-side" type="range" min="-100" max="100" value="0">
-          </label>
-          <div class="score-player">
-            <button id="score-play" type="button" disabled>▶ Tocar</button>
-            <button id="score-stop" type="button" disabled>■ Parar</button>
-            <label>Velocidade
-              <select id="score-speed">
-                <option value="0.5">50%</option>
-                <option value="0.75">75%</option>
-                <option value="1" selected>100%</option>
-                <option value="1.25">125%</option>
-              </select>
-            </label>
-            <button id="audio-toggle" type="button" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Áudio</button>
-            <button id="video-toggle" type="button" aria-pressed="false" title="Ligar ou desligar o vídeo (desligado: fica em pausa e volta o som da partitura)">Vídeo YouTube</button>
-          </div>
-        </div>
-        <div class="score-seek">
-          <span id="score-time" class="score-time">0:00 / 0:00</span>
-          <input id="score-seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="Posição na música (clique ou arraste para avançar ou recuar)">
-        </div>
-        <div id="score-tracks" class="score-tracks"></div>
-        <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
-        <div id="score-stage" class="score-stage">
-          <div class="score-main">
-            <div id="highway" class="highway" hidden></div>
-            <p id="highway-legend" class="hint" hidden>Pista 3D: linhas claras = compassos (com o número), linhas ténues = tempos; em cima, o compasso atual, o progresso e a letra (sílaba atual a amarelo) · nome do acorde por cima do quadro (calculado pelas notas) · ao tocar, a nota brilha e o número fica na corda enquanto soa · rasto a subir = bend (↑1 = um tom), ↑↓ bend e release, PB pre-bend · rasto inclinado = slide (nota de destino translúcida = não se ataca) · H/P hammer-on/pull-off · PM palm mute · losango = harmónico (AH/PH/TH/SH) · rasto ondulado = vibrato · T tapping · (n) ghost note · X nota morta · ↓/↑ ao lado do acorde = rasgueado.</p>
-            <div id="score" class="score"></div>
-          </div>
-          <div class="score-side">
-          <aside id="audio-panel" class="side-panel" aria-label="Áudio da música" hidden>
-            <audio id="audio-preview" preload="auto"></audio>
-            <div class="side-head">
-              <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
-              <button id="audio-collapse" type="button" class="icon" aria-expanded="true" aria-controls="audio-panel-body" title="Colapsar: fica só o Tocar e o tempo">▴</button>
-              <button id="audio-hide" type="button" class="icon" title="Esconder o painel (o áudio continua; volta com o botão Áudio, junto à partitura)" aria-label="Esconder o painel do áudio">✕</button>
-            </div>
-            <div class="audio-transport">
-              <button id="audio-play" type="button">▶ Tocar</button>
-              <span id="audio-time" class="score-time">0:00 / 0:00</span>
-            </div>
-            <div id="audio-panel-body" class="side-body">
-            <label class="audio-offset">Início da música no áudio (s)
-              <input id="audio-offset" type="number" min="-60" max="3600" step="0.01" value="0">
-            </label>
-            <button id="audio-mark" type="button" class="mark" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-            <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
-              <span>Adiantar a partitura</span>
-              <button type="button" class="icon" data-audio-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
-              <button type="button" class="icon" data-audio-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
-              <span>Atrasar a partitura</span>
-              <button type="button" class="icon" data-audio-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
-              <button type="button" class="icon" data-audio-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
-            </div>
-            <p id="audio-sync-status" class="hint" role="status" aria-live="polite" hidden></p>
-            <div class="tempo-row">
-              <label class="audio-offset">Tempo da partitura (BPM)
-                <input id="audio-tempo" type="number" min="20" max="400" step="0.1" value="120">
-              </label>
-              <button type="button" class="icon" data-tempo-nudge="-0.1" title="A partitura vai-se adiantando ao longo da música">−0,1</button>
-              <button type="button" class="icon" data-tempo-nudge="0.1" title="A partitura vai-se atrasando ao longo da música">+0,1</button>
-              <button id="audio-tempo-reset" type="button" class="icon" title="Voltar ao tempo do PDF">Repor</button>
-            </div>
-            <label class="volume"><span class="volume-head">Volume da música <span id="music-volume-value" class="muted">100%</span></span>
-              <input id="music-volume" type="range" min="0" max="100" step="1" value="100">
-            </label>
-            <label class="volume"><span class="volume-head">Volume das notas <span id="notes-volume-value" class="muted">50%</span></span>
-              <input id="notes-volume" type="range" min="0" max="100" step="1" value="50">
-            </label>
-            <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
-            <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante). Se a partitura for adiantada ou atrasada em relação à música, use "Atrasar" / "Adiantar a partitura", mesmo a tocar (o início pode ficar antes do 0: o áudio espera). Se o desacerto for crescendo ao longo da música, afine o "Tempo da partitura": baixe-o se a partitura se vai adiantando, suba-o se se vai atrasando. Na pista 3D, a música aparece desenhada no chão. O mesmo acerto e o mesmo tempo vão para o .gp.</p>
-            </div>
-          </aside>
-          <aside id="video-panel" class="video-panel" aria-label="Vídeo do YouTube" hidden>
-            <div class="video-load">
-              <label>Vídeo do YouTube
-                <input id="video-url" type="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
-              </label>
-              <button id="video-load" type="button">Mostrar</button>
-            </div>
-            <label id="video-results-label" hidden>Vídeos encontrados
-              <select id="video-results"></select>
-            </label>
-            <p id="video-manual" class="hint" hidden>Pesquisa automática desligada<span id="video-manual-reason"></span> — ver docs/CHAVE_YOUTUBE.md no projeto.
-              <a id="video-search-link" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Procurar no YouTube</a>
-              e colar aqui o endereço do vídeo.</p>
-            <div id="video-frame" class="video-frame"></div>
-            <p id="video-status" class="hint" role="status" aria-live="polite" hidden></p>
-            <a id="video-open" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" hidden>Abrir o vídeo no YouTube</a>
-            <label>Início da música no vídeo (segundos)
-              <input id="video-offset" type="number" step="0.1" value="0">
-            </label>
-            <button id="video-mark" type="button" class="mark" title="Com o vídeo a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-            <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
-              <span>Adiantar a partitura</span>
-              <button type="button" class="icon" data-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
-              <button type="button" class="icon" data-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
-              <span>Atrasar a partitura</span>
-              <button type="button" class="icon" data-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
-              <button type="button" class="icon" data-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
-            </div>
-            <p class="hint">Marcar início: ponha o vídeo a tocar (no próprio vídeo) e carregue no botão quando ouvir o primeiro tempo do compasso 1. Se a partitura for adiantada ou atrasada em relação ao vídeo, use "Atrasar" / "Adiantar a partitura", mesmo a tocar.</p>
-            <label class="check"><input id="video-sync" type="checkbox" checked> Acompanhar Tocar, Pausa, Parar e posição da partitura</label>
-            <label class="check"><input id="video-mute-score" type="checkbox"> Silenciar os sons da partitura (ouvir só o vídeo)</label>
-            <p class="hint">O vídeo vem do YouTube (youtube-nocookie.com) e precisa de internet. Acerte o início da música no vídeo para as notas coincidirem.</p>
-          </aside>
-          </div>
-        </div>
-        <p class="hint">Clique numa nota para começar a tocar a partir daí. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>.</p>
-      </section>
-      <div id="track-results"></div>
-      <p class="hint">Confirme as notas antes de usar. Legenda da pré-visualização: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
-    </section>
 
-    <footer>
-      <p>Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados.</p>
-      <p id="version"></p>
-    </footer>
-  </main>
+          <section id="status" role="status" aria-live="polite" hidden></section>
+          <p class="hint page-foot">Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados.</p>
+        </section>
+
+        <!-- 2. Resultado -->
+        <section class="page" data-page="resultado" aria-labelledby="h-resultado" hidden>
+          <header class="page-head">
+            <div>
+              <h1 id="h-resultado" tabindex="-1">Resultado</h1>
+              <p class="page-sub" data-song-line>Ainda não há nenhuma música convertida.</p>
+            </div>
+            <div class="page-actions" data-needs-song hidden>
+              <a id="download" class="button secondary" download>Descarregar .gp5</a>
+              <a class="button" href="#/tocar">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg>
+                Abrir no leitor</a>
+            </div>
+          </header>
+          <div class="empty card" data-empty>
+            <p>Converta uma música para ver aqui o resumo, os avisos e o ficheiro Guitar Pro.</p>
+            <a class="button" href="#/converter">Ir para Converter</a>
+          </div>
+          <section id="result" hidden>
+            <dl id="summary" class="summary"></dl>
+            <div id="warnings-box" class="card warnings" hidden>
+              <h2 class="card-title">Avisos</h2>
+              <ul id="warnings"></ul>
+            </div>
+            <div id="track-results"></div>
+            <p class="hint">Confirme as notas antes de usar. Legenda da pré-visualização: W/H/Q/E/S/T = semibreve…fusa, “.” = pontuada, minúsculas = pausa, (n) = ligadura/ghost, h = hammer/pull, / = slide, b = bend, ~ = vibrato.</p>
+          </section>
+        </section>
+
+        <!-- 3. Tocar -->
+        <section class="page page-wide" data-page="tocar" aria-labelledby="h-tocar" hidden>
+          <header class="page-head">
+            <div>
+              <h1 id="h-tocar" tabindex="-1">Tocar</h1>
+              <p class="page-sub" data-song-line>Ainda não há nenhuma música convertida.</p>
+            </div>
+          </header>
+          <div class="empty card" data-empty>
+            <p>Converta uma música para a tocar aqui: partitura, tab ou pista 3D, com o áudio ou o vídeo da música.</p>
+            <a class="button" href="#/converter">Ir para Converter</a>
+          </div>
+          <section id="score-box" class="score-box" aria-labelledby="score-title" hidden>
+            <h2 id="score-title" class="sr-only">Partitura</h2>
+            <div class="score-toolbar">
+              <label>Vista
+                <select id="score-view">
+                  <option value="Default" selected>Pauta e tab</option>
+                  <option value="Tab">Só tab</option>
+                  <option value="Score">Só pauta</option>
+                  <option value="3D">Pista 3D (Rocksmith)</option>
+                </select>
+              </label>
+              <label id="score-3d-track-label" hidden>Track na pista 3D
+                <select id="score-3d-track"></select>
+              </label>
+              <label id="score-3d-tilt-label" hidden title="Todo à direita: vista de cima, na vertical (bom para alinhar as notas com o desenho da música)">Inclinação da câmara (→ vista de cima)
+                <input id="score-3d-tilt" type="range" min="0" max="150" value="50">
+              </label>
+              <label id="score-3d-side-label" hidden>Ângulo lateral
+                <input id="score-3d-side" type="range" min="-100" max="100" value="0">
+              </label>
+              <div class="score-player">
+                <button id="score-play" type="button" disabled>▶ Tocar</button>
+                <button id="score-stop" type="button" disabled>■ Parar</button>
+                <label>Velocidade
+                  <select id="score-speed">
+                    <option value="0.5">50%</option>
+                    <option value="0.75">75%</option>
+                    <option value="1" selected>100%</option>
+                    <option value="1.25">125%</option>
+                  </select>
+                </label>
+                <button id="audio-toggle" type="button" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Áudio</button>
+                <button id="video-toggle" type="button" aria-pressed="false" title="Ligar ou desligar o vídeo (desligado: fica em pausa e volta o som da partitura)">Vídeo YouTube</button>
+              </div>
+            </div>
+            <div class="score-seek">
+              <span id="score-time" class="score-time">0:00 / 0:00</span>
+              <input id="score-seek" type="range" min="0" max="1000" step="1" value="0" disabled aria-label="Posição na música (clique ou arraste para avançar ou recuar)">
+            </div>
+            <div id="score-tracks" class="score-tracks"></div>
+            <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
+            <div id="score-stage" class="score-stage">
+              <div class="score-main">
+                <div id="highway" class="highway" hidden></div>
+                <p id="highway-legend" class="hint" hidden>Pista 3D: linhas claras = compassos (com o número), linhas ténues = tempos; em cima, o compasso atual, o progresso e a letra (sílaba atual a amarelo) · nome do acorde por cima do quadro (calculado pelas notas) · ao tocar, a nota brilha e o número fica na corda enquanto soa · rasto a subir = bend (↑1 = um tom), ↑↓ bend e release, PB pre-bend · rasto inclinado = slide (nota de destino translúcida = não se ataca) · H/P hammer-on/pull-off · PM palm mute · losango = harmónico (AH/PH/TH/SH) · rasto ondulado = vibrato · T tapping · (n) ghost note · X nota morta · ↓/↑ ao lado do acorde = rasgueado.</p>
+                <div id="score" class="score"></div>
+              </div>
+              <div class="score-side">
+              <aside id="audio-panel" class="side-panel" aria-label="Áudio da música" hidden>
+                <audio id="audio-preview" preload="auto"></audio>
+                <div class="side-head">
+                  <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
+                  <button id="audio-collapse" type="button" class="icon" aria-expanded="true" aria-controls="audio-panel-body" title="Colapsar: fica só o Tocar e o tempo">▴</button>
+                  <button id="audio-hide" type="button" class="icon" title="Esconder o painel (o áudio continua; volta com o botão Áudio, junto à partitura)" aria-label="Esconder o painel do áudio">✕</button>
+                </div>
+                <div class="audio-transport">
+                  <button id="audio-play" type="button">▶ Tocar</button>
+                  <span id="audio-time" class="score-time">0:00 / 0:00</span>
+                </div>
+                <div id="audio-panel-body" class="side-body">
+                <label class="audio-offset">Início da música no áudio (s)
+                  <input id="audio-offset" type="number" min="-60" max="3600" step="0.01" value="0">
+                </label>
+                <button id="audio-mark" type="button" class="mark" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+                <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
+                  <span>Adiantar a partitura</span>
+                  <button type="button" class="icon" data-audio-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
+                  <button type="button" class="icon" data-audio-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
+                  <span>Atrasar a partitura</span>
+                  <button type="button" class="icon" data-audio-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
+                  <button type="button" class="icon" data-audio-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
+                </div>
+                <p id="audio-sync-status" class="hint" role="status" aria-live="polite" hidden></p>
+                <div class="tempo-row">
+                  <label class="audio-offset">Tempo da partitura (BPM)
+                    <input id="audio-tempo" type="number" min="20" max="400" step="0.1" value="120">
+                  </label>
+                  <button type="button" class="icon" data-tempo-nudge="-0.1" title="A partitura vai-se adiantando ao longo da música">−0,1</button>
+                  <button type="button" class="icon" data-tempo-nudge="0.1" title="A partitura vai-se atrasando ao longo da música">+0,1</button>
+                  <button id="audio-tempo-reset" type="button" class="icon" title="Voltar ao tempo do PDF">Repor</button>
+                </div>
+                <label class="volume"><span class="volume-head">Volume da música <span id="music-volume-value" class="muted">100%</span></span>
+                  <input id="music-volume" type="range" min="0" max="100" step="1" value="100">
+                </label>
+                <label class="volume"><span class="volume-head">Volume das notas <span id="notes-volume-value" class="muted">50%</span></span>
+                  <input id="notes-volume" type="range" min="0" max="100" step="1" value="50">
+                </label>
+                <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
+                <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante). Se a partitura for adiantada ou atrasada em relação à música, use "Atrasar" / "Adiantar a partitura", mesmo a tocar (o início pode ficar antes do 0: o áudio espera). Se o desacerto for crescendo ao longo da música, afine o "Tempo da partitura": baixe-o se a partitura se vai adiantando, suba-o se se vai atrasando. Na pista 3D, a música aparece desenhada no chão. O mesmo acerto e o mesmo tempo vão para o .gp.</p>
+                </div>
+              </aside>
+              <aside id="video-panel" class="video-panel" aria-label="Vídeo do YouTube" hidden>
+                <div class="video-load">
+                  <label>Vídeo do YouTube
+                    <input id="video-url" type="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off">
+                  </label>
+                  <button id="video-load" type="button">Mostrar</button>
+                </div>
+                <label id="video-results-label" hidden>Vídeos encontrados
+                  <select id="video-results"></select>
+                </label>
+                <p id="video-manual" class="hint" hidden>Pesquisa automática desligada<span id="video-manual-reason"></span> — ver docs/CHAVE_YOUTUBE.md no projeto.
+                  <a id="video-search-link" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Procurar no YouTube</a>
+                  e colar aqui o endereço do vídeo.</p>
+                <div id="video-frame" class="video-frame"></div>
+                <p id="video-status" class="hint" role="status" aria-live="polite" hidden></p>
+                <a id="video-open" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" hidden>Abrir o vídeo no YouTube</a>
+                <label>Início da música no vídeo (segundos)
+                  <input id="video-offset" type="number" step="0.1" value="0">
+                </label>
+                <button id="video-mark" type="button" class="mark" title="Com o vídeo a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+                <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
+                  <span>Adiantar a partitura</span>
+                  <button type="button" class="icon" data-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
+                  <button type="button" class="icon" data-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
+                  <span>Atrasar a partitura</span>
+                  <button type="button" class="icon" data-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
+                  <button type="button" class="icon" data-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
+                </div>
+                <p class="hint">Marcar início: ponha o vídeo a tocar (no próprio vídeo) e carregue no botão quando ouvir o primeiro tempo do compasso 1. Se a partitura for adiantada ou atrasada em relação ao vídeo, use "Atrasar" / "Adiantar a partitura", mesmo a tocar.</p>
+                <label class="check"><input id="video-sync" type="checkbox" checked> Acompanhar Tocar, Pausa, Parar e posição da partitura</label>
+                <label class="check"><input id="video-mute-score" type="checkbox"> Silenciar os sons da partitura (ouvir só o vídeo)</label>
+                <p class="hint">O vídeo vem do YouTube (youtube-nocookie.com) e precisa de internet. Acerte o início da música no vídeo para as notas coincidirem.</p>
+              </aside>
+              </div>
+            </div>
+            <p class="hint">Clique numa nota para começar a tocar a partir daí. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>.</p>
+          </section>
+        </section>
+
+        <!-- 4. Áudio -->
+        <section class="page" data-page="audio" aria-labelledby="h-audio" hidden>
+          <header class="page-head">
+            <div>
+              <h1 id="h-audio" tabindex="-1">Áudio</h1>
+              <p class="page-sub">A música real a tocar com a partitura. O acerto (início e tempo) faz-se no leitor, no painel do áudio, e fica guardado por música.</p>
+            </div>
+          </header>
+          <div class="empty card" data-empty>
+            <p>Converta primeiro uma música: o áudio é juntado à partitura dessa música.</p>
+            <a class="button" href="#/converter">Ir para Converter</a>
+          </div>
+          <div class="audio-box card" data-needs-song hidden>
+            <div class="audio-head">
+              <div>
+                <h2 class="card-title">Áudio da música <span class="hint-inline">(opcional)</span></h2>
+                <p class="hint">Toca com a partitura (os controlos de sincronização ficam no leitor, ao lado dela) e, com áudio, o download é um .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, é .gp5. O áudio fica só no seu computador.</p>
+              </div>
+              <div class="audio-file">
+                <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav" hidden>
+                <button id="audio-choose" type="button" class="icon">Escolher áudio…</button>
+                <span id="audio-name" class="audio-name">Nenhum ficheiro</span>
+                <span id="audio-last" class="audio-name" hidden></span>
+                <button id="audio-remove" type="button" class="icon" hidden>Remover</button>
+              </div>
+            </div>
+            <p id="audio-status" class="hint" role="status" hidden></p>
+            <details id="audio-url-box" class="audio-url">
+              <summary>Obter o áudio de um endereço (URL) — um vídeo do YouTube ou um ficheiro</summary>
+              <p class="hint"><b>YouTube:</b> o áudio de um vídeo, para uso pessoal, com a aplicação aberta neste computador (em http://127.0.0.1 ou localhost). Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito. Outros endereços: um ficheiro de áudio ou vídeo direto, conteúdo com licença Creative Commons ou de domínio público, ou um site seu declarado em AUDIO_DOWNLOAD_HOSTS. O servidor descarrega e converte para MP3 com o FFmpeg; os ficheiros temporários são apagados no fim.</p>
+              <p id="audio-url-unavailable" class="hint error-text" hidden></p>
+              <p id="audio-url-youtube" class="hint" hidden></p>
+              <form id="audio-url-form" class="audio-url-form" novalidate>
+                <label class="audio-url-field">Endereço ou ID de vídeo do YouTube
+                  <input id="audio-url" type="text" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3 ou https://youtu.be/…" autocomplete="off" spellcheck="false" required>
+                </label>
+                <label>Formato
+                  <select id="audio-format" disabled><option value="mp3" selected>MP3</option></select>
+                </label>
+                <label>Qualidade
+                  <select id="audio-bitrate">
+                    <option value="128">128 kbit/s</option>
+                    <option value="192" selected>192 kbit/s</option>
+                    <option value="256">256 kbit/s</option>
+                    <option value="320">320 kbit/s</option>
+                  </select>
+                </label>
+                <label class="check audio-url-consent"><input id="audio-authorized" type="checkbox"> É para uso pessoal, ou tenho autorização para descarregar este conteúdo</label>
+                <div class="audio-url-actions">
+                  <button id="audio-url-start" type="submit">Obter MP3</button>
+                  <button id="audio-url-cancel" type="button" class="icon" hidden>Cancelar</button>
+                </div>
+              </form>
+              <div id="audio-url-progress" class="audio-url-progress" hidden>
+                <progress id="audio-url-bar" max="100" value="0"></progress>
+                <span id="audio-url-percent" class="score-time">0%</span>
+              </div>
+              <p id="audio-url-status" class="hint" role="status" aria-live="polite" hidden></p>
+              <a id="audio-url-save" class="button" hidden download>Guardar o MP3</a>
+            </details>
+            <p class="hint"><a href="#/tocar">Ir para o leitor e acertar o início →</a></p>
+          </div>
+        </section>
+
+        <!-- 5. Definições -->
+        <section class="page" data-page="definicoes" aria-labelledby="h-definicoes" hidden>
+          <header class="page-head">
+            <div>
+              <h1 id="h-definicoes" tabindex="-1">Definições</h1>
+              <p class="page-sub">Estado do servidor e informação da aplicação.</p>
+            </div>
+          </header>
+          <div class="settings-grid">
+            <section class="card" aria-labelledby="h-health">
+              <h2 id="h-health" class="card-title">Estado do servidor</h2>
+              <ul id="health-list" class="health-list"><li class="muted">A verificar…</li></ul>
+            </section>
+            <section class="card" aria-labelledby="h-about">
+              <h2 id="h-about" class="card-title">Sobre</h2>
+              <p id="version" class="muted"></p>
+              <p class="hint">Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>; fontes Sora e IBM Plex Sans (SIL Open Font License).</p>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
 </body>
 </html>

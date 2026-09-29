@@ -97,6 +97,18 @@ def test_favicon(client):
     assert icon.status_code == 200 and icon.headers["content-type"].startswith("image/svg+xml")
 
 
+def test_pages_navigation_and_fonts(client):
+    """One page per subject in index.html (shown by nav.js from the URL hash), fonts served locally."""
+    page = client.get("/").text
+    for name in ("converter", "resultado", "tocar", "audio", "definicoes"):
+        assert f'data-page="{name}"' in page and f'href="#/{name}"' in page
+    assert '<script src="nav.js" defer></script>' in page
+    assert client.get("/nav.js").headers["content-type"].startswith(("text/javascript", "application/javascript"))
+    for font in ("ibm-plex-sans.woff2", "sora.woff2"):
+        response = client.get(f"/vendor/fonts/{font}")
+        assert response.status_code == 200 and response.headers["content-type"] == "font/woff2"
+
+
 def test_page_files_are_revalidated(client):
     for path in ("/", "/app.js", "/styles.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"

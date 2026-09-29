@@ -410,6 +410,10 @@
       renderResult(payload.report);
       status.hidden = true;
       result.hidden = false;
+      const { title, artist, tempo } = payload.report;
+      document.dispatchEvent(new CustomEvent("song-converted", {
+        detail: { title, artist, tempo, tracks: payload.report.tracks.length },
+      }));
       if (window.ScoreView) {
         const lyricsTrack = Boolean(payload.report.lyrics && payload.report.lyrics.track === LYRICS_TRACK);
         window.ScoreView.show(gp5, payload.report.tracks.length, trackColors, payload.report.timed_lyrics, lyricsTrack);

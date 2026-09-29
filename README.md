@@ -30,6 +30,10 @@ Se a tab gravada tiver notação rítmica (hastes, barras, pausas — "tab com h
 
 Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre a pré-visualização: o ritmo é uma estimativa.
 
+## Interface
+
+Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Converter** (PDFs das tracks, metadados e ritmo), **Resultado** (resumo, avisos, pré-visualização e download), **Tocar** (partitura, tab ou pista 3D, com os painéis do áudio e do vídeo ao lado), **Áudio** (escolher o áudio da música ou obtê-lo de um endereço) e **Definições** (estado do servidor e versão). Cada página tem o seu endereço (`#/converter`, `#/tocar`…): os botões recuar/avançar do browser funcionam e nada é recarregado ao mudar de página — a música continua a tocar. Tema claro ou escuro conforme o sistema; fontes Sora e IBM Plex Sans incluídas em `app/static/vendor/fonts/` (SIL OFL 1.1).
+
 ## Arranque rápido (Windows)
 
 Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8020 e iniciam o servidor (Ctrl+C para parar):
