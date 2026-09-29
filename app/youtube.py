@@ -68,6 +68,7 @@ def search(query: str, api_key: str) -> list[dict]:
             "part": "snippet",
             "type": "video",
             "videoEmbeddable": "true",
+            "videoSyndicated": "true",  # playable outside youtube.com (fewer "video unavailable")
             "maxResults": MAX_RESULTS,
             "q": query,
             "key": api_key,

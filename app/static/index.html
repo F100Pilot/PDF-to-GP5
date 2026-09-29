@@ -155,6 +155,14 @@
             <label>Início da música no vídeo (segundos)
               <input id="video-offset" type="number" step="0.1" value="0">
             </label>
+            <div class="video-offset-tools">
+              <button id="video-mark" type="button" title="Com o vídeo a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+              <button type="button" class="icon" data-nudge="-1">−1 s</button>
+              <button type="button" class="icon" data-nudge="-0.1">−0,1 s</button>
+              <button type="button" class="icon" data-nudge="0.1">+0,1 s</button>
+              <button type="button" class="icon" data-nudge="1">+1 s</button>
+            </div>
+            <p class="hint">Marcar início: ponha o vídeo a tocar (no próprio vídeo) e carregue no botão quando ouvir o primeiro tempo do compasso 1. Os botões ± afinam o acerto, mesmo a tocar.</p>
             <label class="check"><input id="video-sync" type="checkbox" checked> Acompanhar Tocar, Pausa, Parar e posição da partitura</label>
             <label class="check"><input id="video-mute-score" type="checkbox"> Silenciar os sons da partitura (ouvir só o vídeo)</label>
             <p class="hint">O vídeo vem do YouTube (youtube-nocookie.com) e precisa de internet. Acerte o início da música no vídeo para as notas coincidirem.</p>

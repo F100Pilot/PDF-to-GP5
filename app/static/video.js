@@ -39,6 +39,25 @@
   let onMuteScore = () => {};
   const song = { ms: 0, speed: 1, playing: false }; // score position (song time) and state
   let lastDriftFix = 0;
+  // Last time reported by the player: { time (s), at (performance.now()), playing, rate }.
+  let video = null;
+
+  // Why the embed player refused the video (YouTube IFrame player error codes).
+  const PLAYER_ERRORS = {
+    2: "Endereço de vídeo inválido.",
+    5: "O leitor do YouTube não conseguiu reproduzir este vídeo.",
+    100: "O vídeo não existe ou é privado.",
+    101: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
+    150: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
+    153: "O YouTube recusou o leitor nesta página (configuração do leitor). Tente outro vídeo ou abra-o no YouTube.",
+  };
+
+  // Current video time, extrapolated from the player's last report; null when never reported.
+  function videoTime() {
+    if (!video) return null;
+    const elapsed = video.playing ? ((performance.now() - video.at) / 1000) * video.rate : 0;
+    return video.time + elapsed;
+  }
 
   function setStatus(text) {
     statusLine.textContent = text;
@@ -102,6 +121,7 @@
     }
     if (parsed.start !== null && !Number(offsetInput.value)) offsetInput.value = String(parsed.start);
     ready = false;
+    video = null;
     frame = document.createElement("iframe");
     frame.title = "Vídeo do YouTube";
     frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
@@ -126,12 +146,27 @@
       return;
     }
     if (!data || typeof data !== "object") return;
+    if (data.event === "onError") {
+      const code = Number(data.info);
+      setStatus(PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`);
+      return;
+    }
     if (data.event === "onReady" || (data.event === "infoDelivery" && !ready)) {
       ready = true;
       setStatus("");
       send("setPlaybackRate", [song.speed]);
     }
-    const time = data.event === "infoDelivery" && data.info ? data.info.currentTime : undefined;
+    const info = data.event === "infoDelivery" && data.info && typeof data.info === "object" ? data.info : null;
+    const time = info ? info.currentTime : undefined;
+    if (info) {
+      const previous = video || { time: 0, playing: false, rate: 1 };
+      video = {
+        time: typeof time === "number" ? time : videoTime() ?? previous.time,
+        at: performance.now(),
+        playing: typeof info.playerState === "number" ? info.playerState === 1 : previous.playing,
+        rate: typeof info.playbackRate === "number" && info.playbackRate > 0 ? info.playbackRate : previous.rate,
+      };
+    }
     if (typeof time === "number" && song.playing && syncInput.checked) {
       const now = performance.now();
       if (now - lastDriftFix > DRIFT_CHECK_MS && Math.abs(time - expectedTime()) > DRIFT_S) {
@@ -195,10 +230,29 @@
       loadVideo();
     }
   });
+  function setOffset(seconds) {
+    offsetInput.value = String(Math.max(0, Math.round(seconds * 100) / 100));
+    saveSettings();
+    if (syncInput.checked && song.playing) seekVideo();
+  }
+
   offsetInput.addEventListener("change", () => {
     saveSettings();
     if (syncInput.checked) seekVideo();
   });
+  // "Marcar início": the video time now is where bar 1 starts.
+  document.getElementById("video-mark").addEventListener("click", () => {
+    const now = videoTime();
+    if (now === null) {
+      setStatus("O leitor ainda não indicou o tempo do vídeo: ponha o vídeo a tocar e volte a carregar.");
+      return;
+    }
+    setOffset(now);
+    setStatus(`Início marcado aos ${Number(offsetInput.value).toFixed(2)} s.`);
+  });
+  for (const button of document.querySelectorAll("[data-nudge]")) {
+    button.addEventListener("click", () => setOffset(offset() + Number(button.dataset.nudge)));
+  }
   muteInput.addEventListener("change", () => onMuteScore(muteInput.checked));
 
   window.VideoSync = {
