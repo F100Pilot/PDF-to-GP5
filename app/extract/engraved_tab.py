@@ -11,7 +11,7 @@ import itertools
 from dataclasses import dataclass, replace
 
 from ..model import Link, TabEvent, TabSystem
-from .annotations import dynamics, lyrics, section_labels
+from .annotations import dynamics, hairpins, lyrics, section_labels
 from .bar_signs import navigation_marks, repeat_counts, repeat_signs, tempo_marks, time_signatures, voltas
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
@@ -478,6 +478,11 @@ def _trim_margins(
     return bars, signatures
 
 
+def _next_top(staves: list[list[_StaffLine]], bottom: float, default: float) -> float:
+    """Top of the first staff below ``bottom`` (the page height when none)."""
+    return min((staff[0].y for staff in staves if staff[0].y > bottom), default=default)
+
+
 def extract_engraved_systems(page: Page) -> list[TabSystem]:
     """Tab staves on the page; staves without fret numbers are kept as rest bars."""
     systems: list[TabSystem] = []
@@ -528,6 +533,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             sections=section_labels(page, top, x0, x1, spacing),
             lyrics=lyrics(page, bottom, x0, x1, spacing),
             dynamics=dynamics(page, top, bottom, x0, x1, spacing),
+            hairpins=hairpins(page, bottom, _next_top(staves, bottom, page.height), x0, x1, spacing),
             time_signatures=signatures,
             repeat_starts=starts,
             repeat_ends=repeat_counts(page, top, x0, x1, spacing, ends),

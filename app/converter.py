@@ -19,6 +19,9 @@ from .repeats import playback_order
 from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, signature_units, split_units
 from .tunings import TUNINGS, resolve_tuning
 
+# MIDI velocities of the dynamic marks (ppp … fff); f is Guitar Pro's default.
+MIN_VELOCITY, DEFAULT_VELOCITY, MAX_VELOCITY = 15, 95, 127
+
 INSTRUMENTS: dict[str, int] = {
     "nylon": 24,
     "steel": 25,
@@ -132,19 +135,80 @@ def _main_staves(systems: list[TabSystem], warnings: list[str]) -> tuple[int, li
     return string_count, [s for s in systems if s.string_count == string_count]
 
 
+@dataclass
+class _Ramp:
+    """A hairpin, possibly drawn over several lines: (system index, x0, x1) per line."""
+
+    direction: int  # +1 crescendo, -1 diminuendo
+    segments: list[tuple[int, float, float]]
+    start: int = 0  # velocity where it starts
+    end: int = 0  # velocity it reaches
+
+
+def _hairpin_ramps(systems: list[TabSystem]) -> list[_Ramp]:
+    """Hairpins in reading order; one that runs to the end of a line and goes on at the start
+    of the next line is the same hairpin."""
+    ramps: list[_Ramp] = []
+    for index, system in enumerate(systems):
+        for x0, x1, direction in sorted(system.hairpins):
+            if ramps and ramps[-1].direction == direction and ramps[-1].segments[-1][0] == index - 1:
+                previous = systems[index - 1]
+                reach = 6 * system.char_width
+                if ramps[-1].segments[-1][2] >= previous.end_x - reach and x0 <= system.start_x + reach:
+                    ramps[-1].segments.append((index, x0, x1))
+                    continue
+            ramps.append(_Ramp(direction, [(index, x0, x1)]))
+    return ramps
+
+
 def _apply_dynamics(systems: list[TabSystem]) -> None:
-    """Each dynamic mark sets the velocity of the notes from its position on, across lines."""
+    """Each dynamic mark sets the velocity of the notes from its position on, across lines.
+
+    A hairpin changes it gradually over its length: from the velocity in force where it starts
+    to the next dynamic mark (at its end or on the next line), or two levels up / down when no
+    mark follows (the notes after it keep that level).
+    """
+    marks = [(i, x, velocity) for i, system in enumerate(systems) for x, velocity in system.dynamics]
+    ramps = _hairpin_ramps(systems)
+    for ramp in ramps:
+        first, x0, _ = ramp.segments[0]
+        last, _, x1 = ramp.segments[-1]
+        slack = systems[first].char_width
+        before = [v for i, x, v in marks if (i, x) <= (first, x0 + 2 * slack)]
+        ramp.start = before[-1] if before else DEFAULT_VELOCITY
+        after = [v for i, x, v in marks if (i, x) >= (last, x1 - 2 * slack) and i <= last + 1]
+        if after:
+            ramp.end = after[0]
+        else:
+            ramp.end = min(max(ramp.start + 32 * ramp.direction, MIN_VELOCITY), MAX_VELOCITY)
+            marks.append((last, x1, ramp.end))  # the level reached stays
+    marks.sort()
+
+    def ramped(index: int, x: float, char_width: float) -> int | None:
+        for ramp in ramps:
+            total = sum(x1 - x0 for _, x0, x1 in ramp.segments)
+            done = 0.0
+            for i, x0, x1 in ramp.segments:
+                if i == index and x0 - char_width <= x <= x1:
+                    t = min(max((done + x - x0) / total, 0.0), 1.0)
+                    velocity = ramp.start + (ramp.end - ramp.start) * t
+                    # GP5 keeps 8 levels (ppp … fff, 16 apart): the nearest one, not the one below.
+                    return MIN_VELOCITY + 16 * round((velocity - MIN_VELOCITY) / 16)
+                done += x1 - x0
+        return None
+
     current: int | None = None
-    for system in systems:
-        marks = sorted(system.dynamics)
-        index = 0
+    position = 0
+    for index, system in enumerate(systems):
         for event in sorted(system.events, key=lambda e: e.x):
-            while index < len(marks) and marks[index][0] <= event.x + system.char_width:
-                current = marks[index][1]
-                index += 1
-            event.velocity = current
-        if index < len(marks):
-            current = marks[-1][1]
+            while position < len(marks) and marks[position][:2] <= (index, event.x + system.char_width):
+                current = marks[position][2]
+                position += 1
+            velocity = ramped(index, event.x, system.char_width) if ramps else None
+            event.velocity = velocity if velocity is not None else current
+        while position < len(marks) and marks[position][0] <= index:
+            current = marks[position][2]
+            position += 1
 
 
 def _bar_of(system: TabSystem, x: float, previous: int) -> int:
@@ -352,6 +416,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     report = {
         "name": name,
         "dynamics": sum(len(s.dynamics) for s in kept),
+        "hairpins": sum(len(s.hairpins) for s in kept),
         "filename": track.filename,
         "instrument": instrument,
         "strings": string_count,

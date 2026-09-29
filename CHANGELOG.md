@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Crescendo e diminuendo (os "<" / ">" desenhados por baixo da pauta): o volume das notas muda gradualmente ao longo do sinal, também quando continua na linha seguinte, até à dinâmica que vem a seguir (ex.: f → ppp); sem dinâmica a seguir, sobe/desce dois níveis e fica nesse nível. No GP5 são os 8 níveis do Guitar Pro (ppp … fff).
 - URL → MP3 do YouTube para uso pessoal: com a aplicação aberta no próprio computador (127.0.0.1/localhost, como abrem os scripts de arranque), o áudio de um vídeo do YouTube passa a ser obtido e convertido para MP3 — antes só vídeos Creative Commons, e a música de uma canção era sempre recusada. Pedidos de outro computador, ou por um nome público (proxy), continuam limitados ao Creative Commons.
 - Quando o áudio de um endereço falha, a página diz a causa: falta o runtime JavaScript (Deno/Node.js), o YouTube pediu para confirmar que não é um robô, restrição de idade, vídeo privado ou indisponível, ou nenhum formato de áudio. Um vídeo do YouTube sem o runtime ou o `yt-dlp-ejs` é recusado logo ao pedir, com o que falta.
 - Painel do áudio: ▴ colapsa-o (fica só o Tocar e o tempo; a escolha fica guardada no browser) e ✕ esconde-o, dando a largura toda à partitura; o áudio continua a tocar e o painel volta com o botão "Áudio" junto ao Tocar da partitura.
@@ -28,6 +29,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Corrigido
+- Dinâmicas escritas com uma letra por glifo ("ppp" como três "p", "mf" como "m" + "f"): eram lidas como p e f; passam a ppp e mf.
 - Pista 3D: a barra de uma corda solta (0) deixa de ocupar a janela de trastes de vários tempos (muitas vezes 5 ou mais); fica com a largura da maior posição da mão nessa janela, no mínimo 4 trastes.
 - Conversão e análise do PDF falhavam ("zip() argument 2 is longer than argument 1") quando uma linha por baixo da tab só tinha marcações como "let ring" ou "PM".
 - Letra: marcações "let ring", "P.M." e "palm mute" impressas na mesma linha da letra deixam de entrar na letra.

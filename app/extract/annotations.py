@@ -1,10 +1,10 @@
-"""Text around an engraved tab staff: section names, lyrics and dynamics."""
+"""Text around an engraved tab staff: section names, lyrics and dynamics (marks and hairpins)."""
 
 from __future__ import annotations
 
 import re
 
-from .pdf_reader import Char, Page, TextLine, group_lines
+from .pdf_reader import Char, Page, Segment, TextLine, group_lines
 from .rhythm_marks import glyph_ys
 
 _LETTERS = re.compile(r"[A-Za-zÀ-ÿ]{2,}")
@@ -29,6 +29,8 @@ _DYNAMIC_GLYPHS = {
     "": "fff",
     "": "fff",  # ffff
 }
+# Single SMuFL dynamic letters, which editors may set one by one ("ppp" as three p glyphs).
+_DYNAMIC_LETTERS = {"\ue520": "p", "\ue521": "m", "\ue522": "f"}
 # Guitar Pro velocities (PyGuitarPro Velocities: 15 + 16 * step).
 VELOCITIES = {"ppp": 15, "pp": 31, "p": 47, "mp": 63, "mf": 79, "f": 95, "ff": 111, "fff": 127}
 
@@ -131,13 +133,37 @@ def _without_techniques(words: list[list[Char]]) -> list[list[Char]]:
 def dynamics(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[tuple[float, int]]:
     """Dynamic marks (SMuFL glyphs or italic/bold letters) near the staff as (x, velocity)."""
     marks: list[tuple[float, int]] = []
-    for char in page.chars:
-        name = _DYNAMIC_GLYPHS.get(char.text)
-        # Music-font box sits about one em below the glyph: use the corrected position only,
-        # so a mark between two staves is not claimed by both.
-        drawn_y = glyph_ys(char)[1]
-        if name and x0 - spacing <= char.xc <= x1 and top - 3 * spacing <= drawn_y <= bottom + 5 * spacing:
-            marks.append((char.x0, VELOCITIES[name]))
+    # Music-font box sits about one em below the glyph: use the corrected position only,
+    # so a mark between two staves is not claimed by both.
+    glyphs = sorted(
+        (
+            c
+            for c in page.chars
+            if (c.text in _DYNAMIC_GLYPHS or c.text in _DYNAMIC_LETTERS)
+            and x0 - spacing <= c.xc <= x1
+            and top - 3 * spacing <= glyph_ys(c)[1] <= bottom + 5 * spacing
+        ),
+        key=lambda c: (round(glyph_ys(c)[1]), c.x0),
+    )
+    run: list[Char] = []
+    for char in [*glyphs, None]:
+        # Letters set one by one ("ppp" as three p glyphs) make one mark.
+        if (
+            char is not None
+            and run
+            and char.text in _DYNAMIC_LETTERS
+            and run[-1].text in _DYNAMIC_LETTERS
+            and abs(glyph_ys(char)[1] - glyph_ys(run[-1])[1]) < 1
+            and char.x0 - run[-1].x1 < 0.5 * spacing
+        ):
+            run.append(char)
+            continue
+        if run:
+            name = _DYNAMIC_GLYPHS.get(run[0].text) if len(run) == 1 and run[0].text in _DYNAMIC_GLYPHS else None
+            name = name or "".join(_DYNAMIC_LETTERS.get(c.text, "?") for c in run)
+            if name in VELOCITIES:
+                marks.append((run[0].x0, VELOCITIES[name]))
+        run = [char] if char is not None else []
     text_chars = [
         c
         for c in page.chars
@@ -153,6 +179,42 @@ def dynamics(page: Page, top: float, bottom: float, x0: float, x1: float, spacin
             if token in VELOCITIES and _standalone(letters, word):
                 marks.append((word[0].x0, VELOCITIES[token]))
     return sorted(marks)
+
+
+def hairpins(
+    page: Page, bottom: float, below: float, x0: float, x1: float, spacing: float
+) -> list[tuple[float, float, int]]:
+    """Crescendo / diminuendo hairpins under the staff (down to ``below``, the next staff) as
+    (x0, x1, +1 for a crescendo "<" or -1 for a diminuendo ">").
+
+    A hairpin is two straight strokes over the same span, one rising and one falling: they open
+    to the right in a crescendo and close in a diminuendo. A hairpin continued on the next line
+    is drawn again there.
+    """
+
+    def ends(segment: Segment) -> tuple[float, float]:  # y at the left and right ends
+        return (segment.bottom, segment.top) if segment.rising else (segment.top, segment.bottom)
+
+    strokes = [
+        s
+        for s in page.segments
+        if s.rising is not None
+        and s.x1 - s.x0 >= 3 * spacing
+        and s.top > bottom
+        and s.bottom < below
+        and x0 - spacing <= s.x0
+        and s.x1 <= x1 + spacing
+    ]
+    found: list[tuple[float, float, int]] = []
+    for up in (s for s in strokes if s.rising):
+        for down in (s for s in strokes if not s.rising):
+            if abs(up.x0 - down.x0) > 0.5 * spacing or abs(up.x1 - down.x1) > 0.5 * spacing:
+                continue
+            left = abs(ends(up)[0] - ends(down)[0])
+            right = abs(ends(up)[1] - ends(down)[1])
+            if abs(right - left) >= 0.3 * spacing and min(left, right) <= spacing:
+                found.append((min(up.x0, down.x0), max(up.x1, down.x1), 1 if right > left else -1))
+    return sorted(set(found))
 
 
 def _standalone(letters: list[Char], word: list[Char]) -> bool:

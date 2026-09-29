@@ -80,6 +80,8 @@ class TabSystem:
     sections: list[tuple[float, str]] = field(default_factory=list)  # (x, "Chorus") above the staff
     lyrics: list[tuple[float, str, bool]] = field(default_factory=list)  # (x, syllable, joins next word)
     dynamics: list[tuple[float, int]] = field(default_factory=list)  # (x, MIDI velocity)
+    # Crescendo (+1) / diminuendo (-1) hairpins below the staff as (x0, x1, direction).
+    hairpins: list[tuple[float, float, int]] = field(default_factory=list)
     time_signatures: list[tuple[float, int, int]] = field(default_factory=list)  # (x, numerator, denominator)
     tempos: list[tuple[float, int]] = field(default_factory=list)  # (x, BPM) tempo marks above the staff
     signs: list[tuple[float, str]] = field(default_factory=list)  # (x, "Segno" / "Coda" / "Fine")

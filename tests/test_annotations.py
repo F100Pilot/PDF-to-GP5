@@ -1,7 +1,7 @@
 """Sections, lyrics, dynamics and written tuning."""
 
 from app.converter import _apply_dynamics, _lyric_syllables, _lyrics_text
-from app.extract.annotations import VELOCITIES, dynamics, lyrics, section_labels
+from app.extract.annotations import VELOCITIES, dynamics, hairpins, lyrics, section_labels
 from app.extract.metadata import _detect_tuning
 from app.extract.pdf_reader import Char, Page, Segment
 from app.model import TabEvent, TabSystem
@@ -59,6 +59,33 @@ def test_dynamics_from_glyph_and_standalone_text():
     assert marks == [(60, VELOCITIES["mf"]), (200, VELOCITIES["pp"])]
 
 
+def test_dynamic_letters_set_one_by_one_make_one_mark():
+    """Editors may set "ppp" as three p glyphs and "mf" as m + f: one mark each, not p / f."""
+    ppp = [Char("\ue520", 60 + 6 * i, 65 + 6 * i, BOTTOM + 30, BOTTOM + 50) for i in range(3)]
+    mf = [Char("\ue521", 200, 207, BOTTOM + 30, BOTTOM + 50), Char("\ue522", 208, 213, BOTTOM + 30, BOTTOM + 50)]
+    alone = [Char("\ue522", 400, 405, BOTTOM + 30, BOTTOM + 50)]
+    marks = dynamics(_page([*ppp, *mf, *alone]), TOP, BOTTOM, 50, 550, SPACING)
+    assert marks == [(60, VELOCITIES["ppp"]), (200, VELOCITIES["mf"]), (400, VELOCITIES["f"])]
+
+
+def _hairpin(x0: float, x1: float, y: float, opening: bool, gap: float = 12.0) -> list[Segment]:
+    """Two strokes from a point at one end to ``gap`` apart at the other."""
+    half = gap / 2
+    if opening:  # "<": upper stroke rises, lower one falls
+        return [Segment(x0, x1, y - half, y, rising=True), Segment(x0, x1, y, y + half, rising=False)]
+    return [Segment(x0, x1, y - half, y, rising=False), Segment(x0, x1, y, y + half, rising=True)]
+
+
+def test_hairpins_open_for_a_crescendo_and_close_for_a_diminuendo():
+    segments = [
+        *_hairpin(60, 200, BOTTOM + 40, opening=True),
+        *_hairpin(300, 500, BOTTOM + 40, opening=False),
+        Segment(60, 200, BOTTOM + 70, BOTTOM + 74, rising=True),  # a lone stroke is not a hairpin
+        *_hairpin(60, 200, 400, opening=True),  # under the next staff
+    ]
+    assert hairpins(_page(segments=segments), BOTTOM, 300, 50, 550, SPACING) == [(60, 200, 1), (300, 500, -1)]
+
+
 def _system(events=(), dyn=(), bars=(0.0, 100.0), numbers=(1,), lyr=()):
     return TabSystem(
         page=1,
@@ -80,6 +107,31 @@ def test_dynamics_carry_across_lines():
     second = _system([TabEvent(10, 1, 3)])
     _apply_dynamics([first, second])
     assert [e.velocity for e in first.events + second.events] == [None, 47, 47]
+
+
+def test_a_diminuendo_over_two_lines_ramps_down_to_the_next_mark():
+    first = _system([TabEvent(x, 1, 0) for x in (10, 40, 70, 95)], dyn=[(5, VELOCITIES["f"])])
+    first.hairpins = [(40, 100, -1)]
+    second = _system([TabEvent(x, 1, 0) for x in (10, 40, 90)], dyn=[(80, VELOCITIES["ppp"])])
+    second.hairpins = [(0, 60, -1)]
+    _apply_dynamics([first, second])
+    velocities = [e.velocity for e in first.events + second.events]
+    assert velocities[0] == VELOCITIES["f"] and velocities[-1] == VELOCITIES["ppp"]
+    assert velocities == sorted(velocities, reverse=True) and len(set(velocities)) >= 4  # step by step
+    assert all((v - 15) % 16 == 0 for v in velocities)  # Guitar Pro's levels
+
+
+def test_a_crescendo_with_no_mark_after_it_rises_two_levels_and_stays():
+    system = _system([TabEvent(x, 1, 0) for x in (10, 35, 90)], dyn=[(5, VELOCITIES["p"])])
+    system.hairpins = [(10, 60, 1)]
+    after = _system([TabEvent(10, 1, 0)])
+    _apply_dynamics([system, after])
+    assert [e.velocity for e in system.events + after.events] == [
+        VELOCITIES["p"],
+        VELOCITIES["mp"],
+        VELOCITIES["mf"],
+        VELOCITIES["mf"],
+    ]
 
 
 def test_lyric_syllables_keep_their_bar_and_place_in_the_bar():
