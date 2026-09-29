@@ -270,6 +270,13 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .side-panel button { margin: 0; }
 .side-panel button.icon { background: var(--panel); }
 .side-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Audio panel header: title, collapse (▴/▾) and hide (✕); collapsed, only the transport stays. */
+.side-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.side-head .side-title { flex: 1; min-width: 0; }
+.side-head button { padding: 2px 8px; line-height: 1.2; }
+.side-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+#audio-toggle { margin: 0; }
+#audio-toggle[aria-pressed="true"] { outline: 2px solid var(--text); }
 .volume input { padding: 0; width: 100%; cursor: pointer; }
 .volume { gap: 2px; }
 .volume-head { display: flex; justify-content: space-between; gap: 8px; }

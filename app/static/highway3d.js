@@ -650,23 +650,43 @@
     return { notes, chords };
   }
 
-  // For each note: the fret window [low, high] played around it (open strings ignored).
+  // Frets spanned by the fretted notes struck together with each note (1 when alone or open).
+  function chordSpans(notes) {
+    const spans = new Array(notes.length).fill(1);
+    for (let first = 0; first < notes.length; ) {
+      let last = first;
+      while (last + 1 < notes.length && notes[last + 1].tick === notes[first].tick) last += 1;
+      const frets = notes.slice(first, last + 1).filter((n) => n.fret > 0 && !n.dead).map((n) => n.fret);
+      const span = frets.length ? Math.max(...frets) - Math.min(...frets) + 1 : 1;
+      spans.fill(span, first, last + 1);
+      first = last + 1;
+    }
+    return spans;
+  }
+
+  // For each note: the fret window [low, high] played around it (open strings ignored), and
+  // `open`, the width of an open-string bar there: as wide as the widest hand position in the
+  // window (at least MIN_ANCHOR_WIDTH), never wider than the window. The window itself spans
+  // the notes of several beats, so it is often wider than any one hand position.
   function computeAnchors(notes) {
-    let previous = { low: 1, high: MIN_ANCHOR_WIDTH };
+    let previous = { low: 1, high: MIN_ANCHOR_WIDTH, open: MIN_ANCHOR_WIDTH };
+    const spans = chordSpans(notes);
     let start = 0;
     return notes.map((note) => {
       while (notes[start].tick < note.tick - ANCHOR_BEFORE) start += 1;
       let low = Infinity;
       let high = -Infinity;
+      let widest = 1;
       for (let i = start; i < notes.length && notes[i].tick <= note.tick + ANCHOR_AFTER; i += 1) {
         if (notes[i].fret > 0 && !notes[i].dead) {
           low = Math.min(low, notes[i].fret);
           high = Math.max(high, notes[i].fret);
+          widest = Math.max(widest, spans[i]);
         }
       }
       if (low === Infinity) return previous;
       if (high - low + 1 < MIN_ANCHOR_WIDTH) high = Math.min(FRETS, low + MIN_ANCHOR_WIDTH - 1);
-      previous = { low, high };
+      previous = { low, high, open: Math.min(high - low + 1, Math.max(MIN_ANCHOR_WIDTH, widest)) };
       return previous;
     });
   }
@@ -769,8 +789,8 @@
       let front; // distance from the gem centre to its front face
       if (note.fret === 0 && !note.dead) {
         // Open string: a bar across the fret window being played.
-        const { low, high } = anchors[i];
-        body = new THREE.Mesh(roundedBox(high - low + 1, 0.18, 0.22, 0.07), material);
+        const { low, high, open } = anchors[i];
+        body = new THREE.Mesh(roundedBox(open, 0.18, 0.22, 0.07), material);
         x = (fretX(low) + fretX(high)) / 2;
         front = 0.11;
       } else {
@@ -988,10 +1008,10 @@
   function spawnNoteHit(note, index) {
     const color = stringColor(note.string, song.count);
     const y = stringY(note.string, song.count);
-    const { low, high } = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH };
-    const x = note.fret === 0 && !note.dead ? (fretX(low) + fretX(high)) / 2 : fretX(note.fret);
+    const anchor = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH, open: MIN_ANCHOR_WIDTH };
     const open = note.fret === 0 && !note.dead;
-    const shape = open ? roundedBox(high - low + 1.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
+    const x = open ? (fretX(anchor.low) + fretX(anchor.high)) / 2 : fretX(note.fret);
+    const shape = open ? roundedBox(anchor.open + 0.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
     // Opaque while the note rings: a see-through box shows its own back faces and the trail inside.
     const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color }));
     gem.material.userData.solid = true;
@@ -1000,7 +1020,7 @@
       // Soft halo; normal blending so the halos of a chord do not add up to white.
       map: glowMap(), color, transparent: true, opacity: 0.6, depthWrite: false,
     }));
-    glow.scale.set(note.fret === 0 ? high - low + 2.2 : 1.8, 1, 1);
+    glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
     const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
     text.position.set(x, y, open ? 0.14 : 0.16);

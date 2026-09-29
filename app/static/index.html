@@ -178,6 +178,7 @@
                 <option value="1.25">125%</option>
               </select>
             </label>
+            <button id="audio-toggle" type="button" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Áudio</button>
             <button id="video-toggle" type="button" aria-pressed="false" title="Ligar ou desligar o vídeo (desligado: fica em pausa e volta o som da partitura)">Vídeo YouTube</button>
           </div>
         </div>
@@ -196,11 +197,16 @@
           <div class="score-side">
           <aside id="audio-panel" class="side-panel" aria-label="Áudio da música" hidden>
             <audio id="audio-preview" preload="auto"></audio>
-            <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
+            <div class="side-head">
+              <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
+              <button id="audio-collapse" type="button" class="icon" aria-expanded="true" aria-controls="audio-panel-body" title="Colapsar: fica só o Tocar e o tempo">▴</button>
+              <button id="audio-hide" type="button" class="icon" title="Esconder o painel (o áudio continua; volta com o botão Áudio, junto à partitura)" aria-label="Esconder o painel do áudio">✕</button>
+            </div>
             <div class="audio-transport">
               <button id="audio-play" type="button">▶ Tocar</button>
               <span id="audio-time" class="score-time">0:00 / 0:00</span>
             </div>
+            <div id="audio-panel-body" class="side-body">
             <label class="audio-offset">Início da música no áudio (s)
               <input id="audio-offset" type="number" min="-60" max="3600" step="0.01" value="0">
             </label>
@@ -230,6 +236,7 @@
             </label>
             <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
             <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante). Se a partitura for adiantada ou atrasada em relação à música, use "Atrasar" / "Adiantar a partitura", mesmo a tocar (o início pode ficar antes do 0: o áudio espera). Se o desacerto for crescendo ao longo da música, afine o "Tempo da partitura": baixe-o se a partitura se vai adiantando, suba-o se se vai atrasando. Na pista 3D, a música aparece desenhada no chão. O mesmo acerto e o mesmo tempo vão para o .gp.</p>
+            </div>
           </aside>
           <aside id="video-panel" class="video-panel" aria-label="Vídeo do YouTube" hidden>
             <div class="video-load">

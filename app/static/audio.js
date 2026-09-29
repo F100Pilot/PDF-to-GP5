@@ -28,6 +28,11 @@
   const syncInput = document.getElementById("audio-sync");
   const statusLine = document.getElementById("audio-status");
   const lastLabel = document.getElementById("audio-last");
+  const panelBody = document.getElementById("audio-panel-body");
+  const collapseButton = document.getElementById("audio-collapse");
+  const hideButton = document.getElementById("audio-hide");
+  const toggleButton = document.getElementById("audio-toggle");
+  const COLLAPSED_KEY = "pdf-to-gp5.audio-panel-collapsed";
   const MUSIC_KEY = "pdf-to-gp5.music-volume";
   const NOTES_KEY = "pdf-to-gp5.notes-volume";
 
@@ -104,11 +109,47 @@
     timeLabel.textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
   }
 
-  // The panel sits in the column beside the score (with the video panel, when open).
-  function showPanel(open) {
+  // The panel sits in the column beside the score (with the video panel, when open). `loaded`:
+  // there is audio; the user may still hide the panel (the audio keeps playing) and bring it
+  // back with the "Áudio" button by the score, or collapse it to the transport row.
+  let panelHidden = false;
+
+  function showPanel(loaded) {
+    const open = loaded && !panelHidden;
+    toggleButton.hidden = !loaded;
+    toggleButton.setAttribute("aria-pressed", String(open));
+    if (panel.hidden === !open) return;
     panel.hidden = !open;
     stageBox.classList.toggle("with-side", open || !document.getElementById("video-panel").hidden);
     window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+  }
+
+  function setCollapsed(collapsed) {
+    panelBody.hidden = collapsed;
+    collapseButton.textContent = collapsed ? "▾" : "▴";
+    collapseButton.setAttribute("aria-expanded", String(!collapsed));
+    collapseButton.title = collapsed ? "Expandir o painel" : "Colapsar: fica só o Tocar e o tempo";
+    try {
+      localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
+    } catch {
+      // storage blocked: the choice lasts until the page is reloaded
+    }
+  }
+
+  collapseButton.addEventListener("click", () => setCollapsed(!panelBody.hidden));
+  hideButton.addEventListener("click", () => {
+    panelHidden = true;
+    showPanel(Boolean(audio));
+    toggleButton.focus();
+  });
+  toggleButton.addEventListener("click", () => {
+    panelHidden = !panelHidden;
+    showPanel(Boolean(audio));
+  });
+  try {
+    setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+  } catch {
+    setCollapsed(false);
   }
 
   // Volumes (0–100), remembered in this browser; the notes' volume applies while there is audio.
@@ -217,6 +258,7 @@
     showLastFile();
     panelName.textContent = file.name;
     panelName.title = file.name;
+    panelHidden = false; // a new audio shows its panel
     showPanel(true);
     removeButton.hidden = false;
     applyVolumes();
