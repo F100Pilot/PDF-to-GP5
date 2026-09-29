@@ -615,9 +615,24 @@
   const FADE_MS = 300;
   let hitGem = null;
 
-  function addEffect(parts, until) {
+  function addEffect(parts, until, bendCurve = null) {
     for (const part of parts) stage.scene.add(part);
-    stage.effects.push({ parts, until, fadeStart: 0 });
+    const baseY = parts.map((part) => part.position.y);
+    stage.effects.push({ parts, until, fadeStart: 0, bendCurve, baseY });
+  }
+
+  // Bend height (quarter tones) at `tick` along a bend curve, linear between its points.
+  function bendValueAt(curve, tick) {
+    if (tick <= curve[0].tick) return curve[0].value;
+    for (let i = 1; i < curve.length; i += 1) {
+      const b = curve[i];
+      if (tick <= b.tick) {
+        const a = curve[i - 1];
+        const span = b.tick - a.tick;
+        return span > 0 ? a.value + ((b.value - a.value) * (tick - a.tick)) / span : b.value;
+      }
+    }
+    return curve[curve.length - 1].value;
   }
 
   function spawnNoteHit(note, index) {
@@ -637,7 +652,7 @@
     const text = new THREE.Sprite(labelMaterial(note.dead ? "X" : String(note.fret), false, "#ffffff").clone());
     text.scale.set(0.55, 0.55, 1);
     text.position.set(x, y + 0.02, 0.3);
-    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2));
+    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve);
   }
 
   function spawnChordHit(chord) {
@@ -667,10 +682,13 @@
         }
         return false;
       }
-      for (const part of effect.parts) {
+      // A bent note rises (and comes back on release) in real time while it rings.
+      const rise = effect.bendCurve && !effect.fadeStart ? bendValueAt(effect.bendCurve, tick) * BEND_RISE : null;
+      effect.parts.forEach((part, i) => {
         const base = part.material.userData.base ?? (part.material.userData.base = part.material.opacity);
         part.material.opacity = base * Math.min(1, opacity);
-      }
+        if (rise !== null) part.position.y = effect.baseY[i] + rise;
+      });
       return true;
     });
   }
