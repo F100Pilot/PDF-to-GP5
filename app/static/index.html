@@ -170,13 +170,16 @@
             <label class="audio-offset">Início da música no áudio (s)
               <input id="audio-offset" type="number" min="0" step="0.01" value="0">
             </label>
-            <div class="video-offset-tools">
-              <button id="audio-mark" type="button" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-              <button type="button" class="icon" data-audio-nudge="-1">−1 s</button>
-              <button type="button" class="icon" data-audio-nudge="-0.1">−0,1 s</button>
-              <button type="button" class="icon" data-audio-nudge="0.1">+0,1 s</button>
-              <button type="button" class="icon" data-audio-nudge="1">+1 s</button>
+            <button id="audio-mark" type="button" class="mark" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+            <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
+              <span>Adiantar a partitura</span>
+              <button type="button" class="icon" data-audio-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
+              <button type="button" class="icon" data-audio-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
+              <span>Atrasar a partitura</span>
+              <button type="button" class="icon" data-audio-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
+              <button type="button" class="icon" data-audio-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
             </div>
+            <p id="audio-sync-status" class="hint" role="status" aria-live="polite" hidden></p>
             <label class="volume"><span class="volume-head">Volume da música <span id="music-volume-value" class="muted">100%</span></span>
               <input id="music-volume" type="range" min="0" max="100" step="1" value="100">
             </label>
@@ -184,7 +187,7 @@
               <input id="notes-volume" type="range" min="0" max="100" step="1" value="50">
             </label>
             <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
-            <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante); os botões ± afinam, mesmo a tocar. O mesmo início vai para o .gp.</p>
+            <p class="hint">Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante). Se a partitura for adiantada ou atrasada em relação à música, use "Atrasar" / "Adiantar a partitura", mesmo a tocar. O mesmo acerto vai para o .gp.</p>
           </aside>
           <aside id="video-panel" class="video-panel" aria-label="Vídeo do YouTube" hidden>
             <div class="video-load">
@@ -205,14 +208,16 @@
             <label>Início da música no vídeo (segundos)
               <input id="video-offset" type="number" step="0.1" value="0">
             </label>
-            <div class="video-offset-tools">
-              <button id="video-mark" type="button" title="Com o vídeo a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-              <button type="button" class="icon" data-nudge="-1">−1 s</button>
-              <button type="button" class="icon" data-nudge="-0.1">−0,1 s</button>
-              <button type="button" class="icon" data-nudge="0.1">+0,1 s</button>
-              <button type="button" class="icon" data-nudge="1">+1 s</button>
+            <button id="video-mark" type="button" class="mark" title="Com o vídeo a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+            <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
+              <span>Adiantar a partitura</span>
+              <button type="button" class="icon" data-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
+              <button type="button" class="icon" data-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
+              <span>Atrasar a partitura</span>
+              <button type="button" class="icon" data-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
+              <button type="button" class="icon" data-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
             </div>
-            <p class="hint">Marcar início: ponha o vídeo a tocar (no próprio vídeo) e carregue no botão quando ouvir o primeiro tempo do compasso 1. Os botões ± afinam o acerto, mesmo a tocar.</p>
+            <p class="hint">Marcar início: ponha o vídeo a tocar (no próprio vídeo) e carregue no botão quando ouvir o primeiro tempo do compasso 1. Se a partitura for adiantada ou atrasada em relação ao vídeo, use "Atrasar" / "Adiantar a partitura", mesmo a tocar.</p>
             <label class="check"><input id="video-sync" type="checkbox" checked> Acompanhar Tocar, Pausa, Parar e posição da partitura</label>
             <label class="check"><input id="video-mute-score" type="checkbox"> Silenciar os sons da partitura (ouvir só o vídeo)</label>
             <p class="hint">O vídeo vem do YouTube (youtube-nocookie.com) e precisa de internet. Acerte o início da música no vídeo para as notas coincidirem.</p>

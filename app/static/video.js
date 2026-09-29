@@ -381,7 +381,18 @@
     setStatus(`Início marcado aos ${Number(offsetInput.value).toFixed(2)} s.`);
   });
   for (const button of document.querySelectorAll("[data-nudge]")) {
-    button.addEventListener("click", () => setOffset(offset() + Number(button.dataset.nudge)));
+    button.addEventListener("click", () => {
+      // Delaying the score = bar 1 later in the video.
+      const before = offset();
+      setOffset(before + Number(button.dataset.nudge));
+      const moved = offset() - before;
+      const amount = Math.abs(moved).toFixed(2).replace(".", ",");
+      setStatus(
+        moved === 0
+          ? "A partitura já começa com o vídeo: não pode ser adiantada mais."
+          : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${amount} s (compasso 1 aos ${offset().toFixed(2).replace(".", ",")} s do vídeo).`,
+      );
+    });
   }
   muteInput.addEventListener("change", () => onMuteScore(muteInput.checked && !panel.hidden));
 

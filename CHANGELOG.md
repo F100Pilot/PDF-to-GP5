@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Botões "Atrasar a partitura" / "Adiantar a partitura" (0,1 s e 1 s) nos painéis do áudio e do vídeo, em vez dos ±, com a indicação do acerto feito; funcionam a tocar.
 - Controlos do áudio ao lado da partitura (na coluna do vídeo), sempre visíveis ao descer a página, com "Volume da música" e "Volume das notas" (guardados no browser); substituem a opção "Silenciar os sons da partitura" do áudio.
 - Áudio da música a tocar com a partitura: Tocar (no painel do áudio ou na partitura) toca os dois, e a Pausa, o Parar, a barra de tempo e a velocidade comandam também o áudio; "Marcar início" recomeça a partitura no compasso 1 no instante marcado, com botões ±0,1 s/±1 s para afinar; opções "Tocar com a partitura" e "Silenciar os sons da partitura". Painel do áudio com o aspeto do resto da página (sem o leitor do browser).
 - Ícone da aplicação no separador do browser (deixa de aparecer `GET /favicon.ico 404` no servidor).

@@ -211,9 +211,29 @@
     showState();
   });
 
+  const syncStatus = document.getElementById("audio-sync-status");
+
+  function setSyncStatus(text) {
+    syncStatus.textContent = text;
+    syncStatus.hidden = !text;
+  }
+
   function setOffset(seconds) {
     offsetInput.value = String(Math.max(0, Math.round(seconds * 100) / 100));
     if (following() && song.playing) seekAudio();
+  }
+
+  // Delaying the score = bar 1 later in the audio (the audio is ahead of the score by more).
+  function nudgeScore(seconds) {
+    const before = offset();
+    setOffset(before + seconds);
+    const moved = offset() - before;
+    const amount = Math.abs(moved).toFixed(2).replace(".", ",");
+    setSyncStatus(
+      moved === 0
+        ? "A partitura já começa com o áudio: não pode ser adiantada mais."
+        : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${amount} s (compasso 1 aos ${offset().toFixed(2).replace(".", ",")} s do áudio).`,
+    );
   }
 
   offsetInput.addEventListener("change", () => setOffset(offset()));
@@ -221,10 +241,10 @@
   document.getElementById("audio-mark").addEventListener("click", () => {
     offsetInput.value = String(Math.round(player.currentTime * 100) / 100);
     if (following()) window.ScoreView.restart();
-    setStatus(`Início marcado aos ${offset().toFixed(2)} s do áudio.`);
+    setSyncStatus(`Início marcado aos ${offset().toFixed(2).replace(".", ",")} s do áudio.`);
   });
   for (const button of document.querySelectorAll("[data-audio-nudge]")) {
-    button.addEventListener("click", () => setOffset(offset() + Number(button.dataset.audioNudge)));
+    button.addEventListener("click", () => nudgeScore(Number(button.dataset.audioNudge)));
   }
 
   window.AudioSync = {
