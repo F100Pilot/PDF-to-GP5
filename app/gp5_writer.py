@@ -110,8 +110,12 @@ def _make_note(beat: gp.Beat, note: ScoreNote) -> gp.Note:
         slides=_slides(note),
         bend=_bend(note) if note.bend_semitones and not note.dead else None,
         harmonic=gp.NaturalHarmonic() if note.harmonic == "natural" else None,
+        staccato=note.staccato,
     )
     velocity = note.velocity or gp.Velocities.default
+    if note.grace_fret is not None and not note.dead:
+        transition = gp.GraceEffectTransition.hammer if note.grace_hammer else gp.GraceEffectTransition.none
+        effect.grace = gp.GraceEffect(fret=note.grace_fret, transition=transition, velocity=velocity)
     return gp.Note(beat, value=note.fret, string=note.string, type=note_type, effect=effect, velocity=velocity)
 
 

@@ -19,6 +19,7 @@ from .rhythm_marks import glyph_ys, read_rhythm
 
 MIN_STRINGS, MAX_STRINGS = 4, 8
 _LEGATO_LETTERS = {"H": Link.HAMMER, "P": Link.PULL}
+STACCATO = "\ue4a2"  # SMuFL articStaccatoAbove
 # SMuFL arrowheads drawn on strum/arpeggio arrows. An arrow pointing up (towards the
 # high strings at the top of the tab) is played low-to-high: a downstroke.
 _ARROWHEADS = {"\ueb78": "down", "\ueb7c": "up"}
@@ -101,6 +102,8 @@ def _numbers_on_staff(
         for c in chars
         if x0 <= c.xc <= x1 and (c.text.isdigit() or c.text in "xX()") and (c.bottom - c.top) <= 1.6 * spacing
     ]
+    heights = sorted(c.bottom - c.top for c in candidates if c.text.isdigit())
+    typical = heights[3 * len(heights) // 4] if heights else 0.0  # most digits are normal notes, not grace notes
     events: list[TabEvent] = []
     for string, line in enumerate(staff, start=1):
         on_line = sorted(
@@ -130,12 +133,13 @@ def _numbers_on_staff(
                 i > 0 and on_line[i - 1].text == "(" and j + 1 < len(on_line) and on_line[j + 1].text == ")"
             ) or _is_parenthesized(on_line[i].x0, on_line[j].x1, on_line[i].top, on_line[i].bottom, curves, spacing)
             frets = split_fret_number(text)
+            small = on_line[i].bottom - on_line[i].top < 0.8 * typical  # grace notes are printed small
             if len(frets) == 1:
                 center = (on_line[i].x0 + on_line[j].x1) / 2
-                events.append(TabEvent(x=center, string=string, fret=frets[0], parenthesized=paren))
+                events.append(TabEvent(x=center, string=string, fret=frets[0], parenthesized=paren, grace=small))
             else:
                 events.extend(
-                    TabEvent(x=on_line[i + k].xc, string=string, fret=f, parenthesized=paren)
+                    TabEvent(x=on_line[i + k].xc, string=string, fret=f, parenthesized=paren, grace=small)
                     for k, f in enumerate(frets)
                 )
             i = j + 1
@@ -178,6 +182,48 @@ def _apply_legato_marks(chars: list[Char], staff: list[_StaffLine], spacing: flo
                     best = (cost, second)
         if best is not None:
             best[1].link = _LEGATO_LETTERS[char.text]
+
+
+def _attach_grace_notes(events: list[TabEvent], spacing: float) -> tuple[list[TabEvent], list[float]]:
+    """Grace notes (small digits) become part of the note they lead into: the note of the next
+    column on the same string, hammered on when an "H"/"P" joins them. Returns the other
+    events and the x of the grace columns (their slashed stems are not beats). A grace note with
+    no note on its string in the next column is dropped."""
+    graces = [e for e in events if e.grace]
+    if not graces:
+        return events, []
+    normal = [e for e in events if not e.grace]
+    for grace in graces:
+        following = [e.x for e in normal if e.x > grace.x]
+        if grace.fret is None or not following:
+            continue
+        column = min(following)
+        main = next(
+            (e for e in normal if e.string == grace.string and abs(e.x - column) <= 0.5 * spacing and not e.dead),
+            None,
+        )
+        if main is None or main.grace_fret is not None:
+            continue
+        main.grace_fret = grace.fret
+        if main.link in (Link.HAMMER, Link.PULL):  # the legato comes from the grace note
+            main.grace_hammer = True
+            main.link = None
+    columns = sorted({g.x for g in graces if not any(abs(e.x - g.x) <= 0.5 * spacing for e in normal)})
+    return normal, columns
+
+
+def _apply_staccato(chars: list[Char], staff: list[_StaffLine], spacing: float, events: list[TabEvent]) -> None:
+    """Staccato dots above the staff mark the notes of the column below them."""
+    top = staff[0].y
+    for char in chars:
+        if char.text != STACCATO or not any(top - 3 * spacing <= y <= top + 0.3 * spacing for y in glyph_ys(char)):
+            continue
+        near = [e for e in events if abs(e.x - char.xc) <= 0.6 * spacing]
+        if near:
+            column = min(near, key=lambda e: abs(e.x - char.xc)).x
+            for event in near:
+                if abs(event.x - column) <= 0.3 * spacing:
+                    event.staccato = True
 
 
 def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLine], float]]) -> None:
@@ -496,6 +542,8 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         _apply_bends(page, staff, spacing, events)
         _apply_slides(page, staff, spacing, events)
         vibrato_ranges = _apply_vibrato(page, staves, staff, spacing, events)
+        _apply_staccato(page.chars, staff, spacing, events)
+        events, grace_columns = _attach_grace_notes(events, spacing)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
         arrows = _strum_arrows(page, staff, spacing)
@@ -544,6 +592,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             rhythm=[
                 replace(m, vibrato=True) if not m.is_rest and any(a <= m.x <= b for a, b in vibrato_ranges) else m
                 for m in read_rhythm(page, top, bottom, x0, x1, spacing)
+                if not any(abs(m.x - g) <= 0.6 * spacing for g in grace_columns)
             ],
         )
         systems.append(system)

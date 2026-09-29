@@ -407,3 +407,25 @@ def test_ascii_navigation_and_tempo_marks():
     assert [name for _, name in system.jumps] == ["Da Segno al Coda"]
     assert [name for _, name in system.signs] == ["Fine"]
     assert [bpm for _, bpm in system.tempos] == [90]
+
+
+def test_engraved_small_digits_are_grace_notes_of_the_next_note():
+    """A small "14" hammered into "16" on the same string (H above): one note with a grace note.
+    A small digit with no note on its string in the next column is dropped."""
+    from app.extract.pdf_reader import Char
+
+    grace = [Char("1", 86, 89.5, 117.5, 122.5), Char("4", 89.5, 93, 117.5, 122.5)]  # string 3, small
+    lonely = [Char("9", 86, 89.5, 107.5, 112.5)]  # string 2, small
+    main = [Char("1", 110, 116, 116, 124), Char("6", 116, 122, 116, 124)]
+    hammer = Char("H", 97, 103, 88, 96)
+    systems = extract_engraved_systems(
+        _signs_page(notes=((350, "5"), (400, "7")), chars=[*grace, *lonely, *main, hammer])
+    )
+    events = sorted(systems[0].events, key=lambda e: e.x)
+    assert [(e.string, e.fret) for e in events] == [(3, 16), (3, 5), (3, 7)]
+    assert (events[0].grace_fret, events[0].grace_hammer, events[0].link) == (14, True, None)
+
+
+def test_engraved_staccato_dot_above_the_column():
+    systems = extract_engraved_systems(_signs_page(chars=[_glyph("\ue4a2", 99, 90)]))
+    assert [(e.fret, e.staccato) for e in sorted(systems[0].events, key=lambda e: e.x)] == [(3, True), (5, False)]

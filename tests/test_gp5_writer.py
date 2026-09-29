@@ -43,6 +43,21 @@ def test_roundtrip_metadata_tuning_and_notes():
     assert third[4].type == gp.NoteType.dead
 
 
+def test_roundtrip_grace_note_and_staccato():
+    measure = ScoreMeasure(
+        [
+            ScoreBeat(8, [ScoreNote(3, 16, grace_fret=14, grace_hammer=True)]),
+            ScoreBeat(8, [ScoreNote(3, 9, staccato=True)]),
+            ScoreBeat(16, [ScoreNote(2, 5, grace_fret=3)]),
+        ]
+    )
+    beats = _roundtrip(_score([measure])).tracks[0].measures[0].voices[0].beats
+    grace = beats[0].notes[0].effect.grace
+    assert (grace.fret, grace.transition) == (14, gp.GraceEffectTransition.hammer)
+    assert beats[1].notes[0].effect.staccato and beats[1].notes[0].effect.grace is None
+    assert beats[2].notes[0].effect.grace.transition == gp.GraceEffectTransition.none
+
+
 def test_roundtrip_odd_time_signature_and_dotted():
     measure = ScoreMeasure([ScoreBeat(12, [ScoreNote(2, 1)]), ScoreBeat(12, [ScoreNote(2, 3)])])
     song = _roundtrip(_score([measure], numerator=6, denominator=8))

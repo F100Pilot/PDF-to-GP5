@@ -100,6 +100,9 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             slide_out=e.slide_out,
             harmonic=e.harmonic,
             tapped=e.tapped,
+            grace_fret=e.grace_fret,
+            grace_hammer=e.grace_hammer,
+            staccato=e.staccato,
         )
         for e in sorted(events, key=lambda e: e.string)
     ]

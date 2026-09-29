@@ -44,6 +44,10 @@ class TabEvent:
     slide_out: str | None = None  # "down" or "up": slide away from the note to no target
     harmonic: str | None = None  # "natural"
     tapped: bool = False  # right-hand tap
+    grace: bool = False  # printed small: a grace note, played just before the next note on its string
+    grace_fret: int | None = None  # the grace note played just before this note
+    grace_hammer: bool = False  # the grace note is hammered on / pulled off into this note
+    staccato: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,9 @@ class ScoreNote:
     slide_out: str | None = None  # "down" / "up"
     harmonic: str | None = None  # "natural"
     tapped: bool = False
+    grace_fret: int | None = None  # grace note just before this note
+    grace_hammer: bool = False
+    staccato: bool = False
     bend_semitones: int = 0
     bend_release: bool = False
     bend_pre: bool = False
