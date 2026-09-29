@@ -32,7 +32,7 @@ body {
   color: var(--text);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+main { max-width: 1920px; margin: 0 auto; padding: 24px clamp(16px, 2.5vw, 40px) 48px; }
 h1 { margin: 0 0 4px; font-size: 1.8rem; }
 .lead, .hint, footer { color: var(--muted); }
 .hint { font-size: 0.875rem; margin: 8px 0 0; }
@@ -165,3 +165,16 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .at-selection div { background: rgba(64, 64, 255, 0.1); }
 .at-cursor-beat { background: rgba(64, 64, 255, 0.75); width: 3px; }
 .at-highlight * { fill: #0078ff; stroke: #0078ff; }
+
+/* Wide screens: form in two columns, tracks side by side, the score across the whole width. */
+.result-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.result-head h2 { margin: 0; }
+.result-head .button { margin-top: 0; }
+#track-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 0 16px; align-items: start; }
+.tracks { grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); }
+@media (min-width: 1100px) {
+  form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 0 32px; align-items: start; }
+  .form-side > fieldset:first-child, .form-side > fieldset[hidden] + fieldset { margin-top: 0; }
+  .form-side .grid { grid-template-columns: 1fr; }
+  .form-side { position: sticky; top: 16px; }
+}
