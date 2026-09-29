@@ -27,7 +27,14 @@
   let song = null; // the current track: notes, anchors and the moving lane
   const clock = { tick: 0, time: 0, rate: 0, playing: false };
   let running = false;
-  let tilt = 0.5; // 0 = eye level with the strings … 1 = steep, from above
+  let tilt = 0.5; // 0 = eye level with the strings … 1 = steep … 1.5 = straight from above
+  const MAX_TILT = 1.5;
+  // Straight-down view (tilt 1.5): the time axis without perspective, from the strike line (at
+  // the bottom) to more than one 4/4 bar ahead, to line up the notes with the audio drawn on the floor.
+  const TOP_HEIGHT = 20;
+  const TOP_Z = -8;
+  const cameraPosition = { x: 0, y: 0, z: 0 };
+  const cameraTarget = { x: 0, y: 0, z: 0 };
   let side = 0; // -1 = from the left … 1 = from the right (diagonal view)
 
   function loadThree() {
@@ -185,7 +192,7 @@
     sun.position.set(4, 10, 6);
     scene.add(sun);
 
-    const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, far + 20);
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, far + 20 + TOP_HEIGHT);
     const resize = () => {
       const width = host.clientWidth || 800;
       const height = host.clientHeight || 450;
@@ -240,7 +247,7 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, time, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, fogNear: far * 0.55, fogFar: far, hud: { position, fill, time, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
   }
 
   // Headstock at the left of the strings: wooden head with a rounded tip, a bone nut where the
@@ -1170,10 +1177,24 @@
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     // Tuning names stay just left of the fret window being played.
     const midY = stringY(Math.ceil(song.count / 2), song.count);
-    // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
+    // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further
+    // ahead; past 1 it turns towards a view from straight above (no side angle there).
     // Side angle: the camera moves sideways and keeps looking down the highway (diagonal view).
-    stage.camera.position.set(stage.cameraX + 7 * side, midY + 0.8 + 5.2 * tilt, 7 + 2 * tilt - 1.5 * Math.abs(side));
-    stage.camera.lookAt(stage.cameraX - 1.5 * side, midY - 2.6 * tilt, -20);
+    const steep = Math.min(tilt, 1);
+    const top = Math.min(1, Math.max(0, (tilt - 1) / (MAX_TILT - 1)));
+    const sideways = side * (1 - top);
+    const blend = (a, b) => a + (b - a) * top;
+    cameraPosition.x = stage.cameraX + 7 * sideways;
+    cameraPosition.y = blend(midY + 0.8 + 5.2 * steep, TOP_HEIGHT);
+    cameraPosition.z = blend(7 + 2 * steep - 1.5 * Math.abs(sideways), TOP_Z);
+    cameraTarget.x = stage.cameraX - 1.5 * sideways;
+    cameraTarget.y = blend(midY - 2.6 * steep, 0);
+    cameraTarget.z = blend(-20, TOP_Z - 0.01);
+    stage.camera.up.set(0, 1 - top, -top).normalize(); // from above: upcoming notes at the top
+    stage.camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    stage.camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+    stage.scene.fog.near = blend(stage.fogNear, stage.fogNear + TOP_HEIGHT);
+    stage.scene.fog.far = blend(stage.fogFar, stage.fogFar + TOP_HEIGHT);
     updateHud(tick);
     stage.renderer.render(stage.scene, stage.camera);
   }
@@ -1209,7 +1230,7 @@
   }
 
   function setTilt(value) {
-    tilt = Math.min(1, Math.max(0, value));
+    tilt = Math.min(MAX_TILT, Math.max(0, value));
   }
 
   function setSide(value) {
