@@ -641,6 +641,9 @@
               high: Math.max(...fretted.map((note) => note.fret)),
               brush: beat.brushType === BRUSH.down ? "↓" : beat.brushType === BRUSH.up ? "↑" : "",
               name: chordName(struck.filter((note) => !note.isDead).map((note) => note.realValue)),
+              // What is played, to spot the same chord struck again (drawn as a frame only).
+              shape: struck.map((note) => `${note.string}:${note.isDead ? "x" : note.fret}`).sort().join(","),
+              palmMute: struck.some((note) => note.isPalmMute),
             });
           }
         }
@@ -717,6 +720,27 @@
     const anchors = computeAnchors(notes);
     const lane = new THREE.Group();
 
+    // Chord frames: at least 2 frets wide. A chord struck again right after the same chord (no
+    // other note between, within a bar) is a repeat: only its frame is drawn (Rocksmith style).
+    const chordAt = new Map();
+    let previousChord = null;
+    for (const chord of chords) {
+      if (chord.high - chord.low < 1) {
+        if (chord.high < FRETS) chord.high += 1;
+        else chord.low -= 1;
+      }
+      chord.width = chord.high - chord.low + 1;
+      chord.x = (fretX(chord.low) + fretX(chord.high)) / 2;
+      chord.repeat = Boolean(
+        previousChord &&
+          previousChord.shape === chord.shape &&
+          chord.tick - previousChord.tick <= 4 * TICKS_PER_QUARTER &&
+          indexOf(notes, previousChord.tick + 1) === indexOf(notes, chord.tick),
+      );
+      chordAt.set(chord.tick, chord);
+      previousChord = chord;
+    }
+
     const gem = roundedBox(0.8, 0.28, 0.28, 0.09);
     const diamond = new THREE.OctahedronGeometry(0.22);
     const unit = new THREE.BoxGeometry(1, 1, 1);
@@ -784,14 +808,22 @@
       const y = stringY(note.string, count);
       const z = -note.tick * Z_PER_TICK;
       const material = note.dead ? deadMaterial : note.unpicked ? unpickedMaterials[note.string] : gemMaterials[note.string];
+      const chord = chordAt.get(note.tick);
+      const open = note.fret === 0 && !note.dead;
+      if (open) {
+        // Open string: a bar across the chord it belongs to, else across the fret window played.
+        const { low, high } = anchors[i];
+        note.openWidth = chord ? chord.width : anchors[i].open;
+        note.openX = chord ? chord.x : (fretX(low) + fretX(high)) / 2;
+      }
+      note.parts = [];
+      if (chord && chord.repeat) return; // the frame stands for it (the notes still light up when played)
       let x;
       let body;
       let front; // distance from the gem centre to its front face
-      if (note.fret === 0 && !note.dead) {
-        // Open string: a bar across the fret window being played.
-        const { low, high, open } = anchors[i];
-        body = new THREE.Mesh(roundedBox(open, 0.18, 0.22, 0.07), material);
-        x = (fretX(low) + fretX(high)) / 2;
+      if (open) {
+        body = new THREE.Mesh(roundedBox(note.openWidth, 0.18, 0.22, 0.07), material);
+        x = note.openX;
         front = 0.11;
       } else {
         x = fretX(note.fret);
@@ -801,10 +833,15 @@
       }
       body.position.set(x, y, z);
       const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
-      const text = faceLabel(fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36);
-      text.position.set(x, y, z + front + 0.005);
-      lane.add(body, text);
-      note.parts = [body, text]; // hidden when the note reaches the strings (a glowing copy takes over)
+      lane.add(body);
+      note.parts = [body]; // hidden when the note reaches the strings (a glowing copy takes over)
+      if (!(open && chord)) {
+        // In a chord the open strings are the bars inside its frame: no "0" to read.
+        const text = faceLabel(fretText, open ? 0.3 : 0.36);
+        text.position.set(x, y, z + front + 0.005);
+        lane.add(text);
+        note.parts.push(text);
+      }
 
       // Technique marks above the note.
       const marks = [note.legato, note.tap ? "T" : "", HARMONIC_TAGS[note.harmonic] || "", note.palmMute ? "PM" : ""]
@@ -868,13 +905,22 @@
     const bottom = stringY(count, count) - 0.2;
     let lastName = "";
     let lastTick = -Infinity;
+    const repeatMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide, clippingPlanes: laneClip(),
+    });
     for (const chord of chords) {
-      const width = chord.high - chord.low + 1;
-      chord.x = (fretX(chord.low) + fretX(chord.high)) / 2;
-      chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02));
+      chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(chord.width, top - bottom, 0.02));
       const frame = new THREE.LineSegments(chord.frame, chordMaterial);
       frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
       lane.add(frame);
+      if (chord.repeat) {
+        // Same chord again: a see-through panel in the frame instead of its notes.
+        const panel = new THREE.Mesh(unit, repeatMaterial);
+        panel.scale.set(chord.width, top - bottom, 0.01);
+        panel.position.copy(frame.position);
+        lane.add(panel);
+        if (chord.palmMute) tag("PM", chord.x, top + 0.3, -chord.tick * Z_PER_TICK, "#e6edf3");
+      }
       // Chord name on top, when it changes (or comes back after more than a bar).
       if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
         const name = label(chord.name, 0.6, true, "#ffffff");
@@ -894,7 +940,7 @@
 
     stage.scene.add(lane);
     const materials = [
-      ...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial, barMaterial, beatMaterial,
+      ...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial, repeatMaterial, barMaterial, beatMaterial,
     ].filter(Boolean);
     clearEffects();
     song = {
@@ -1010,8 +1056,9 @@
     const y = stringY(note.string, song.count);
     const anchor = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH, open: MIN_ANCHOR_WIDTH };
     const open = note.fret === 0 && !note.dead;
-    const x = open ? (fretX(anchor.low) + fretX(anchor.high)) / 2 : fretX(note.fret);
-    const shape = open ? roundedBox(anchor.open + 0.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
+    const openWidth = note.openWidth || anchor.open;
+    const x = open ? note.openX ?? (fretX(anchor.low) + fretX(anchor.high)) / 2 : fretX(note.fret);
+    const shape = open ? roundedBox(openWidth + 0.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
     // Opaque while the note rings: a see-through box shows its own back faces and the trail inside.
     const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color }));
     gem.material.userData.solid = true;
@@ -1020,7 +1067,7 @@
       // Soft halo; normal blending so the halos of a chord do not add up to white.
       map: glowMap(), color, transparent: true, opacity: 0.6, depthWrite: false,
     }));
-    glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
+    glow.scale.set(open ? openWidth + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
     const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
     text.position.set(x, y, open ? 0.14 : 0.16);
