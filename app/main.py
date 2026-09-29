@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -36,6 +36,8 @@ from .security import (
     safe_filename,
 )
 from .tunings import TUNINGS
+from .youtube import VideoSearchError
+from .youtube import search as search_youtube
 
 logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).parent / "static"
@@ -52,6 +54,7 @@ app = FastAPI(
 )
 rate_limiter = RateLimiter(settings.rate_limit_per_minute)
 inspect_limiter = RateLimiter(settings.inspect_rate_limit_per_minute)
+video_limiter = RateLimiter(settings.video_search_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
 presence = Presence()  # enabled by the local launcher (python -m app)
 _JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
@@ -112,7 +115,26 @@ async def health() -> dict:
         "version": __version__,
         "revision": __revision__,
         "close_with_browser": presence.enabled,
+        "video_search": bool(settings.youtube_api_key),
     }
+
+
+@app.get("/api/video-search")
+async def video_search(request: Request, q: Annotated[str, Query(min_length=2, max_length=200)]) -> dict:
+    """The song's video on YouTube ("artist title"), when a YouTube Data API key is configured."""
+    if not settings.youtube_api_key:
+        raise HTTPException(
+            status_code=404, detail="Pesquisa de vídeos não configurada (falta a chave da API do YouTube)."
+        )
+    client = request.client
+    if not video_limiter.allow(client_key(client.host if client else None)):
+        raise HTTPException(status_code=429, detail="Demasiadas pesquisas. Tente novamente dentro de um minuto.")
+    try:
+        results = await run_in_threadpool(search_youtube, q, settings.youtube_api_key)
+    except VideoSearchError as exc:
+        logger.warning("YouTube search failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Não foi possível pesquisar no YouTube.") from None
+    return {"results": results}
 
 
 class PresenceReport(BaseModel):

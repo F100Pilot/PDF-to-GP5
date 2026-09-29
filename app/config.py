@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
 
 
 def _int(name: str, default: int) -> int:
@@ -18,6 +20,21 @@ def _int(name: str, default: int) -> int:
 
 def _bool(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
+
+
+# Optional YouTube Data API key, for finding the song's video automatically: the environment
+# variable, else the first line of this file next to the start scripts (never committed).
+YOUTUBE_KEY_FILE = Path(__file__).resolve().parent.parent / "youtube_api_key.txt"
+
+
+def _youtube_key() -> str:
+    value = os.environ.get("YOUTUBE_API_KEY", "").strip()
+    if not value:
+        try:
+            value = YOUTUBE_KEY_FILE.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+        except (OSError, IndexError, UnicodeDecodeError):
+            value = ""
+    return value if re.fullmatch(r"[A-Za-z0-9_-]{20,80}", value) else ""
 
 
 @dataclass(frozen=True)
@@ -37,6 +54,8 @@ class Settings:
     allowed_hosts: tuple[str, ...] = tuple(
         h.strip() for h in os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]").split(",") if h.strip()
     )
+    video_search_per_minute: int = _int("VIDEO_SEARCH_PER_MINUTE", 10)
+    youtube_api_key: str = field(default_factory=_youtube_key, repr=False)
     enable_docs: bool = _bool("ENABLE_DOCS")
     enable_hsts: bool = _bool("ENABLE_HSTS")
 

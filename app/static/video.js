@@ -19,6 +19,19 @@
   const syncInput = document.getElementById("video-sync");
   const muteInput = document.getElementById("video-mute-score");
   const statusLine = document.getElementById("video-status");
+  const resultsLabel = document.getElementById("video-results-label");
+  const resultsSelect = document.getElementById("video-results");
+  const manualHint = document.getElementById("video-manual");
+  const searchLink = document.getElementById("video-search-link");
+
+  // The server can search YouTube only when it has an API key (see README).
+  let canSearch = false;
+  fetch("/api/health")
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((health) => {
+      canSearch = Boolean(health.video_search);
+    })
+    .catch(() => {});
 
   let frame = null;
   let ready = false;
@@ -128,12 +141,52 @@
     }
   });
 
-  toggle.addEventListener("click", () => {
-    const open = panel.hidden;
+  function showPanel(open) {
     panel.hidden = !open;
     stageBox.classList.toggle("with-video", open);
     toggle.setAttribute("aria-pressed", String(open));
     window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+  }
+
+  function watchUrl(id) {
+    return `https://www.youtube.com/watch?v=${id}`;
+  }
+
+  // Find the song's video ("artist title") and show the first result; the others stay selectable.
+  async function findVideo(query) {
+    resultsLabel.hidden = true;
+    if (!canSearch || !query) return false;
+    setStatus("A procurar o vídeo no YouTube…");
+    try {
+      const response = await fetch(`/api/video-search?${new URLSearchParams({ q: query })}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : "Pesquisa falhou.");
+      const results = Array.isArray(payload.results) ? payload.results.filter((r) => ID_RE.test(r.id)) : [];
+      if (!results.length) {
+        setStatus("Nenhum vídeo encontrado. Pode colar o endereço de um vídeo.");
+        return false;
+      }
+      resultsSelect.replaceChildren(...results.map((result) => {
+        const option = document.createElement("option");
+        option.value = result.id;
+        option.textContent = result.channel ? `${result.title} — ${result.channel}` : result.title;
+        return option;
+      }));
+      resultsLabel.hidden = results.length < 2;
+      urlInput.value = watchUrl(results[0].id);
+      loadVideo();
+      return true;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Pesquisa falhou.");
+      return false;
+    }
+  }
+
+  toggle.addEventListener("click", () => showPanel(panel.hidden));
+  resultsSelect.addEventListener("change", () => {
+    urlInput.value = watchUrl(resultsSelect.value);
+    offsetInput.value = "0";
+    loadVideo();
   });
   loadButton.addEventListener("click", loadVideo);
   urlInput.addEventListener("keydown", (event) => {
@@ -150,17 +203,26 @@
 
   window.VideoSync = {
     // Called by the score viewer.
-    setSong(key, muteScore) {
+    // A new song: reuse the video chosen for it before, else search YouTube for "artist title".
+    async setSong(key, muteScore, query) {
       songKey = key || "";
       onMuteScore = muteScore;
       onMuteScore(muteInput.checked);
+      searchLink.href = `https://www.youtube.com/results?${new URLSearchParams({ search_query: query || "" })}`;
+      manualHint.hidden = canSearch;
+      let saved = null;
       try {
-        const saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
-        if (saved && typeof saved.url === "string") {
-          urlInput.value = saved.url;
-          offsetInput.value = String(Number(saved.offset) || 0);
-        }
+        saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
       } catch { /* storage unavailable or bad data */ }
+      if (saved && typeof saved.url === "string" && parseVideo(saved.url)) {
+        urlInput.value = saved.url;
+        offsetInput.value = String(Number(saved.offset) || 0);
+        showPanel(true);
+        loadVideo();
+      } else if (await findVideo(query)) {
+        offsetInput.value = "0";
+        showPanel(true);
+      }
     },
     // Score position: `realMs` as reported by alphaTab (scaled by the speed), `speed` the playback speed.
     position(realMs, speed, isSeek) {

@@ -26,6 +26,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* author display rules (label, .video-panel…) must not undo it */
 body {
   margin: 0;
   background: var(--bg);

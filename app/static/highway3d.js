@@ -768,9 +768,9 @@
     gem.position.set(x, y, 0);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
       // Soft halo; normal blending so the halos of a chord do not add up to white.
-      map: glowMap(), color, transparent: true, opacity: 0.35, depthWrite: false,
+      map: glowMap(), color, transparent: true, opacity: 0.6, depthWrite: false,
     }));
-    glow.scale.set(note.fret === 0 ? high - low + 1.6 : 1.3, 0.7, 1);
+    glow.scale.set(note.fret === 0 ? high - low + 2.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
     const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
     text.position.set(x, y, open ? 0.14 : 0.16);
@@ -782,7 +782,7 @@
     frame.position.set(chord.x, (song.top + song.bottom) / 2, 0.02);
     frame.scale.set(1.04, 1.04, 1);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowMap(), color: 0xffffff, transparent: true, opacity: 0.1, depthWrite: false,
+      map: glowMap(), color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
     }));
     glow.scale.set(chord.high - chord.low + 2, song.top - song.bottom + 0.8, 1);
     glow.position.set(chord.x, (song.top + song.bottom) / 2, 0.05);
@@ -935,7 +935,7 @@
     for (const bar of stage.strings) {
       if (!bar) continue;
       bar.glow *= 0.9;
-      bar.material.emissiveIntensity = 0.25 + 0.7 * bar.glow;
+      bar.material.emissiveIntensity = 0.25 + 1.1 * bar.glow;
     }
 
     // Camera and floor highlight follow the fret window of the upcoming notes.

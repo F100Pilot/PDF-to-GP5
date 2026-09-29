@@ -81,7 +81,7 @@
     api.scoreLoaded.on((score) => {
       window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => {
         api.masterVolume = muted ? 0 : 1; // listen to the video only
-      });
+      }, [score.artist, score.title].filter(Boolean).join(" "));
       buildTrackBar(score);
       buildHighwayTracks(score);
       if (in3D()) showHighway();

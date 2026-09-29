@@ -144,6 +144,12 @@
               </label>
               <button id="video-load" type="button">Mostrar</button>
             </div>
+            <label id="video-results-label" hidden>Vídeos encontrados
+              <select id="video-results"></select>
+            </label>
+            <p id="video-manual" class="hint" hidden>Pesquisa automática desligada (falta a chave da API do YouTube — ver README).
+              <a id="video-search-link" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Procurar no YouTube</a>
+              e colar aqui o endereço do vídeo.</p>
             <div id="video-frame" class="video-frame"></div>
             <p id="video-status" class="hint" role="status" aria-live="polite" hidden></p>
             <label>Início da música no vídeo (segundos)

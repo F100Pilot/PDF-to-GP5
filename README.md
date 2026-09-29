@@ -62,7 +62,12 @@ Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, s�
 
 **Pista 3D (Rocksmith)**: na Vista, "Pista 3D" mostra uma track como no Rocksmith — cordas nas cores do Rocksmith (Mi grave vermelho em cima), notas com o traste a chegar à linha de ataque, cordas soltas como barra, rasto nas notas longas e ligadas, quadro nos acordes, linhas de compasso e de tempo com o número do compasso e as secções, painel com o compasso atual e o progresso, câmara a seguir a zona do braço, inclinação e ângulo lateral ajustáveis, letra no topo com a sílaba atual, nome do acorde por cima do quadro (calculado pelas notas; sem nome quando não é um acorde conhecido) e brilho com o número na corda quando a nota é tocada (nas notas com bend, a nota sobe e desce na corda em tempo real, conforme o bend). Notas com cantos arredondados e o traste impresso; headstock no traste 0 (cabeça de madeira, pestana e tarrachas, com o nome de cada corda solta na cor da corda). Técnicas: bends e pre-bends (o rasto sobe com o bend — um tom chega à corda seguinte — e desce no release; seta e quantidade), slides (rasto inclinado até ao traste de destino; entrada e saída), hammer-on/pull-off (H/P, nota translúcida), palm mute (PM), harmónicos (losango), vibrato (rasto ondulado), tapping (T), ghost notes (n) e direção do rasgueado. Segue o mesmo áudio, velocidade e posição da partitura. Usa o [three.js](https://threejs.org) 0.186.1 (MIT, em `app/static/vendor/three/`) e precisa de WebGL (aceleração gráfica); sem WebGL a página avisa e mantém a partitura.
 
-**Vídeo do YouTube ao lado**: o botão "Vídeo YouTube" abre um painel onde se cola o endereço do vídeo (`youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`; um `t=` no endereço preenche o início). O vídeo acompanha Tocar/Pausa/Parar, a posição e a velocidade da partitura, com um acerto do início da música no vídeo (em segundos, guardado por música no browser); pode silenciar-se o som da partitura para ouvir só o vídeo. Usa o leitor oficial `youtube-nocookie.com` controlado por mensagens (`postMessage`), sem scripts do YouTube na página; precisa de internet.
+**Vídeo do YouTube ao lado**: depois de converter, a aplicação procura o vídeo da música (artista + título) e abre o painel com o primeiro resultado; os outros ficam numa lista para escolher. O vídeo escolhido e o acerto do início ficam guardados por música no browser. A pesquisa automática usa a YouTube Data API e precisa de uma chave gratuita:
+
+1. Em https://console.cloud.google.com crie um projeto, ative a "YouTube Data API v3" e, em Credenciais, crie uma "Chave de API" (restrinja-a a essa API).
+2. Guarde a chave na primeira linha de um ficheiro `youtube_api_key.txt` na pasta do projeto (ao lado dos scripts de arranque; o ficheiro não vai para o git) ou na variável de ambiente `YOUTUBE_API_KEY`, e reinicie o servidor.
+
+A quota gratuita dá cerca de 100 pesquisas por dia (cada música é pesquisada uma vez por dia no máximo; o servidor guarda os resultados). Sem chave, o painel mostra "Procurar no YouTube" (abre a pesquisa já preenchida) e pode colar-se o endereço do vídeo. No painel também se pode colar o endereço de outro vídeo (`youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`; um `t=` no endereço preenche o início). O vídeo acompanha Tocar/Pausa/Parar, a posição e a velocidade da partitura, com um acerto do início da música no vídeo (em segundos, guardado por música no browser); pode silenciar-se o som da partitura para ouvir só o vídeo. Usa o leitor oficial `youtube-nocookie.com` controlado por mensagens (`postMessage`), sem scripts do YouTube na página; precisa de internet.
 
 ## API
 
@@ -117,6 +122,8 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 | `MAX_JOB_TIMEOUT_S` (pedido inteiro) | 90 |
 | `MAX_MEASURES` | 2000 |
 | `ALLOWED_HOSTS` (separados por vírgula) | `127.0.0.1,localhost,[::1]` |
+| `YOUTUBE_API_KEY` (ou ficheiro `youtube_api_key.txt`) | — (pesquisa automática do vídeo desligada) |
+| `VIDEO_SEARCH_PER_MINUTE` | 10 |
 | `ENABLE_DOCS` | desligado |
 | `ENABLE_HSTS` | desligado |
 
