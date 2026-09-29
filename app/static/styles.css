@@ -214,9 +214,11 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .score-stage.with-video { grid-template-columns: minmax(0, 1fr) minmax(300px, 32%); }
 @media (max-width: 900px) { .score-stage.with-video { grid-template-columns: minmax(0, 1fr); } }
 .score-main { min-width: 0; }
-.video-panel { position: sticky; top: 16px; align-self: start; display: grid; gap: 10px; }
+/* minmax(0, 1fr): long result titles must not widen the panel past the screen */
+.video-panel { position: sticky; top: 16px; align-self: start; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.video-panel select, .video-panel input:not([type="checkbox"]) { width: 100%; min-width: 0; text-overflow: ellipsis; }
 .video-load { display: flex; align-items: flex-end; gap: 8px; }
-.video-load label { flex: 1; }
+.video-load label { flex: 1; min-width: 0; }
 .video-load button, #video-toggle { margin: 0; }
 .video-frame { aspect-ratio: 16 / 9; background: #000000; border-radius: 8px; overflow: hidden; }
 .video-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
