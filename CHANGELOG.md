@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- O acerto do áudio fica guardado por música (artista – título) no browser: ao voltar a converter a mesma música, o início e o tempo da partitura voltam como estavam, e aparece o nome do áudio usado da última vez.
 - "Tempo da partitura" no painel do áudio (±0,1 BPM, Repor): a partitura toca ao tempo da gravação quando esta não está exatamente ao BPM do PDF (o desacerto deixa de crescer ao longo da música); o vídeo e o áudio seguem-no e o .gp fica com esse tempo.
 - O início da música no áudio pode ficar antes do 0 (a partitura começa antes do áudio, que espera): "Adiantar a partitura" deixa de parar no 0.
 - Pista 3D: com áudio escolhido, a música aparece desenhada no chão (a intensidade ao longo do tempo), colocada com o mesmo início e tempo da reprodução, para alinhar as batidas com as notas e os tempos.

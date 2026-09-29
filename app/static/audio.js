@@ -27,6 +27,7 @@
   const tempoInput = document.getElementById("audio-tempo");
   const syncInput = document.getElementById("audio-sync");
   const statusLine = document.getElementById("audio-status");
+  const lastLabel = document.getElementById("audio-last");
   const MUSIC_KEY = "pdf-to-gp5.music-volume";
   const NOTES_KEY = "pdf-to-gp5.notes-volume";
 
@@ -178,6 +179,7 @@
     showPanel(false);
     removeButton.hidden = true;
     nameLabel.textContent = "Nenhum ficheiro";
+    showLastFile();
     applyVolumes();
     setStatus("");
     updateLink();
@@ -207,6 +209,8 @@
     player.src = playerUrl;
     nameLabel.textContent = file.name;
     nameLabel.title = file.name;
+    remember({ file: file.name.slice(0, 200) });
+    showLastFile();
     panelName.textContent = file.name;
     panelName.title = file.name;
     showPanel(true);
@@ -266,8 +270,35 @@
 
   const decimal = (value) => value.toFixed(2).replace(".", ",");
 
+  // Per song (artist - title), remembered in this browser: where bar 1 starts in the audio, the
+  // score's tempo and the audio file's name (a file cannot be reopened by the page itself).
+  let songKey = "";
+
+  function remembered() {
+    try {
+      const saved = songKey ? JSON.parse(localStorage.getItem(`pdf-to-gp5.audio.${songKey}`) || "null") : null;
+      return saved && typeof saved === "object" ? saved : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function remember(changes) {
+    if (!songKey) return;
+    try {
+      localStorage.setItem(`pdf-to-gp5.audio.${songKey}`, JSON.stringify({ ...remembered(), ...changes }));
+    } catch { /* storage unavailable */ }
+  }
+
+  function showLastFile() {
+    const saved = remembered();
+    lastLabel.hidden = Boolean(audio) || !saved || typeof saved.file !== "string";
+    lastLabel.textContent = lastLabel.hidden ? "" : `(da última vez: ${saved.file})`;
+  }
+
   function setOffset(seconds) {
     offsetInput.value = String(Math.min(Math.max(Math.round(seconds * 100) / 100, MIN_OFFSET), MAX_OFFSET));
+    remember({ offset: offset() });
     if (following() && song.playing) {
       seekAudio();
       startAudio();
@@ -293,6 +324,7 @@
     const value = Math.min(Math.max(Math.round(bpm * 10) / 10, 20), 400);
     tempoInput.value = String(value);
     window.ScoreView.setTempo(value);
+    remember({ tempo: value });
     if (following() && song.playing) seekAudio();
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
     setSyncStatus(
@@ -313,6 +345,7 @@
   // "Marcar início": bar 1 starts at the audio's current time; the score restarts there.
   document.getElementById("audio-mark").addEventListener("click", () => {
     offsetInput.value = String(Math.round(player.currentTime * 100) / 100);
+    remember({ offset: offset() });
     if (following()) window.ScoreView.restart();
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
     setSyncStatus(`Início marcado aos ${offset().toFixed(2).replace(".", ",")} s do áudio.`);
@@ -323,9 +356,24 @@
 
   window.AudioSync = {
     // A new song: its printed tempo, which the score plays at until the tempo is adjusted.
-    songLoaded(tempo) {
+    // `key`: "artist - title", under which this song's start and tempo are remembered.
+    songLoaded(tempo, key) {
       baseTempo = tempo > 0 ? tempo : 120;
-      tempoInput.value = String(baseTempo);
+      songKey = key || "";
+      const saved = remembered() || {};
+      const savedOffset = Number(saved.offset);
+      offsetInput.value = String(Number.isFinite(savedOffset) ? Math.min(Math.max(savedOffset, MIN_OFFSET), MAX_OFFSET) : 0);
+      const savedTempo = Number(saved.tempo);
+      const tempoToUse = Number.isFinite(savedTempo) && savedTempo >= 20 && savedTempo <= 400 ? savedTempo : baseTempo;
+      tempoInput.value = String(tempoToUse);
+      if (tempoToUse !== baseTempo) window.ScoreView.setTempo(tempoToUse);
+      window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
+      const notes = [];
+      if (offset() > 0) notes.push(`início aos ${decimal(offset())} s do áudio`);
+      if (offset() < 0) notes.push(`início ${decimal(-offset())} s antes do áudio`);
+      if (tempoToUse !== baseTempo) notes.push(`tempo ${String(tempoToUse).replace(".", ",")} BPM`);
+      setSyncStatus(notes.length ? `Acerto guardado desta música: ${notes.join(", ")}.` : "");
+      showLastFile();
     },
     // Score position: `realMs` as reported by alphaTab (scaled by the speed), `scoreSpeed` the
     // score's playback speed (the chosen speed times the tempo adjustment).

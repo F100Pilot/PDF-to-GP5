@@ -152,7 +152,7 @@
       applyVolume();
       tempoFactor = 1;
       applySpeed();
-      window.AudioSync.songLoaded(score.tempo);
+      window.AudioSync.songLoaded(score.tempo, [score.artist, score.title].filter(Boolean).join(" - "));
       window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
         [score.artist, score.title].filter(Boolean).join(" "));
       buildTrackBar(score);
