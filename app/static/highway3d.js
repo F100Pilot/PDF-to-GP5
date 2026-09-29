@@ -233,13 +233,52 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], tuning: [] };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
   }
 
-  // Open-string note names at the left of the strings, like the headstock ("E A D G B e").
-  function buildTuning(tuning, count) {
-    for (const old of stage.tuning) stage.scene.remove(old);
-    stage.tuning = [];
+  // Headstock at the left of the strings: wooden head with a rounded tip, a bone nut where the
+  // neck starts, a tuning peg per string (the strings run from it) and the open-string note name
+  // beside each peg in the string colour ("E A D G B e"). Local x: nut at 0, pegs and names left.
+  const PEG_X = -0.6;
+  const NAME_X = -1.15;
+
+  function buildHeadstock(tuning, count) {
+    if (stage.headstock) {
+      stage.scene.remove(stage.headstock);
+      stage.headstock.traverse((object) => {
+        if (object.isSprite) return; // label materials are cached
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) object.material.dispose();
+      });
+    }
+    const group = new THREE.Group();
+    const top = stringY(1, count) + 0.35;
+    const bottom = stringY(count, count) - 0.35;
+    const middle = (top + bottom) / 2;
+
+    const outline = new THREE.Shape();
+    outline.moveTo(0.05, bottom);
+    outline.lineTo(-1.35, bottom - 0.12);
+    outline.quadraticCurveTo(-1.95, middle, -1.35, top + 0.12);
+    outline.lineTo(0.05, top);
+    outline.closePath();
+    const head = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(outline, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 3 }),
+      new THREE.MeshStandardMaterial({ color: 0x3a2618, roughness: 0.55, metalness: 0.05 }),
+    );
+    head.position.z = -0.2;
+    group.add(head);
+
+    const nut = new THREE.Mesh(
+      roundedBox(0.1, top - bottom - 0.2, 0.14, 0.03).clone(),
+      new THREE.MeshStandardMaterial({ color: 0xe9e2cc, roughness: 0.4 }),
+    );
+    nut.position.set(0, middle, -0.05);
+    group.add(nut);
+
+    const pegGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.08, 24);
+    pegGeometry.rotateX(Math.PI / 2); // face the camera
+    const pegMaterial = new THREE.MeshStandardMaterial({ color: 0xc9ccd2, metalness: 0.85, roughness: 0.3 });
     const names = [];
     for (let string = 1; string <= count; string += 1) {
       const midi = tuning[count - string]; // alphaTab lists the tuning from the top (highest) string
@@ -247,13 +286,18 @@
     }
     if (count > 1 && names[1] && names[1] === names[count]) names[count] = names[count].toLowerCase();
     for (let string = 1; string <= count; string += 1) {
+      const y = stringY(string, count);
+      const peg = new THREE.Mesh(pegGeometry, pegMaterial);
+      peg.position.set(PEG_X, y, -0.08);
+      group.add(peg);
       if (!names[string]) continue;
       const color = `#${stringColor(string, count).toString(16).padStart(6, "0")}`;
-      const sprite = label(names[string], 0.42, false, color);
-      sprite.position.set(-1, stringY(string, count), 0.05);
-      stage.scene.add(sprite);
-      stage.tuning.push(sprite);
+      const name = label(names[string], 0.4, false, color);
+      name.position.set(NAME_X, y, 0.02);
+      group.add(name);
     }
+    stage.scene.add(group);
+    stage.headstock = group;
   }
 
   function buildStrings(count) {
@@ -466,7 +510,7 @@
     const track = score.tracks[trackIndex];
     const count = track.staves[0].tuning.length;
     buildStrings(count);
-    buildTuning(track.staves[0].tuning, count);
+    buildHeadstock(track.staves[0].tuning, count);
     const { notes, chords } = collectNotes(track);
     const anchors = computeAnchors(notes);
     const lane = new THREE.Group();
@@ -710,7 +754,9 @@
     const x = note.fret === 0 && !note.dead ? (fretX(low) + fretX(high)) / 2 : fretX(note.fret);
     const open = note.fret === 0 && !note.dead;
     const shape = open ? roundedBox(high - low + 1.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
-    const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color, transparent: true }));
+    // Opaque while the note rings: a see-through box shows its own back faces and the trail inside.
+    const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color }));
+    gem.material.userData.solid = true;
     gem.position.set(x, y, 0);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowMap(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -737,9 +783,16 @@
   function updateEffects(tick) {
     const now = performance.now();
     stage.effects = stage.effects.filter((effect) => {
-      let opacity = 0.75 + 0.25 * Math.sin(now / 90); // gentle pulse while the note rings
+      let opacity = 0.75 + 0.25 * Math.sin(now / 90); // gentle pulse (glow and frames) while the note rings
       if (tick >= effect.until) {
-        if (!effect.fadeStart) effect.fadeStart = now;
+        if (!effect.fadeStart) {
+          effect.fadeStart = now;
+          for (const part of effect.parts) {
+            if (!part.material.userData.solid) continue;
+            part.material.transparent = true; // only now, to fade out
+            part.material.needsUpdate = true;
+          }
+        }
         opacity = 1 - (now - effect.fadeStart) / FADE_MS;
       }
       if (opacity <= 0) {
@@ -753,7 +806,8 @@
       const rise = effect.bendCurve && !effect.fadeStart ? bendValueAt(effect.bendCurve, tick) * BEND_RISE : null;
       effect.parts.forEach((part, i) => {
         const base = part.material.userData.base ?? (part.material.userData.base = part.material.opacity);
-        part.material.opacity = base * Math.min(1, opacity);
+        const solid = part.material.userData.solid && !effect.fadeStart;
+        part.material.opacity = solid ? 1 : base * Math.min(1, opacity);
         if (rise !== null) part.position.y = effect.baseY[i] + rise;
       });
       return true;
@@ -883,8 +937,16 @@
     stage.anchor.scale.x = high - low + 1;
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     // Tuning names stay just left of the fret window being played.
-    const headstockX = stage.anchor.position.x - stage.anchor.scale.x / 2 - 0.7;
-    for (const name of stage.tuning) name.position.x = headstockX;
+    // The headstock follows the fret window (its nut just left of it); the strings run from the pegs.
+    const nutX = stage.anchor.position.x - stage.anchor.scale.x / 2 - 0.35;
+    if (stage.headstock) stage.headstock.position.x = nutX;
+    const stringsStart = nutX + PEG_X;
+    const stringsLength = FRETS + 0.5 - stringsStart;
+    for (const bar of stage.strings) {
+      if (!bar) continue;
+      bar.mesh.scale.x = stringsLength / (FRETS + 1);
+      bar.mesh.position.x = stringsStart + stringsLength / 2;
+    }
     const midY = stringY(Math.ceil(song.count / 2), song.count);
     // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
     // Side angle: the camera moves sideways and keeps looking down the highway (diagonal view).
