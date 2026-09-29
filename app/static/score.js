@@ -16,6 +16,9 @@
   const highwayLegend = document.getElementById("highway-legend");
   const highwayTrackLabel = document.getElementById("score-3d-track-label");
   const highwayTrack = document.getElementById("score-3d-track");
+  const tiltLabel = document.getElementById("score-3d-tilt-label");
+  const tiltInput = document.getElementById("score-3d-tilt");
+  const TILT_KEY = "pdf-to-gp5.highway-tilt";
 
   let loading = null;
   let api = null;
@@ -155,6 +158,8 @@
     highway.hidden = false;
     highwayLegend.hidden = false;
     highwayTrackLabel.hidden = false;
+    tiltLabel.hidden = false;
+    window.Highway3D.setTilt(Number(tiltInput.value) / 100);
     api.settings.player.scrollMode = alphaTab.ScrollMode.Off; // nothing to follow on the hidden notation
     api.updateSettings();
     try {
@@ -176,6 +181,7 @@
     highway.hidden = true;
     highwayLegend.hidden = true;
     highwayTrackLabel.hidden = true;
+    tiltLabel.hidden = true;
     container.hidden = false;
     api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;
     api.settings.display.staveProfile = alphaTab.StaveProfile[notationView];
@@ -189,6 +195,14 @@
     if (!api || !api.score) return;
     if (in3D()) showHighway();
     else showNotation();
+  });
+  try {
+    const saved = localStorage.getItem(TILT_KEY);
+    if (saved !== null) tiltInput.value = saved;
+  } catch { /* storage unavailable */ }
+  tiltInput.addEventListener("input", () => {
+    window.Highway3D.setTilt(Number(tiltInput.value) / 100);
+    try { localStorage.setItem(TILT_KEY, tiltInput.value); } catch { /* storage unavailable */ }
   });
   highwayTrack.addEventListener("change", () => {
     if (api && api.score && in3D()) showHighway();

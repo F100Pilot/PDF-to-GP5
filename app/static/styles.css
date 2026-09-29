@@ -178,4 +178,20 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
   .form-side .grid { grid-template-columns: 1fr; }
   .form-side { position: sticky; top: 16px; }
 }
-.highway { height: min(72vh, 780px); min-height: 320px; border-radius: 8px; overflow: hidden; background: #0b0d14; }
+.highway { position: relative; height: min(72vh, 780px); min-height: 320px; border-radius: 8px; overflow: hidden; background: #0b0d14; }
+.hw-hud {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #e6edf3;
+  font-weight: 600;
+  pointer-events: none;
+  text-shadow: 0 1px 2px #000000;
+}
+.hw-progress { flex: 1; height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; overflow: hidden; }
+.hw-progress-fill { height: 100%; width: 0; background: #f97316; }
+#score-3d-tilt { padding: 0; min-width: 160px; }

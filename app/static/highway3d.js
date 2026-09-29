@@ -25,6 +25,7 @@
   let song = null; // the current track: notes, anchors and the moving lane
   const clock = { tick: 0, time: 0, rate: 0, playing: false };
   let running = false;
+  let tilt = 0.5; // 0 = eye level with the strings … 1 = steep, from above
 
   function loadThree() {
     if (THREE) return Promise.resolve(THREE);
@@ -107,7 +108,18 @@
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.localClippingEnabled = true;
-    host.replaceChildren(renderer.domElement);
+
+    // Overlay: current bar / section and a progress bar, so progress shows even without notes.
+    const hud = document.createElement("div");
+    hud.className = "hw-hud";
+    const position = document.createElement("span");
+    const progress = document.createElement("div");
+    progress.className = "hw-progress";
+    const fill = document.createElement("div");
+    fill.className = "hw-progress-fill";
+    progress.appendChild(fill);
+    hud.append(position, progress);
+    host.replaceChildren(renderer.domElement, hud);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b0d14);
@@ -158,8 +170,9 @@
       }
     }
     for (let fret = 1; fret <= FRETS; fret += 1) {
-      const number = label(String(fret), 0.45);
-      number.position.set(fretX(fret), 0.25, 1.6);
+      // Just in front of the strike line, so they stay in view at every camera tilt.
+      const number = label(String(fret), 0.4);
+      number.position.set(fretX(fret), 0.14, 0.3);
       scene.add(number);
     }
 
@@ -172,7 +185,7 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5 };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1 } };
   }
 
   function buildStrings(count) {
@@ -456,6 +469,37 @@
       }
     });
 
+    // Bar lines (bright) and beat lines (dim) across the highway, bar numbers and section names
+    // beside the fret window played at that time.
+    const barMaterial = new THREE.MeshBasicMaterial({ color: 0xcfd8e3, transparent: true, opacity: 0.85, clippingPlanes: laneClip() });
+    const beatMaterial = new THREE.MeshBasicMaterial({ color: 0x5b667a, transparent: true, opacity: 0.7, clippingPlanes: laneClip() });
+    const bars = [];
+    for (const masterBar of score.masterBars) {
+      const beatTicks = (TICKS_PER_QUARTER * 4) / masterBar.timeSignatureDenominator;
+      for (let beat = 0; beat < masterBar.timeSignatureNumerator; beat += 1) {
+        const line = new THREE.Mesh(unit, beat ? beatMaterial : barMaterial);
+        line.scale.set(FRETS + 1, beat ? 0.01 : 0.02, beat ? 0.03 : 0.08);
+        line.position.set((FRETS - 1) / 2, 0.03, -(masterBar.start + beat * beatTicks) * Z_PER_TICK);
+        lane.add(line);
+      }
+      const section = masterBar.section && masterBar.section.text ? masterBar.section.text : "";
+      bars.push({ tick: masterBar.start, section });
+      const nearest = Math.min(indexOf(notes, masterBar.start), notes.length - 1);
+      const zone = anchors[nearest] || { low: 1, high: MIN_ANCHOR_WIDTH };
+      const x = fretX(zone.low) - 1.3;
+      const z = -masterBar.start * Z_PER_TICK;
+      const number = label(String(masterBar.index + 1), 0.5, true, "#cfd8e3");
+      number.position.set(x, 0.35, z);
+      lane.add(number);
+      if (section) {
+        const name = label(section, 0.55, true, "#ffd54f");
+        name.position.set(x, stringY(1, count) + 0.7, z);
+        lane.add(name);
+      }
+    }
+    const last = score.masterBars[score.masterBars.length - 1];
+    const endTick = last ? last.start + (TICKS_PER_QUARTER * 4 * last.timeSignatureNumerator) / last.timeSignatureDenominator : 1;
+
     const top = stringY(1, count) + 0.2;
     const bottom = stringY(count, count) - 0.2;
     for (const chord of chords) {
@@ -471,8 +515,11 @@
     }
 
     stage.scene.add(lane);
-    const materials = [...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial].filter(Boolean);
-    song = { lane, notes, anchors, count, materials, nextHit: 0 };
+    const materials = [
+      ...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial, barMaterial, beatMaterial,
+    ].filter(Boolean);
+    song = { lane, notes, anchors, count, materials, bars, endTick, nextHit: 0 };
+    stage.hud.bar = -1;
     seekHits(currentTick());
   }
 
@@ -481,15 +528,36 @@
     return clock.tick + (performance.now() - clock.time) * clock.rate;
   }
 
-  function indexAt(tick) {
+  // First index of `items` (sorted by tick) whose tick is not before `tick`.
+  function indexOf(items, tick) {
     let low = 0;
-    let high = song.notes.length;
+    let high = items.length;
     while (low < high) {
       const mid = (low + high) >> 1;
-      if (song.notes[mid].tick < tick) low = mid + 1;
+      if (items[mid].tick < tick) low = mid + 1;
       else high = mid;
     }
     return low;
+  }
+
+  function indexAt(tick) {
+    return indexOf(song.notes, tick);
+  }
+
+  function updateHud(tick) {
+    const hud = stage.hud;
+    const bar = Math.max(0, indexOf(song.bars, tick + 1) - 1);
+    if (bar !== hud.bar && song.bars.length) {
+      hud.bar = bar;
+      let section = "";
+      for (let i = bar; i >= 0 && !section; i -= 1) section = song.bars[i].section;
+      hud.position.textContent = `Compasso ${bar + 1} / ${song.bars.length}${section ? ` · ${section}` : ""}`;
+    }
+    const percent = Math.round((1000 * Math.min(Math.max(tick, 0), song.endTick)) / song.endTick) / 10;
+    if (percent !== hud.percent) {
+      hud.percent = percent;
+      hud.fill.style.width = `${percent}%`;
+    }
   }
 
   function seekHits(tick) {
@@ -523,9 +591,10 @@
     stage.anchor.scale.x = high - low + 1;
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     const midY = stringY(Math.ceil(song.count / 2), song.count);
-    // Fairly low, Rocksmith-like camera: string heights (and bends rising) stay readable.
-    stage.camera.position.set(stage.cameraX, midY + 1.7, 7.5);
-    stage.camera.lookAt(stage.cameraX, midY - 0.4, -20);
+    // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
+    stage.camera.position.set(stage.cameraX, midY + 0.8 + 5.2 * tilt, 7 + 2 * tilt);
+    stage.camera.lookAt(stage.cameraX, midY - 2.6 * tilt, -20);
+    updateHud(tick);
     stage.renderer.render(stage.scene, stage.camera);
   }
 
@@ -558,5 +627,9 @@
     clock.playing = playing;
   }
 
-  window.Highway3D = { show, hide, setPosition, setPlaying };
+  function setTilt(value) {
+    tilt = Math.min(1, Math.max(0, value));
+  }
+
+  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt };
 })();
