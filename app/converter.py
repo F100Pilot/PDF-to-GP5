@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -156,33 +157,103 @@ def _bar_of(system: TabSystem, x: float, previous: int) -> int:
     return max(number, previous)
 
 
-def _lyric_lines(systems: list[TabSystem], max_lines: int = 5) -> list[tuple[int, str]]:
-    """Lyrics as at most ``max_lines`` (starting bar, text) blocks.
+def _position_in_bar(bounds: list[float], x: float) -> float:
+    """Where ``x`` falls inside its bar, from 0 (bar line) to 1 (next bar line)."""
+    for start, end in itertools.pairwise(bounds):
+        if x < end:
+            return min(1.0, max(0.0, (x - start) / (end - start))) if end > start else 0.0
+    return 1.0
 
-    Guitar Pro gives one syllable to each note of the chosen track, so the text is
-    cut into blocks that restart at the bar where they were printed.
-    """
-    words: list[tuple[int, str, bool]] = []
+
+def _lyric_syllables(systems: list[TabSystem]) -> list[tuple[int, float, str, bool]]:
+    """Lyric syllables in reading order as (bar, position in the bar, syllable, joins_next)."""
+    syllables: list[tuple[int, float, str, bool]] = []
     last_bar = 0
     for system in systems:
+        bounds = sorted(system.bars)
         for x, syllable, joins in sorted(system.lyrics):
             last_bar = _bar_of(system, x, last_bar)
-            words.append((last_bar, syllable, joins))
+            syllables.append((last_bar, _position_in_bar(bounds, x), syllable, joins))
         if system.bars:
             last_bar = _bar_of(system, max(system.bars), last_bar)
-    if not words:
-        return []
-    blocks: list[list[tuple[int, str, bool]]] = [[words[0]]]
-    for word in words[1:]:
-        if word[0] - blocks[-1][-1][0] > 1:
-            blocks.append([word])
+    return syllables
+
+
+_LYRIC_SYNTAX = re.compile(r"[\s\[\]+\-]")  # characters with a meaning in Guitar Pro lyrics
+
+
+def _lyrics_text(
+    syllables: list[tuple[int, float, str, bool]], score: Score
+) -> tuple[tuple[int, str] | None, list[int]]:
+    """One Guitar Pro lyric line (start bar, text) putting each syllable on the note played where
+    it is printed, and the bars whose syllables had to be left out (the track rests there, and a
+    syllable can only be shown on a played note; piling them onto the next note would misplace
+    all the following text).
+
+    Guitar Pro (and alphaTab) give the next chunk of text to each non-rest beat of the lyrics
+    track, from the start bar on: an extra space is an empty chunk that skips a beat, "+" keeps
+    two words on one beat and "-" ends a syllable inside a word. After "-" no beat can be skipped,
+    so the rest of a word goes on the next note.
+    """
+    if not syllables:
+        return None, []
+    start_bar = syllables[0][0]
+    beats: list[tuple[int, float]] = []  # (bar, onset in the bar) of each non-rest beat
+    first_in_bar: dict[int, int] = {}
+    for number in range(max(1, start_bar), len(score.measures) + 1):
+        measure = score.measures[number - 1]
+        total = sum(beat.units for beat in measure.beats) or 1
+        onset = 0
+        for beat in measure.beats:
+            if not beat.is_rest:
+                first_in_bar.setdefault(number, len(beats))
+                beats.append((number, onset / total))
+            onset += beat.units
+    if not beats:
+        return None, sorted({bar for bar, *_ in syllables})
+    chunks: list[list[tuple[str, bool]]] = [[] for _ in beats]
+    dropped: set[int] = set()
+    previous = -1
+    previous_joins = False
+    for bar, position, text, joins in syllables:
+        text = _LYRIC_SYNTAX.sub("", text)
+        if not text:
+            continue
+        if bar not in first_in_bar and not previous_joins:
+            dropped.add(bar)
+            continue
+        if previous_joins and previous + 1 < len(beats):
+            target = previous + 1
         else:
-            blocks[-1].append(word)
-    while len(blocks) > max_lines:  # merge across the smallest gaps
-        gaps = [blocks[i + 1][0][0] - blocks[i][-1][0] for i in range(len(blocks) - 1)]
-        i = gaps.index(min(gaps))
-        blocks[i : i + 2] = [blocks[i] + blocks[i + 1]]
-    return [(block[0][0], "".join(s + ("-" if joins else " ") for _, s, joins in block).strip()) for block in blocks]
+            first = first_in_bar[bar]
+            last = first
+            while last + 1 < len(beats) and beats[last + 1][0] == bar:
+                last += 1
+            target = min(range(first, last + 1), key=lambda i: abs(beats[i][1] - position))
+        target = max(target, previous)  # never go back; share the previous note if needed
+        if target == previous and previous_joins:
+            target = min(previous + 1, len(beats) - 1)
+        chunks[target].append((text, joins))
+        previous, previous_joins = target, joins
+
+    used = [i for i, chunk in enumerate(chunks) if chunk]
+    if not used:
+        return None, sorted(dropped)
+    first_used, last_used = used[0], used[-1]
+    start_bar = beats[first_used][0]
+    text = " " * (first_used - first_in_bar[start_bar])  # skip the notes before the first syllable
+    for i in range(first_used, last_used + 1):
+        token = ""
+        for k, (syllable, joins) in enumerate(chunks[i]):
+            if k and not chunks[i][k - 1][1]:
+                token += "+"  # another word on the same note
+            token += syllable
+        if chunks[i] and chunks[i][-1][1]:
+            token += "-"
+        text += token
+        if i < last_used and not token.endswith("-"):
+            text += " "
+    return (start_bar, text), sorted(dropped)
 
 
 def _tuning_name(tuning: list[int]) -> str:
@@ -252,7 +323,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
             for i, s in enumerate(kept)
         ],
     }
-    report["_lyrics"] = _lyric_lines(kept)
+    report["_lyrics"] = _lyric_syllables(kept)
     return score, report
 
 
@@ -392,9 +463,32 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
 
     lyric_candidates = [i for i, r in enumerate(track_reports) if r["_lyrics"]]
     lyrics = None
+    timed_lyrics: list[list] = []
+    lyric_warnings: list[str] = []
     if lyric_candidates:
-        chosen = max(lyric_candidates, key=lambda i: track_reports[i]["notes"])
-        lyrics = LyricsInfo(track=chosen + 1, lines=tuple(track_reports[chosen]["_lyrics"]))
+        # The lyrics printed in one PDF; they are sung over bars where that part may rest, and
+        # Guitar Pro can only show a syllable on a played note. Bars are aligned across tracks,
+        # so put them on the track that plays in most of the bars that have lyrics.
+        source = max(lyric_candidates, key=lambda i: len(track_reports[i]["_lyrics"]))
+        syllables = track_reports[source]["_lyrics"]
+
+        def coverage(index: int) -> tuple[int, int]:
+            measures = scores[index].measures
+            played = {n for n, m in enumerate(measures, start=1) if any(not b.is_rest for b in m.beats)}
+            return sum(bar in played for bar, *_ in syllables), track_reports[index]["notes"]
+
+        chosen = max(range(len(scores)), key=coverage)
+        line, dropped = _lyrics_text(syllables, scores[chosen])
+        if line:
+            lyrics = LyricsInfo(track=chosen + 1, lines=(line,))
+        if dropped:
+            lyric_warnings.append(
+                f"Letra: no GP5 fica na track {track_reports[chosen]['name']}, que não toca nos compassos "
+                f"{_ranges(dropped)}; a letra desses compassos não pode ficar no GP5 (o Guitar Pro só mostra "
+                "uma sílaba numa nota tocada). A pista 3D da aplicação mostra a letra completa."
+            )
+        # Every syllable with its place in the music, for the page (lyrics line on the 3D highway).
+        timed_lyrics = [[bar, round(position, 4), text, joins] for bar, position, text, joins in syllables]
     for report in track_reports:
         del report["_lyrics"]
     sections = []
@@ -404,7 +498,7 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             sections.append({"bar": index + 1, "name": name})
 
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))
-    warnings = [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]]
+    warnings = [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]] + lyric_warnings
     report = {
         "title": title,
         "artist": artist,
@@ -420,6 +514,7 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         "notes": sum(r["notes"] for r in track_reports),
         "sections": sections,
         "lyrics": {"track": track_reports[lyrics.track - 1]["name"], "lines": len(lyrics.lines)} if lyrics else None,
+        "timed_lyrics": timed_lyrics,
         "warnings": warnings,
         "tracks": track_reports,
     }

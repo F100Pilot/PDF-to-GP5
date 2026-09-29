@@ -1,6 +1,6 @@
 """Sections, lyrics, dynamics and written tuning."""
 
-from app.converter import _apply_dynamics, _lyric_lines
+from app.converter import _apply_dynamics, _lyric_syllables, _lyrics_text
 from app.extract.annotations import VELOCITIES, dynamics, lyrics, section_labels
 from app.extract.metadata import _detect_tuning
 from app.extract.pdf_reader import Char, Page, Segment
@@ -82,13 +82,36 @@ def test_dynamics_carry_across_lines():
     assert [e.velocity for e in first.events + second.events] == [None, 47, 47]
 
 
-def test_lyric_lines_start_at_their_bar_and_are_limited_to_five():
-    systems = [_system(bars=(0, 50, 100), numbers=(n, n + 1), lyr=[(10, f"w{n}", False)]) for n in range(1, 30, 4)]
-    lines = _lyric_lines(systems)
-    assert len(lines) == 5
-    assert lines[0][0] == 1 and all(start > 0 for start, _ in lines)
-    hyphen = _system(lyr=[(10, "hap", True), (20, "pen", False)])
-    assert _lyric_lines([hyphen]) == [(1, "hap-pen")]
+def test_lyric_syllables_keep_their_bar_and_place_in_the_bar():
+    system = _system(bars=(0, 50, 100), numbers=(7, 8), lyr=[(25, "la", True), (60, "lo", False)])
+    assert _lyric_syllables([system]) == [(7, 0.5, "la", True), (8, 0.2, "lo", False)]
+
+
+def _measures(*bars):
+    """Measures of quarter notes; a bar given as False is a whole-bar rest."""
+    from app.model import ScoreBeat, ScoreMeasure, ScoreNote
+
+    return [
+        ScoreMeasure([ScoreBeat(8, [ScoreNote(1, 0)]) for _ in range(4)] if played else [ScoreBeat(32)])
+        for played in bars
+    ]
+
+
+def test_lyrics_go_on_the_note_where_printed_and_skip_the_others():
+    from app.model import Score
+
+    score = Score(6, list(TUNINGS["standard"]), _measures(True, False, True), 4, 4)
+    syllables = [
+        (1, 0.0, "one", False),  # first beat
+        (1, 0.5, "two", True),  # third beat, a word going on ("two-")
+        (1, 0.6, "three", False),  # rest of the word: the next note (no skip after "-")
+        (2, 0.0, "lost", False),  # bar 2 is a rest in this track: cannot be shown on a note
+        (3, 0.3, "four", False),  # second beat of bar 3
+    ]
+    line, dropped = _lyrics_text(syllables, score)
+    assert dropped == [2]
+    # Chunks per note: one, (skip), two-, three | (skip), four
+    assert line == (1, "one  two-three  four")
 
 
 def test_written_tuning_and_custom_octaves():

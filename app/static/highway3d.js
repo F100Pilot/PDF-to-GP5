@@ -408,8 +408,20 @@
     return best ? best.name : "";
   }
 
-  // Lyric syllables of the song (alphaTab spreads GP5 lyrics over the beats of the lyrics track).
-  function collectLyrics(score) {
+  // Lyric syllables of the song. Preferably the complete lyrics as printed in the PDF, each with
+  // its bar and place in the bar ([bar, position 0..1, syllable, joins_next]); otherwise the GP5
+  // lyrics, which Guitar Pro can only attach to played notes of one track.
+  function collectLyrics(score, timed) {
+    if (Array.isArray(timed) && timed.length) {
+      const placed = [];
+      for (const [bar, position, text, joins] of timed) {
+        const masterBar = score.masterBars[bar - 1];
+        if (!masterBar || typeof text !== "string") continue;
+        const barTicks = (TICKS_PER_QUARTER * 4 * masterBar.timeSignatureNumerator) / masterBar.timeSignatureDenominator;
+        placed.push({ tick: masterBar.start + Number(position) * barTicks, text: joins ? `${text}-` : text });
+      }
+      return placed.sort((a, b) => a.tick - b.tick);
+    }
     const syllables = [];
     for (const track of score.tracks) {
       for (const bar of track.staves[0].bars) {
@@ -513,7 +525,7 @@
     song = null;
   }
 
-  function buildSong(score, trackIndex) {
+  function buildSong(score, trackIndex, timedLyrics) {
     disposeSong();
     const track = score.tracks[trackIndex];
     const count = track.staves[0].tuning.length;
@@ -706,7 +718,7 @@
     clearEffects();
     song = {
       lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom,
-      lyrics: collectLyrics(score), nextHit: 0, nextChord: 0,
+      lyrics: collectLyrics(score, timedLyrics), nextHit: 0, nextChord: 0,
     };
     stage.hud.bar = -1;
     stage.hud.line = -1;
@@ -955,11 +967,12 @@
     stage.renderer.render(stage.scene, stage.camera);
   }
 
-  // Show `trackIndex` of an alphaTab score inside `host`. Rejects when WebGL is unavailable.
-  async function show(host, score, trackIndex) {
+  // Show `trackIndex` of an alphaTab score inside `host` (with the PDF's timed lyrics, if any).
+  // Rejects when WebGL is unavailable.
+  async function show(host, score, trackIndex, timedLyrics = null) {
     await loadThree();
     if (!stage || stage.host !== host) stage = createStage(host);
-    buildSong(score, trackIndex);
+    buildSong(score, trackIndex, timedLyrics);
     if (!running) {
       running = true;
       requestAnimationFrame(frame);

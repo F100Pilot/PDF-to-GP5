@@ -28,6 +28,7 @@
   let colors = [];
   let shown = new Set();
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
+  let timedLyrics = null; // complete lyrics from the PDF with their place in the music
   let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
 
   function in3D() {
@@ -175,7 +176,7 @@
     api.settings.player.scrollMode = alphaTab.ScrollMode.Off; // nothing to follow on the hidden notation
     api.updateSettings();
     try {
-      await window.Highway3D.show(highway, api.score, Number(highwayTrack.value || 0));
+      await window.Highway3D.show(highway, api.score, Number(highwayTrack.value || 0), timedLyrics);
       notice = "";
       setStatus("");
     } catch (error) {
@@ -232,9 +233,11 @@
     window.VideoSync.speed(Number(speedSelect.value));
   });
 
-  // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position.
-  async function show(bytes, trackCount, trackColors) {
+  // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position;
+  // `lyrics`: the complete lyrics from the PDF with their place in the music (report.timed_lyrics).
+  async function show(bytes, trackCount, trackColors, lyrics) {
     colors = trackColors || [];
+    timedLyrics = Array.isArray(lyrics) ? lyrics : null;
     notice = "";
     box.hidden = false;
     playButton.disabled = true;

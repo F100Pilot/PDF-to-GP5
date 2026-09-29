@@ -50,7 +50,11 @@ def test_search_calls_the_api_once_and_caches(monkeypatch):
     assert youtube.search("Artist Song", KEY)[0]["id"] == "dQw4w9WgXcQ"
     assert youtube.search("artist song ", KEY)[0]["id"] == "dQw4w9WgXcQ"
     assert len(calls) == 1
-    assert calls[0].startswith(youtube.API_URL) and "videoEmbeddable=true" in calls[0] and "videoSyndicated=true" in calls[0]
+    assert (
+        calls[0].startswith(youtube.API_URL)
+        and "videoEmbeddable=true" in calls[0]
+        and "videoSyndicated=true" in calls[0]
+    )
 
 
 def test_search_errors_do_not_leak_the_key(monkeypatch):

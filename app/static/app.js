@@ -377,7 +377,9 @@
       renderResult(payload.report);
       status.hidden = true;
       result.hidden = false;
-      if (window.ScoreView) window.ScoreView.show(gp5, payload.report.tracks.length, trackColors);
+      if (window.ScoreView) {
+        window.ScoreView.show(gp5, payload.report.tracks.length, trackColors, payload.report.timed_lyrics);
+      }
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);
     } finally {
