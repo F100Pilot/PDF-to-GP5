@@ -68,6 +68,22 @@ def test_search_errors_do_not_leak_the_key(monkeypatch):
     assert KEY not in str(error.value)
 
 
+def test_key_file_saved_by_notepad_with_bom_or_utf16(monkeypatch, tmp_path):
+    key_file = tmp_path / "youtube_api_key.txt"
+    monkeypatch.setattr(config, "YOUTUBE_KEY_FILE", key_file)
+    monkeypatch.delenv("YOUTUBE_API_KEY", raising=False)
+    assert "não existe" in config.youtube_key_status()[1]
+    key_file.write_bytes(b"\xef\xbb\xbf" + KEY.encode() + b"\r\n")  # UTF-8 with BOM
+    assert config.youtube_key_status() == (KEY, "")
+    key_file.write_bytes(f"{KEY}\r\n".encode("utf-16"))  # Notepad "Unicode"
+    assert config.youtube_key_status() == (KEY, "")
+    key_file.write_text("  \n", encoding="utf-8")
+    assert "vazio" in config.youtube_key_status()[1]
+    key_file.write_text("Chave: " + KEY, encoding="utf-8")
+    key, problem = config.youtube_key_status()
+    assert key == "" and "não parece uma chave" in problem and KEY not in problem
+
+
 def test_key_from_environment_or_local_file(monkeypatch, tmp_path):
     key_file = tmp_path / "youtube_api_key.txt"
     monkeypatch.setattr(config, "YOUTUBE_KEY_FILE", key_file)
@@ -87,7 +103,8 @@ def client():
 
 def test_video_search_endpoint(client, monkeypatch):
     monkeypatch.setattr(main, "settings", replace(main.settings, youtube_api_key=""))
-    assert client.get("/api/health").json()["video_search"] is False
+    health = client.get("/api/health").json()
+    assert health["video_search"] is False and isinstance(health["video_search_problem"], str)
     assert client.get("/api/video-search", params={"q": "Artist Song"}).status_code == 404
 
     monkeypatch.setattr(main, "settings", replace(main.settings, youtube_api_key=KEY))

@@ -4,7 +4,11 @@
 (() => {
   "use strict";
 
-  const ORIGIN = "https://www.youtube-nocookie.com";
+  // Embed players, tried in this order: the privacy-enhanced one first; the regular one when the
+  // first refuses to play in this page (some browsers' tracking protection breaks it).
+  const PLAYER_HOSTS = ["https://www.youtube-nocookie.com", "https://www.youtube.com"];
+  const RETRY_CODES = new Set([5, 152, 153]); // player / configuration errors, not the video owner's choice
+  const READY_TIMEOUT_MS = 10000;
   const ID_RE = /^[A-Za-z0-9_-]{11}$/;
   const DRIFT_S = 0.35; // re-sync the video when it drifts more than this from the score
   const DRIFT_CHECK_MS = 2000;
@@ -30,10 +34,16 @@
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((health) => {
       canSearch = Boolean(health.video_search);
+      const reason = document.getElementById("video-manual-reason");
+      reason.textContent = health.video_search_problem ? ` (${health.video_search_problem})` : "";
     })
     .catch(() => {});
 
   let frame = null;
+  let origin = PLAYER_HOSTS[0];
+  let current = null; // { id, host } of the video in the frame
+  let readyTimer = 0;
+  const openLink = document.getElementById("video-open");
   let ready = false;
   let songKey = "";
   let onMuteScore = () => {};
@@ -49,7 +59,8 @@
     100: "O vídeo não existe ou é privado.",
     101: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
     150: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
-    153: "O YouTube recusou o leitor nesta página (configuração do leitor). Tente outro vídeo ou abra-o no YouTube.",
+    152: "O YouTube recusou o leitor nesta página.",
+    153: "O YouTube recusou o leitor nesta página (configuração do leitor). Tente outro browser ou abra o vídeo no YouTube.",
   };
 
   // Current video time, extrapolated from the player's last report; null when never reported.
@@ -89,7 +100,7 @@
 
   function send(func, args = []) {
     if (!frame || !frame.contentWindow) return;
-    frame.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), ORIGIN);
+    frame.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), origin);
   }
 
   function offset() {
@@ -113,6 +124,51 @@
     } catch { /* storage unavailable */ }
   }
 
+  // Link to watch the video on youtube.com (from the start of the song) when it cannot play here.
+  function offerOpenOnYouTube(show) {
+    openLink.hidden = !show || !current;
+    if (current) {
+      const params = new URLSearchParams({ v: current.id });
+      if (offset() > 0) params.set("t", `${Math.floor(offset())}s`);
+      openLink.href = `https://www.youtube.com/watch?${params}`;
+    }
+  }
+
+  function playerFailed(message) {
+    clearTimeout(readyTimer);
+    if (current && current.host + 1 < PLAYER_HOSTS.length) {
+      showPlayer(current.id, current.host + 1); // try the regular player
+      return;
+    }
+    setStatus(message);
+    offerOpenOnYouTube(true);
+  }
+
+  function showPlayer(id, host) {
+    clearTimeout(readyTimer);
+    current = { id, host };
+    origin = PLAYER_HOSTS[host];
+    ready = false;
+    video = null;
+    offerOpenOnYouTube(false);
+    frame = document.createElement("iframe");
+    frame.title = "Vídeo do YouTube";
+    frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    frame.referrerPolicy = "strict-origin-when-cross-origin"; // the embed needs to know the page origin
+    const params = new URLSearchParams({ enablejsapi: "1", origin: window.location.origin, rel: "0", playsinline: "1" });
+    frame.src = `${origin}/embed/${id}?${params}`;
+    const thisFrame = frame;
+    frame.addEventListener("load", () => {
+      // Ask the player to report its state and time (infoDelivery messages).
+      thisFrame.contentWindow.postMessage(JSON.stringify({ event: "listening", id, channel: "widget" }), PLAYER_HOSTS[host]);
+    });
+    frameBox.replaceChildren(frame);
+    setStatus("A carregar o vídeo… (precisa de ligação à internet)");
+    readyTimer = setTimeout(() => {
+      if (!ready && frame === thisFrame) playerFailed("O leitor do YouTube não respondeu nesta página (bloqueio do browser ou da rede?).");
+    }, READY_TIMEOUT_MS);
+  }
+
   function loadVideo() {
     const parsed = parseVideo(urlInput.value);
     if (!parsed) {
@@ -120,25 +176,12 @@
       return;
     }
     if (parsed.start !== null && !Number(offsetInput.value)) offsetInput.value = String(parsed.start);
-    ready = false;
-    video = null;
-    frame = document.createElement("iframe");
-    frame.title = "Vídeo do YouTube";
-    frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
-    frame.referrerPolicy = "strict-origin-when-cross-origin"; // the embed needs to know the page origin
-    const params = new URLSearchParams({ enablejsapi: "1", origin: window.location.origin, rel: "0", playsinline: "1" });
-    frame.src = `${ORIGIN}/embed/${parsed.id}?${params}`;
-    frame.addEventListener("load", () => {
-      // Ask the player to report its state and time (infoDelivery messages).
-      frame.contentWindow.postMessage(JSON.stringify({ event: "listening", id: parsed.id, channel: "widget" }), ORIGIN);
-    });
-    frameBox.replaceChildren(frame);
-    setStatus("A carregar o vídeo… (precisa de ligação à internet)");
+    showPlayer(parsed.id, 0);
     saveSettings();
   }
 
   window.addEventListener("message", (event) => {
-    if (!frame || event.origin !== ORIGIN || event.source !== frame.contentWindow) return;
+    if (!frame || event.origin !== origin || event.source !== frame.contentWindow) return;
     let data;
     try {
       data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
@@ -148,11 +191,19 @@
     if (!data || typeof data !== "object") return;
     if (data.event === "onError") {
       const code = Number(data.info);
-      setStatus(PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`);
+      const message = PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`;
+      if (RETRY_CODES.has(code)) {
+        playerFailed(message);
+      } else {
+        clearTimeout(readyTimer);
+        setStatus(message);
+        offerOpenOnYouTube(true);
+      }
       return;
     }
     if (data.event === "onReady" || (data.event === "infoDelivery" && !ready)) {
       ready = true;
+      clearTimeout(readyTimer);
       setStatus("");
       send("setPlaybackRate", [song.speed]);
     }

@@ -147,11 +147,12 @@
             <label id="video-results-label" hidden>Vídeos encontrados
               <select id="video-results"></select>
             </label>
-            <p id="video-manual" class="hint" hidden>Pesquisa automática desligada (falta a chave da API do YouTube — ver docs/CHAVE_YOUTUBE.md no projeto).
+            <p id="video-manual" class="hint" hidden>Pesquisa automática desligada<span id="video-manual-reason"></span> — ver docs/CHAVE_YOUTUBE.md no projeto.
               <a id="video-search-link" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">Procurar no YouTube</a>
               e colar aqui o endereço do vídeo.</p>
             <div id="video-frame" class="video-frame"></div>
             <p id="video-status" class="hint" role="status" aria-live="polite" hidden></p>
+            <a id="video-open" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" hidden>Abrir o vídeo no YouTube</a>
             <label>Início da música no vídeo (segundos)
               <input id="video-offset" type="number" step="0.1" value="0">
             </label>

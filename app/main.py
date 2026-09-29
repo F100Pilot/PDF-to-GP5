@@ -21,7 +21,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __revision__, __version__
 from .changelog import load_releases, version_key
-from .config import settings
+from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .presence import PAGE_ID, Presence
@@ -116,6 +116,8 @@ async def health() -> dict:
         "revision": __revision__,
         "close_with_browser": presence.enabled,
         "video_search": bool(settings.youtube_api_key),
+        # Why automatic video search is off (shown in the video panel); never the key itself.
+        "video_search_problem": "" if settings.youtube_api_key else youtube_key_status()[1],
     }
 
 

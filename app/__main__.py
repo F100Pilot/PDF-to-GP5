@@ -10,6 +10,7 @@ import time
 
 import uvicorn
 
+from .config import settings, youtube_key_status
 from .main import app, presence
 
 logger = logging.getLogger("uvicorn.error")
@@ -56,6 +57,10 @@ def main(argv: list[str] | None = None) -> int:
         help="encerrar o servidor quando a última página da aplicação for fechada",
     )
     args = parser.parse_args(argv)
+    if settings.youtube_api_key:
+        print("Vídeo do YouTube: pesquisa automática ligada.", flush=True)
+    else:
+        print(f"Vídeo do YouTube: pesquisa automática desligada ({youtube_key_status()[1]}).", flush=True)
     config = uvicorn.Config(app, host=args.host, port=args.port, timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_S)
     server = uvicorn.Server(config)
     if args.close_with_browser:

@@ -55,6 +55,23 @@ echo AIza...> youtube_api_key.txt
 Feche a página da aplicação (o servidor fecha sozinho) e volte a correr o `start-*.bat`.
 Depois de converter uma música, o painel do vídeo abre sozinho com o vídeo encontrado.
 
+## Confirmar que ficou ligada
+
+Ao arrancar, a janela do servidor mostra uma destas linhas:
+
+- `Vídeo do YouTube: pesquisa automática ligada.` — está tudo certo.
+- `Vídeo do YouTube: pesquisa automática desligada (…)` — entre parênteses está o motivo
+  (ficheiro não encontrado, vazio, ou a primeira linha não é uma chave). O painel do vídeo mostra o
+  mesmo motivo. O Bloco de Notas pode gravar em UTF-8, UTF-8 com BOM ou "Unicode": todos servem.
+
+## O vídeo aparece como "não disponível"
+
+- Se aparecer "O dono do vídeo não permite vê-lo fora do YouTube", escolha outro vídeo na lista (ou
+  use a ligação "Abrir o vídeo no YouTube").
+- Se acontecer com todos os vídeos, é o browser a bloquear o leitor do YouTube dentro da página.
+  No **Brave**, desligue os Shields para `127.0.0.1` (ícone do leão na barra de endereço) ou use o
+  Edge/Chrome. A aplicação já tenta o leitor normal do YouTube quando o "nocookie" falha.
+
 ## Limites e problemas
 
 - A quota gratuita dá cerca de **100 pesquisas por dia**; cada música é pesquisada no máximo uma

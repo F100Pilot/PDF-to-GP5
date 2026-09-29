@@ -27,14 +27,42 @@ def _bool(name: str) -> bool:
 YOUTUBE_KEY_FILE = Path(__file__).resolve().parent.parent / "youtube_api_key.txt"
 
 
-def _youtube_key() -> str:
+_KEY_FORMAT = re.compile(r"[A-Za-z0-9_-]{20,80}")
+
+
+def _read_key_file() -> tuple[str, str]:
+    """(key, problem) from the key file; Notepad may save it with a BOM or as UTF-16."""
+    try:
+        raw = YOUTUBE_KEY_FILE.read_bytes()
+    except FileNotFoundError:
+        return "", f"não existe o ficheiro {YOUTUBE_KEY_FILE.name} na pasta do projeto"
+    except OSError:
+        return "", f"não foi possível ler o ficheiro {YOUTUBE_KEY_FILE.name}"
+    encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        text = raw.decode(encoding)
+    except UnicodeDecodeError:
+        return "", f"o ficheiro {YOUTUBE_KEY_FILE.name} não é texto simples"
+    lines = [line.strip().strip("\"'") for line in text.splitlines() if line.strip()]
+    if not lines:
+        return "", f"o ficheiro {YOUTUBE_KEY_FILE.name} está vazio"
+    if not _KEY_FORMAT.fullmatch(lines[0]):
+        return "", f"a primeira linha de {YOUTUBE_KEY_FILE.name} não parece uma chave (deve ser só a chave, AIza…)"
+    return lines[0], ""
+
+
+def youtube_key_status() -> tuple[str, str]:
+    """(key, problem): the YouTube Data API key, or "" and why automatic video search is off."""
     value = os.environ.get("YOUTUBE_API_KEY", "").strip()
-    if not value:
-        try:
-            value = YOUTUBE_KEY_FILE.read_text(encoding="utf-8").strip().splitlines()[0].strip()
-        except (OSError, IndexError, UnicodeDecodeError):
-            value = ""
-    return value if re.fullmatch(r"[A-Za-z0-9_-]{20,80}", value) else ""
+    if value:
+        if _KEY_FORMAT.fullmatch(value):
+            return value, ""
+        return "", "a variável YOUTUBE_API_KEY não parece uma chave"
+    return _read_key_file()
+
+
+def _youtube_key() -> str:
+    return youtube_key_status()[0]
 
 
 @dataclass(frozen=True)
