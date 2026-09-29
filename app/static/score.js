@@ -13,6 +13,7 @@
   const speedSelect = document.getElementById("score-speed");
   const statusLine = document.getElementById("score-status");
   const highway = document.getElementById("highway");
+  const highwayLegend = document.getElementById("highway-legend");
   const highwayTrackLabel = document.getElementById("score-3d-track-label");
   const highwayTrack = document.getElementById("score-3d-track");
 
@@ -152,6 +153,7 @@
   async function showHighway() {
     container.hidden = true;
     highway.hidden = false;
+    highwayLegend.hidden = false;
     highwayTrackLabel.hidden = false;
     api.settings.player.scrollMode = alphaTab.ScrollMode.Off; // nothing to follow on the hidden notation
     api.updateSettings();
@@ -172,6 +174,7 @@
   function showNotation() {
     window.Highway3D.hide();
     highway.hidden = true;
+    highwayLegend.hidden = true;
     highwayTrackLabel.hidden = true;
     container.hidden = false;
     api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;

@@ -61,21 +61,25 @@
   }
 
   const labelCache = new Map();
-  function labelMaterial(text, clipped) {
-    const key = `${clipped ? "lane" : "fixed"}:${text}`;
+  function labelMaterial(text, clipped, color) {
+    const key = `${clipped ? "lane" : "fixed"}:${color}:${text}`;
     if (!labelCache.has(key)) {
       const canvas = document.createElement("canvas");
-      canvas.width = 128;
       canvas.height = 128;
+      canvas.width = text.length > 2 ? 256 : 128;
       const ctx = canvas.getContext("2d");
-      ctx.font = "bold 84px system-ui, sans-serif";
+      let size = 84;
+      ctx.font = `bold ${size}px system-ui, sans-serif`;
+      const fit = (canvas.width - 20) / ctx.measureText(text).width;
+      if (fit < 1) size = Math.floor(size * fit);
+      ctx.font = `bold ${size}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 12;
       ctx.strokeStyle = "#000000";
-      ctx.strokeText(text, 64, 68);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(text, 64, 68);
+      ctx.strokeText(text, canvas.width / 2, 68);
+      ctx.fillStyle = color;
+      ctx.fillText(text, canvas.width / 2, 68);
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
@@ -85,9 +89,11 @@
     return labelCache.get(key);
   }
 
-  function label(text, scale, clipped = false) {
-    const sprite = new THREE.Sprite(labelMaterial(text, clipped));
-    sprite.scale.set(scale, scale, 1);
+  // Text that always faces the camera; `height` in highway units.
+  function label(text, height, clipped = false, color = "#ffffff") {
+    const material = labelMaterial(text, clipped, color);
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set((height * material.map.image.width) / 128, height, 1);
     return sprite;
   }
 
@@ -189,7 +195,36 @@
     }
   }
 
-  // Playable notes of the track, ties folded into the sustain of the note they continue.
+  // alphaTab enum values (model.*Type), kept numeric so no internal namespace is needed.
+  const SLIDE_OUT = { shift: 1, legato: 2, outUp: 3, outDown: 4, pickDown: 5, pickUp: 6 };
+  const SLIDE_IN = { fromBelow: 1, fromAbove: 2 };
+  const BEND = { bend: 2, release: 3, bendRelease: 4, hold: 5, prebend: 6, prebendBend: 7, prebendRelease: 8 };
+  const HARMONIC_TAGS = { 2: "AH", 3: "PH", 4: "TH", 5: "SH", 6: "FB" }; // natural (1) is shown by the shape only
+  const BRUSH = { up: 1, down: 2 };
+
+  // "½", "1", "1½": bend amount in tones from alphaTab's quarter-tone value.
+  function bendAmount(quarterTones) {
+    const tones = quarterTones / 4;
+    const whole = Math.floor(tones);
+    const rest = { 0: "", 0.25: "¼", 0.5: "½", 0.75: "¾" }[tones - whole] ?? "";
+    return whole ? `${whole}${rest}` : rest || "¼";
+  }
+
+  function bendText(note) {
+    if (!note.hasBend || note.bendType === BEND.hold) return "";
+    const amount = bendAmount(note.maxBendPoint ? note.maxBendPoint.value : 4);
+    switch (note.bendType) {
+      case BEND.release: return "↓";
+      case BEND.bendRelease: return `↑↓${amount}`;
+      case BEND.prebend: return `PB${amount}`;
+      case BEND.prebendBend: return `PB↑${amount}`;
+      case BEND.prebendRelease: return `PB↓${amount}`;
+      default: return `↑${amount}`;
+    }
+  }
+
+  // Playable notes of the track with their techniques; ties are folded into the sustain of the
+  // note they continue.
   function collectNotes(track) {
     const notes = [];
     const chords = [];
@@ -197,20 +232,42 @@
       for (const voice of bar.voices) {
         for (const beat of voice.beats) {
           if (beat.isRest || !beat.notes.length) continue;
+          const tick = beat.absolutePlaybackStart;
           const struck = beat.notes.filter((note) => !note.isTieDestination);
           for (const note of struck) {
             let length = beat.playbackDuration;
             for (let next = note.tieDestination; next; next = next.tieDestination) {
               length += next.beat.playbackDuration;
             }
-            notes.push({ tick: beat.absolutePlaybackStart, fret: note.fret, string: note.string, dead: note.isDead, length });
+            const target = note.slideTarget;
+            const legatoFrom = note.isHammerPullDestination && note.hammerPullOrigin;
+            notes.push({
+              tick,
+              fret: note.fret,
+              string: note.string,
+              dead: note.isDead,
+              length,
+              ghost: note.isGhost,
+              palmMute: note.isPalmMute,
+              harmonic: note.harmonicType,
+              vibrato: note.vibrato,
+              tap: beat.tap,
+              bend: bendText(note),
+              slideOut: note.slideOutType,
+              slideIn: note.slideInType,
+              slideTo: target ? { tick: target.beat.absolutePlaybackStart, fret: target.fret } : null,
+              // Not picked: reached by a legato slide or a hammer-on / pull-off.
+              unpicked: Boolean(legatoFrom) || Boolean(note.slideOrigin && note.slideOrigin.slideOutType === SLIDE_OUT.legato),
+              legato: legatoFrom ? (note.fret >= legatoFrom.fret ? "H" : "P") : "",
+            });
           }
           const fretted = struck.filter((note) => !note.isDead && note.fret > 0);
           if (struck.length > 1 && fretted.length) {
             chords.push({
-              tick: beat.absolutePlaybackStart,
+              tick,
               low: Math.min(...fretted.map((note) => note.fret)),
               high: Math.max(...fretted.map((note) => note.fret)),
+              brush: beat.brushType === BRUSH.down ? "↓" : beat.brushType === BRUSH.up ? "↑" : "",
             });
           }
         }
@@ -246,7 +303,7 @@
     if (!song) return;
     stage.scene.remove(song.lane);
     song.lane.traverse((object) => {
-      if (object.geometry) object.geometry.dispose();
+      if (object.geometry && !object.isSprite) object.geometry.dispose(); // sprites share one geometry
     });
     for (const material of song.materials) material.dispose();
     song = null;
@@ -262,13 +319,18 @@
     const lane = new THREE.Group();
 
     const gem = new THREE.BoxGeometry(0.8, 0.26, 0.26);
+    const diamond = new THREE.OctahedronGeometry(0.22);
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const gemMaterials = [];
+    const unpickedMaterials = [];
     const trailMaterials = [];
     for (let string = 1; string <= count; string += 1) {
       const color = stringColor(string, count);
       gemMaterials[string] = new THREE.MeshStandardMaterial({
         color, emissive: color, emissiveIntensity: 0.35, roughness: 0.35, clippingPlanes: laneClip(),
+      });
+      unpickedMaterials[string] = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 0.2, transparent: true, opacity: 0.4, clippingPlanes: laneClip(),
       });
       trailMaterials[string] = new THREE.MeshBasicMaterial({
         color, transparent: true, opacity: 0.45, depthWrite: false, clippingPlanes: laneClip(),
@@ -279,33 +341,81 @@
       color: 0xffffff, transparent: true, opacity: 0.55, clippingPlanes: laneClip(),
     });
 
+    // A flat ribbon between two points of the lane (sustain trails and slides).
+    const ribbon = (material, x0, z0, x1, z1, y) => {
+      const dx = x1 - x0;
+      const dz = z1 - z0;
+      const mesh = new THREE.Mesh(unit, material);
+      mesh.scale.set(0.16, 0.06, Math.hypot(dx, dz));
+      mesh.rotation.y = Math.atan2(dx, dz);
+      mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+      lane.add(mesh);
+    };
+    // Vibrato: a wavy tube along the sustain.
+    const wave = (material, x, z0, length, y, wide) => {
+      const points = [];
+      const steps = Math.max(8, Math.round(length * 6));
+      for (let i = 0; i <= steps; i += 1) {
+        const z = z0 - (length * i) / steps;
+        points.push(new THREE.Vector3(x + Math.sin(i * 1.3) * (wide ? 0.22 : 0.12), y, z));
+      }
+      lane.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), steps * 2, 0.04, 6), material));
+    };
+    const tag = (text, x, y, z, color) => {
+      const sprite = label(text, 0.3, true, color);
+      sprite.position.set(x, y, z + 0.2);
+      lane.add(sprite);
+    };
+
     notes.forEach((note, i) => {
       const y = stringY(note.string, count);
       const z = -note.tick * Z_PER_TICK;
+      const material = note.dead ? deadMaterial : note.unpicked ? unpickedMaterials[note.string] : gemMaterials[note.string];
       let x;
       if (note.fret === 0 && !note.dead) {
         // Open string: a bar across the fret window being played.
         const { low, high } = anchors[i];
-        const bar = new THREE.Mesh(unit, gemMaterials[note.string]);
+        const bar = new THREE.Mesh(unit, material);
         bar.scale.set(high - low + 1, 0.16, 0.22);
         x = (fretX(low) + fretX(high)) / 2;
         bar.position.set(x, y, z);
         lane.add(bar);
       } else {
         x = fretX(note.fret);
-        const mesh = new THREE.Mesh(gem, note.dead ? deadMaterial : gemMaterials[note.string]);
+        const mesh = new THREE.Mesh(note.harmonic && !note.dead ? diamond : gem, material);
         mesh.position.set(x, y, z);
         lane.add(mesh);
       }
-      const text = label(note.dead ? "X" : String(note.fret), 0.42, true);
+      const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
+      const text = label(fretText, 0.42, true);
       text.position.set(x, y + 0.02, z + 0.2);
       lane.add(text);
-      if (note.length >= SUSTAIN_MIN && !note.dead) {
-        const trail = new THREE.Mesh(unit, trailMaterials[note.string]);
-        const length = note.length * Z_PER_TICK;
-        trail.scale.set(0.16, 0.06, length);
-        trail.position.set(x, y - 0.06, z - length / 2);
-        lane.add(trail);
+
+      // Technique marks above the note.
+      const marks = [note.legato, note.tap ? "T" : "", HARMONIC_TAGS[note.harmonic] || "", note.palmMute ? "PM" : ""]
+        .filter(Boolean)
+        .join(" ");
+      if (marks) tag(marks, x, y + 0.34, z, "#e6edf3");
+      if (note.bend) tag(note.bend, x, y + (marks ? 0.62 : 0.34), z, "#ffd54f");
+
+      if (note.dead) return;
+      const length = Math.max(note.length, note.vibrato ? SUSTAIN_MIN : 0) * Z_PER_TICK;
+      const trailY = y - 0.06;
+      if (note.slideIn === SLIDE_IN.fromBelow || note.slideIn === SLIDE_IN.fromAbove) {
+        const from = note.fret + (note.slideIn === SLIDE_IN.fromBelow ? -3 : 3);
+        ribbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + 1.2, x, z, trailY);
+      }
+      if ((note.slideOut === SLIDE_OUT.shift || note.slideOut === SLIDE_OUT.legato) && note.slideTo) {
+        // Slide to the next note: the trail runs to the target fret at the target's time.
+        ribbon(trailMaterials[note.string], x, z, fretX(note.slideTo.fret), -note.slideTo.tick * Z_PER_TICK, trailY);
+      } else if (note.slideOut >= SLIDE_OUT.outUp) {
+        const up = note.slideOut === SLIDE_OUT.outUp || note.slideOut === SLIDE_OUT.pickUp;
+        const to = Math.min(FRETS, Math.max(0, note.fret + (up ? 4 : -4)));
+        ribbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY);
+      } else if (note.vibrato) {
+        wave(trailMaterials[note.string], x, z, length, trailY, note.vibrato === 2);
+      } else if (note.length >= SUSTAIN_MIN) {
+        ribbon(trailMaterials[note.string], x, z, x, z - length, trailY);
       }
     });
 
@@ -316,10 +426,15 @@
       const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02)), chordMaterial);
       frame.position.set((fretX(chord.low) + fretX(chord.high)) / 2, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
       lane.add(frame);
+      if (chord.brush) {
+        const arrow = label(chord.brush, 0.7, true, "#ffd54f");
+        arrow.position.set(fretX(chord.low) - 0.9, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
+        lane.add(arrow);
+      }
     }
 
     stage.scene.add(lane);
-    const materials = [...gemMaterials, ...trailMaterials, deadMaterial, chordMaterial].filter(Boolean);
+    const materials = [...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial].filter(Boolean);
     song = { lane, notes, anchors, count, materials, nextHit: 0 };
     seekHits(currentTick());
   }
