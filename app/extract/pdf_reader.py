@@ -120,6 +120,17 @@ def _document_info(metadata: dict) -> dict[str, str]:
     return info
 
 
+def _x_span(char: dict) -> tuple[float, float]:
+    """Horizontal extent of a character. A music-font glyph turned on its side (a wavy arpeggio
+    line) is reported with the box of the upright glyph, beside where it is drawn: centre it on
+    its origin instead."""
+    matrix = char.get("matrix")
+    if not char.get("upright", True) and matrix and "\ue000" <= char["text"][:1] <= "\uf8ff":
+        half = float(char.get("size", 0.0)) / 2
+        return float(matrix[4]) - half, float(matrix[4]) + half
+    return float(char["x0"]), float(char["x1"])
+
+
 def _rising(line: dict) -> bool | None:
     """Direction of a straight oblique line (points are (x, top)); None if axis-aligned."""
     points = line.get("pts") or []
@@ -146,8 +157,7 @@ def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, st
             chars = [
                 Char(
                     _normalize(c["text"]),
-                    float(c["x0"]),
-                    float(c["x1"]),
+                    *_x_span(c),
                     float(c["top"]),
                     float(c["bottom"]),
                     str(c.get("fontname", "")).split("+")[-1],

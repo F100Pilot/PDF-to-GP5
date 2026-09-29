@@ -470,3 +470,31 @@ def test_engraved_tie_arc_into_an_empty_bar():
     assert extract_engraved_systems(page)[0].tied_bars == [300]
     page.chars.append(page.chars[0].__class__("5", 350, 356, 116, 124))  # a fret in the bar: not tied through
     assert extract_engraved_systems(page)[0].tied_bars == []
+
+
+def test_wavy_arpeggio_line_sets_the_stroke_of_the_chord_after_it():
+    from app.extract.pdf_reader import Char
+
+    # Wiggle pieces stacked across strings 2-5 at x ~90, arrow on top: a downstroke (low to high).
+    line = [Char("\ueaa9", 85, 95, y, y + 10) for y in (125, 135, 145)] + [Char("\ueaad", 85, 95, 112, 125)]
+    chord = [(100, "3"), (350, "5")]
+    systems = extract_engraved_systems(_signs_page(notes=chord, chars=line))
+    assert [(e.fret, e.stroke) for e in sorted(systems[0].events, key=lambda e: e.x)] == [(3, "down"), (5, None)]
+    arrow_below = [Char("\ueaa9", 85, 95, y, y + 10) for y in (112, 122, 132)] + [Char("\ueaad", 85, 95, 142, 152)]
+    systems = extract_engraved_systems(_signs_page(notes=chord, chars=arrow_below))
+    assert min(systems[0].events, key=lambda e: e.x).stroke == "up"
+
+
+def test_sideways_music_glyph_is_placed_at_its_origin():
+    from app.extract.pdf_reader import _x_span
+
+    turned = {
+        "text": "\ueaa9",
+        "upright": False,
+        "matrix": (0, 1, -1, 0, 246.0, 1485.7),
+        "size": 22.0,
+        "x0": 347.2,
+        "x1": 447.2,
+    }
+    assert _x_span(turned) == (235.0, 257.0)
+    assert _x_span({**turned, "text": "A"}) == (347.2, 447.2)  # rotated text keeps its box

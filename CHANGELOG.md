@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Rasgueado desenhado como linha ondulada de arpejo com seta (tabs de editor): o acorde a seguir fica com rasgueado (seta para cima = dos graves para os agudos), como já acontecia com as setas retas. O glifo rodado é colocado onde está desenhado.
 - Harmónicos pinch (PH), artificiais (AH) e naturais (N.H.) nas tabs de editor: o texto por cima da pauta com traço até ao fim do intervalo marca as notas desse intervalo, também quando continua na linha seguinte; no GP5 ficam como harmónico pinch / artificial (uma oitava acima) / natural.
 - Bend numa nota ligada (haste sem número, depois de uma ligadura): a curva do bend que começa nessa haste passa a dobrar a nota ligada, com o release quando a seta desce mais à frente; antes o bend perdia-se.
 - Tercinas e sextinas nas tabs de editor (MuseScore): as notas por baixo de um "3" ou "6" com parêntese recto são lidas como tercina (3 no tempo de 2) e escritas como tal no GP5; antes o compasso inteiro passava a ritmo estimado pelo espaçamento. Outros números (5, 7…) continuam a dar ritmo estimado.

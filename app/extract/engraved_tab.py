@@ -23,6 +23,9 @@ STACCATO = "\ue4a2"  # SMuFL articStaccatoAbove
 # SMuFL arrowheads drawn on strum/arpeggio arrows. An arrow pointing up (towards the
 # high strings at the top of the tab) is played low-to-high: a downstroke.
 _ARROWHEADS = {"\ueb78": "down", "\ueb7c": "up"}
+# Wavy arpeggio (rake) lines: SMuFL wiggleArpeggiato up/down (plain and swash) and the arrow ends.
+_ARPEGGIO_LINE = {"\ueaa9", "\ueaaa", "\ueaab", "\ueaac"}
+_ARPEGGIO_ARROWS = {"\ueaad", "\ueaae"}
 # Text that opens a dashed range applying an effect to every note under it.
 # Marks followed by a dashed line to the end of their range: (attribute, value, printed above the staff).
 _RANGE_MARKS = {
@@ -319,7 +322,40 @@ def _strum_arrows(page: Page, staff: list[_StaffLine], spacing: float) -> list[t
         )
         if head is not None:
             arrows.append((x, _ARROWHEADS[head.text]))
+    arrows.extend(_arpeggio_lines(page, staff, spacing))
     return arrows
+
+
+def _arpeggio_lines(page: Page, staff: list[_StaffLine], spacing: float) -> list[tuple[float, str]]:
+    """(x, stroke) for wavy arpeggio lines across the staff: the arrow at the top (towards the
+    high strings) is a downstroke, at the bottom an upstroke; no arrow, a downstroke."""
+    top, bottom = staff[0].y, staff[-1].y
+    parts = sorted(
+        (
+            c
+            for c in page.chars
+            if c.text in _ARPEGGIO_LINE | _ARPEGGIO_ARROWS
+            and staff[0].x0 <= c.xc <= staff[0].x1
+            and top - spacing <= c.yc <= bottom + spacing
+        ),
+        key=lambda c: c.xc,
+    )
+    groups: list[list[Char]] = []
+    for char in parts:
+        if groups and abs(char.xc - groups[-1][0].xc) <= 0.5 * spacing:
+            groups[-1].append(char)
+        else:
+            groups.append([char])
+    lines: list[tuple[float, str]] = []
+    for group in groups:
+        wiggles = [c for c in group if c.text in _ARPEGGIO_LINE]
+        arrow = next((c for c in group if c.text in _ARPEGGIO_ARROWS), None)
+        if not wiggles:
+            continue
+        middle = sum(c.yc for c in wiggles) / len(wiggles)
+        stroke = "up" if arrow is not None and arrow.yc > middle else "down"
+        lines.append((sum(c.xc for c in group) / len(group), stroke))
+    return lines
 
 
 def _apply_strums(arrows: list[tuple[float, str]], events: list[TabEvent], spacing: float) -> None:
