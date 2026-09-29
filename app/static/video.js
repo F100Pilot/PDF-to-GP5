@@ -195,11 +195,14 @@
       const message = PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`;
       if (RETRY_CODES.has(code)) {
         playerFailed(message);
+      } else if (OWNER_BLOCKED.has(code) && current.host + 1 < PLAYER_HOSTS.length) {
+        showPlayer(current.id, current.host + 1); // the regular player sometimes plays what nocookie refuses
       } else if (OWNER_BLOCKED.has(code) && tryNextResult()) {
         // another search result is loading
       } else {
         clearTimeout(readyTimer);
-        setStatus(message);
+        const count = resultsSelect.options.length;
+        setStatus(OWNER_BLOCKED.has(code) && count > 1 ? `Nenhum dos ${count} vídeos encontrados pode ser visto fora do YouTube. Cole o endereço de outro vídeo.` : message);
         offerOpenOnYouTube(true);
       }
       return;
