@@ -19,6 +19,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Página em ecrã inteiro: em ecrãs largos, formulário em duas colunas, tracks lado a lado e partitura com a largura toda.
 - Partitura na página depois de converter (alphaTab, incluído na aplicação): pauta e tab, só tab (com ritmo) ou só pauta; escolher as tracks visíveis; tocar, pausar, parar, velocidade e silenciar tracks.
 - Cada track tem uma cor própria (1.ª azul, 2.ª laranja, 3.ª verde…), igual na aplicação e no ficheiro GP5 (Guitar Pro / TuxGuitar).
+- Encerramento do servidor ao fechar a página: deixa de ficar preso em "Shutting down" quando o browser mantém ligações abertas (espera no máximo 3 s por elas e, se preciso, força a saída).
 - Fechar a página da aplicação encerra o servidor local (scripts de arranque; `python -m app --close-with-browser`); recarregar a página não o encerra.
 - Tabs em texto: slide de entrada (`/5`, `\5`) e de saída (`5\`, `5/`), pre-bend (`7pb9`, `7pb9r7`), harmónico natural (`<12>`), tapping (`t12`) e linhas de palm mute / let ring por cima da tab (`PM----|`, `let ring---`).
 - Slides nas tabs gravadas: slide entre notas (legato com arco, shift sem arco), slide de entrada e slide de saída.

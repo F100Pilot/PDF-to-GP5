@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import threading
 import time
 
@@ -21,13 +22,28 @@ class _HidePresenceReports(logging.Filter):
         return "/api/presence" not in record.getMessage()
 
 
+# Browsers keep idle connections open for a while after a page is closed, and uvicorn waits for
+# them; on Windows their closing may never be noticed. Stop waiting after this, then force it.
+GRACEFUL_SHUTDOWN_S = 3
+FORCE_EXIT_AFTER_S = 8
+
+
 def _stop_when_pages_closed(server: uvicorn.Server) -> None:
     while not server.should_exit:
         if presence.should_stop():
             logger.info("A página da aplicação foi fechada: a encerrar o servidor.")
             server.should_exit = True
-            return
+            break
         time.sleep(1)
+    else:
+        return  # stopped some other way (Ctrl+C)
+    time.sleep(GRACEFUL_SHUTDOWN_S)
+    server.force_exit = True  # stop waiting for connections the browser still holds
+    time.sleep(FORCE_EXIT_AFTER_S - GRACEFUL_SHUTDOWN_S)
+    # Still running (this thread is a daemon, so it is gone once the process ends normally).
+    logger.warning("O servidor não terminou sozinho: a forçar a saída.")
+    logging.shutdown()
+    os._exit(0)  # nothing is kept on disk, so a hard exit loses nothing
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,7 +56,8 @@ def main(argv: list[str] | None = None) -> int:
         help="encerrar o servidor quando a última página da aplicação for fechada",
     )
     args = parser.parse_args(argv)
-    server = uvicorn.Server(uvicorn.Config(app, host=args.host, port=args.port))
+    config = uvicorn.Config(app, host=args.host, port=args.port, timeout_graceful_shutdown=GRACEFUL_SHUTDOWN_S)
+    server = uvicorn.Server(config)
     if args.close_with_browser:
         presence.enabled = True
         logging.getLogger("uvicorn.access").addFilter(_HidePresenceReports())

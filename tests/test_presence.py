@@ -114,3 +114,31 @@ def test_launcher_stops_after_page_closes():
     finally:
         if process.poll() is None:
             process.kill()
+
+
+def test_launcher_stops_even_with_a_stuck_request():
+    """A request whose body never arrives must not keep the server alive after the page closed."""
+    port = _free_port()
+    root = Path(__file__).resolve().parent.parent
+    code = f"import app.presence as p; p.GRACE_S = 0; from app.__main__ import main; raise SystemExit(main(['--port', '{port}', '--close-with-browser']))"
+    process = subprocess.Popen(
+        [sys.executable, "-c", code], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    try:
+        base = f"http://127.0.0.1:{port}"
+        for _ in range(100):
+            try:
+                if httpx2.get(f"{base}/api/health").json()["close_with_browser"]:
+                    break
+            except httpx2.HTTPError:
+                time.sleep(0.1)
+        stuck = socket.create_connection(("127.0.0.1", port))
+        stuck.sendall(b"POST /api/presence HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 500\r\n\r\n{")
+        time.sleep(0.3)
+        httpx2.post(f"{base}/api/presence", json={"id": "page-aaaa", "state": "alive"})
+        httpx2.post(f"{base}/api/presence", json={"id": "page-aaaa", "state": "gone"})
+        assert process.wait(timeout=20) == 0
+        stuck.close()
+    finally:
+        if process.poll() is None:
+            process.kill()

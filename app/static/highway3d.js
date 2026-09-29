@@ -296,8 +296,16 @@
       name.position.set(NAME_X, y, 0.02);
       group.add(name);
     }
+    group.position.x = 0; // nut on fret wire 0, like on a guitar
     stage.scene.add(group);
     stage.headstock = group;
+    // The strings run from the pegs to the end of the neck.
+    const length = FRETS + 0.5 - PEG_X;
+    for (const bar of stage.strings) {
+      if (!bar) continue;
+      bar.mesh.scale.x = length / (FRETS + 1);
+      bar.mesh.position.x = PEG_X + length / 2;
+    }
   }
 
   function buildStrings(count) {
@@ -937,16 +945,6 @@
     stage.anchor.scale.x = high - low + 1;
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     // Tuning names stay just left of the fret window being played.
-    // The headstock follows the fret window (its nut just left of it); the strings run from the pegs.
-    const nutX = stage.anchor.position.x - stage.anchor.scale.x / 2 - 0.35;
-    if (stage.headstock) stage.headstock.position.x = nutX;
-    const stringsStart = nutX + PEG_X;
-    const stringsLength = FRETS + 0.5 - stringsStart;
-    for (const bar of stage.strings) {
-      if (!bar) continue;
-      bar.mesh.scale.x = stringsLength / (FRETS + 1);
-      bar.mesh.position.x = stringsStart + stringsLength / 2;
-    }
     const midY = stringY(Math.ceil(song.count / 2), song.count);
     // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
     // Side angle: the camera moves sideways and keeps looking down the highway (diagonal view).
