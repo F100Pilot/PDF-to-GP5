@@ -26,6 +26,7 @@
   const clock = { tick: 0, time: 0, rate: 0, playing: false };
   let running = false;
   let tilt = 0.5; // 0 = eye level with the strings … 1 = steep, from above
+  let side = 0; // -1 = from the left … 1 = from the right (diagonal view)
 
   function loadThree() {
     if (THREE) return Promise.resolve(THREE);
@@ -119,7 +120,9 @@
     fill.className = "hw-progress-fill";
     progress.appendChild(fill);
     hud.append(position, progress);
-    host.replaceChildren(renderer.domElement, hud);
+    const lyricsLine = document.createElement("div");
+    lyricsLine.className = "hw-lyrics";
+    host.replaceChildren(renderer.domElement, hud, lyricsLine);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b0d14);
@@ -185,7 +188,7 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1 } };
+    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, hud: { position, fill, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [] };
   }
 
   function buildStrings(count) {
@@ -259,6 +262,51 @@
     return curve;
   }
 
+  const NOTE_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+  // Chord types by intervals above the root, most usual first (earlier wins when two names fit).
+  const CHORD_TYPES = [
+    ["", [0, 4, 7]], ["m", [0, 3, 7]], ["5", [0, 7]], ["7", [0, 4, 7, 10]], ["m7", [0, 3, 7, 10]],
+    ["maj7", [0, 4, 7, 11]], ["sus4", [0, 5, 7]], ["sus2", [0, 2, 7]], ["add9", [0, 2, 4, 7]],
+    ["m(add9)", [0, 2, 3, 7]], ["6", [0, 4, 7, 9]], ["m6", [0, 3, 7, 9]], ["7sus4", [0, 5, 7, 10]],
+    ["dim", [0, 3, 6]], ["aug", [0, 4, 8]], ["m7b5", [0, 3, 6, 10]], ["dim7", [0, 3, 6, 9]],
+  ].map(([name, intervals]) => [name, intervals.join(",")]);
+
+  // Name of the chord formed by MIDI `pitches` ("A", "F#m", "E5", "D/F#"); "" when no known chord fits
+  // exactly, so nothing is invented for partial or unusual voicings.
+  function chordName(pitches) {
+    const pcs = [...new Set(pitches.map((pitch) => ((pitch % 12) + 12) % 12))];
+    if (pcs.length < 2) return "";
+    const bass = ((Math.min(...pitches) % 12) + 12) % 12;
+    let best = null;
+    for (const root of pcs) {
+      const intervals = pcs.map((pc) => (pc - root + 12) % 12).sort((a, b) => a - b).join(",");
+      const type = CHORD_TYPES.findIndex(([, known]) => known === intervals);
+      if (type < 0) continue;
+      const rank = (root === bass ? 0 : 100) + type;
+      if (!best || rank < best.rank) {
+        const slash = root === bass ? "" : `/${NOTE_NAMES[bass]}`;
+        best = { rank, name: `${NOTE_NAMES[root]}${CHORD_TYPES[type][0]}${slash}` };
+      }
+    }
+    return best ? best.name : "";
+  }
+
+  // Lyric syllables of the song (alphaTab spreads GP5 lyrics over the beats of the lyrics track).
+  function collectLyrics(score) {
+    const syllables = [];
+    for (const track of score.tracks) {
+      for (const bar of track.staves[0].bars) {
+        for (const voice of bar.voices) {
+          for (const beat of voice.beats) {
+            const text = beat.lyrics ? beat.lyrics.filter(Boolean).join(" ").trim() : "";
+            if (text) syllables.push({ tick: beat.absolutePlaybackStart, text });
+          }
+        }
+      }
+    }
+    return syllables.sort((a, b) => a.tick - b.tick);
+  }
+
   // Playable notes of the track with their techniques; ties are folded into the sustain of the
   // note they continue.
   function collectNotes(track) {
@@ -304,6 +352,7 @@
               low: Math.min(...fretted.map((note) => note.fret)),
               high: Math.max(...fretted.map((note) => note.fret)),
               brush: beat.brushType === BRUSH.down ? "↓" : beat.brushType === BRUSH.up ? "↑" : "",
+              name: chordName(struck.filter((note) => !note.isDead).map((note) => note.realValue)),
             });
           }
         }
@@ -337,6 +386,7 @@
   // Free the GPU resources of the previous track (label materials are shared and kept).
   function disposeSong() {
     if (!song) return;
+    clearEffects(); // effects share the chord frame geometry disposed below
     stage.scene.remove(song.lane);
     song.lane.traverse((object) => {
       if (object.geometry && !object.isSprite) object.geometry.dispose(); // sprites share one geometry
@@ -502,11 +552,25 @@
 
     const top = stringY(1, count) + 0.2;
     const bottom = stringY(count, count) - 0.2;
+    let lastName = "";
+    let lastTick = -Infinity;
     for (const chord of chords) {
       const width = chord.high - chord.low + 1;
-      const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02)), chordMaterial);
-      frame.position.set((fretX(chord.low) + fretX(chord.high)) / 2, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
+      chord.x = (fretX(chord.low) + fretX(chord.high)) / 2;
+      chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02));
+      const frame = new THREE.LineSegments(chord.frame, chordMaterial);
+      frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
       lane.add(frame);
+      // Chord name on top, when it changes (or comes back after more than a bar).
+      if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
+        const name = label(chord.name, 0.5, true, "#ffffff");
+        name.position.set(chord.x, top + 0.4, -chord.tick * Z_PER_TICK);
+        lane.add(name);
+      }
+      if (chord.name) {
+        lastName = chord.name;
+        lastTick = chord.tick;
+      }
       if (chord.brush) {
         const arrow = label(chord.brush, 0.7, true, "#ffd54f");
         arrow.position.set(fretX(chord.low) - 0.9, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
@@ -518,9 +582,108 @@
     const materials = [
       ...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial, barMaterial, beatMaterial,
     ].filter(Boolean);
-    song = { lane, notes, anchors, count, materials, bars, endTick, nextHit: 0 };
+    clearEffects();
+    song = {
+      lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom,
+      lyrics: collectLyrics(score), nextHit: 0, nextChord: 0,
+    };
     stage.hud.bar = -1;
+    stage.hud.line = -1;
     seekHits(currentTick());
+  }
+
+  // Hit effects at the strike line: when a note reaches the strings its number stays there, with a
+  // glow on the note (and on the chord frame), while it rings; then it fades out.
+  let glowTexture = null;
+  function glowMap() {
+    if (!glowTexture) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gradient.addColorStop(0, "rgba(255,255,255,1)");
+      gradient.addColorStop(0.35, "rgba(255,255,255,0.55)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 128, 128);
+      glowTexture = new THREE.CanvasTexture(canvas);
+    }
+    return glowTexture;
+  }
+
+  const FADE_MS = 300;
+  let hitGem = null;
+
+  function addEffect(parts, until) {
+    for (const part of parts) stage.scene.add(part);
+    stage.effects.push({ parts, until, fadeStart: 0 });
+  }
+
+  function spawnNoteHit(note, index) {
+    const color = stringColor(note.string, song.count);
+    const y = stringY(note.string, song.count);
+    const { low, high } = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH };
+    const x = note.fret === 0 && !note.dead ? (fretX(low) + fretX(high)) / 2 : fretX(note.fret);
+    if (!hitGem) hitGem = new THREE.BoxGeometry(0.86, 0.3, 0.3);
+    const gem = new THREE.Mesh(hitGem, new THREE.MeshBasicMaterial({ color, transparent: true }));
+    gem.position.set(x, y, 0);
+    if (note.fret === 0 && !note.dead) gem.scale.set(high - low + 1.2, 0.55, 1);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowMap(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    glow.scale.set(note.fret === 0 ? high - low + 3 : 2, 1.2, 1);
+    glow.position.set(x, y, 0.1);
+    const text = new THREE.Sprite(labelMaterial(note.dead ? "X" : String(note.fret), false, "#ffffff").clone());
+    text.scale.set(0.55, 0.55, 1);
+    text.position.set(x, y + 0.02, 0.3);
+    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2));
+  }
+
+  function spawnChordHit(chord) {
+    const frame = new THREE.LineSegments(chord.frame, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true }));
+    frame.position.set(chord.x, (song.top + song.bottom) / 2, 0.02);
+    frame.scale.set(1.04, 1.04, 1);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowMap(), color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending,
+    }));
+    glow.scale.set(chord.high - chord.low + 3, song.top - song.bottom + 1.5, 1);
+    glow.position.set(chord.x, (song.top + song.bottom) / 2, 0.05);
+    addEffect([frame, glow], chord.tick + TICKS_PER_QUARTER / 2);
+  }
+
+  function updateEffects(tick) {
+    const now = performance.now();
+    stage.effects = stage.effects.filter((effect) => {
+      let opacity = 0.75 + 0.25 * Math.sin(now / 90); // gentle pulse while the note rings
+      if (tick >= effect.until) {
+        if (!effect.fadeStart) effect.fadeStart = now;
+        opacity = 1 - (now - effect.fadeStart) / FADE_MS;
+      }
+      if (opacity <= 0) {
+        for (const part of effect.parts) {
+          stage.scene.remove(part);
+          part.material.dispose(); // own materials; geometries and textures are shared
+        }
+        return false;
+      }
+      for (const part of effect.parts) {
+        const base = part.material.userData.base ?? (part.material.userData.base = part.material.opacity);
+        part.material.opacity = base * Math.min(1, opacity);
+      }
+      return true;
+    });
+  }
+
+  function clearEffects() {
+    if (!stage) return;
+    for (const effect of stage.effects) {
+      for (const part of effect.parts) {
+        stage.scene.remove(part);
+        part.material.dispose();
+      }
+    }
+    stage.effects = [];
   }
 
   function currentTick() {
@@ -544,6 +707,33 @@
     return indexOf(song.notes, tick);
   }
 
+  function updateLyrics(tick, bar) {
+    const hud = stage.hud;
+    if (!song.lyrics.length) {
+      if (hud.line !== -2) hud.lyrics.replaceChildren();
+      hud.line = -2;
+      return;
+    }
+    const line = Math.floor(bar / 2);
+    const from = song.bars[line * 2] ? song.bars[line * 2].tick : 0;
+    const to = song.bars[line * 2 + 2] ? song.bars[line * 2 + 2].tick : Infinity;
+    const sung = indexOf(song.lyrics, tick + 1) - 1;
+    if (line === hud.line && sung === hud.sung) return;
+    hud.line = line;
+    hud.sung = sung;
+    const parts = [];
+    song.lyrics.forEach((syllable, i) => {
+      if (syllable.tick < from || syllable.tick >= to) return;
+      const span = document.createElement("span");
+      const joined = syllable.text.endsWith("-"); // "hap-" + "pened"
+      span.textContent = joined ? syllable.text.slice(0, -1) : syllable.text;
+      if (i === sung) span.className = "now";
+      else if (i < sung) span.className = "sung";
+      parts.push(span, document.createTextNode(joined ? "" : " "));
+    });
+    hud.lyrics.replaceChildren(...parts);
+  }
+
   function updateHud(tick) {
     const hud = stage.hud;
     const bar = Math.max(0, indexOf(song.bars, tick + 1) - 1);
@@ -553,6 +743,7 @@
       for (let i = bar; i >= 0 && !section; i -= 1) section = song.bars[i].section;
       hud.position.textContent = `Compasso ${bar + 1} / ${song.bars.length}${section ? ` · ${section}` : ""}`;
     }
+    updateLyrics(tick, bar);
     const percent = Math.round((1000 * Math.min(Math.max(tick, 0), song.endTick)) / song.endTick) / 10;
     if (percent !== hud.percent) {
       hud.percent = percent;
@@ -561,7 +752,10 @@
   }
 
   function seekHits(tick) {
-    if (song) song.nextHit = indexAt(tick);
+    if (!song) return;
+    song.nextHit = indexAt(tick);
+    song.nextChord = indexOf(song.chords, tick);
+    clearEffects();
   }
 
   function frame() {
@@ -571,12 +765,21 @@
     const tick = currentTick();
     song.lane.position.z = tick * Z_PER_TICK;
 
-    // Light the string of every note reaching the strike line.
+    // Notes reaching the strike line: light their string, keep their number there with a glow.
     while (song.nextHit < song.notes.length && song.notes[song.nextHit].tick <= tick) {
-      const bar = stage.strings[song.notes[song.nextHit].string];
-      if (bar && clock.playing) bar.glow = 1;
+      const note = song.notes[song.nextHit];
+      const bar = stage.strings[note.string];
+      if (clock.playing) {
+        if (bar) bar.glow = 1;
+        spawnNoteHit(note, song.nextHit);
+      }
       song.nextHit += 1;
     }
+    while (song.nextChord < song.chords.length && song.chords[song.nextChord].tick <= tick) {
+      if (clock.playing) spawnChordHit(song.chords[song.nextChord]);
+      song.nextChord += 1;
+    }
+    updateEffects(tick);
     for (const bar of stage.strings) {
       if (!bar) continue;
       bar.glow *= 0.9;
@@ -592,8 +795,9 @@
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     const midY = stringY(Math.ceil(song.count / 2), song.count);
     // Tilt chosen by the user: low shows string heights (and bends rising) best, high shows further ahead.
-    stage.camera.position.set(stage.cameraX, midY + 0.8 + 5.2 * tilt, 7 + 2 * tilt);
-    stage.camera.lookAt(stage.cameraX, midY - 2.6 * tilt, -20);
+    // Side angle: the camera moves sideways and keeps looking down the highway (diagonal view).
+    stage.camera.position.set(stage.cameraX + 7 * side, midY + 0.8 + 5.2 * tilt, 7 + 2 * tilt - 1.5 * Math.abs(side));
+    stage.camera.lookAt(stage.cameraX - 1.5 * side, midY - 2.6 * tilt, -20);
     updateHud(tick);
     stage.renderer.render(stage.scene, stage.camera);
   }
@@ -631,5 +835,9 @@
     tilt = Math.min(1, Math.max(0, value));
   }
 
-  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt };
+  function setSide(value) {
+    side = Math.min(1, Math.max(-1, value));
+  }
+
+  window.Highway3D = { show, hide, setPosition, setPlaying, setTilt, setSide };
 })();

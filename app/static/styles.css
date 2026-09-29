@@ -194,4 +194,18 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 }
 .hw-progress { flex: 1; height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; overflow: hidden; }
 .hw-progress-fill { height: 100%; width: 0; background: #f97316; }
-#score-3d-tilt { padding: 0; min-width: 160px; }
+#score-3d-tilt, #score-3d-side { padding: 0; min-width: 160px; }
+.hw-lyrics {
+  position: absolute;
+  top: 38px;
+  left: 12px;
+  right: 12px;
+  text-align: center;
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
+  font-weight: 600;
+  color: #e6edf3;
+  pointer-events: none;
+  text-shadow: 0 1px 3px #000000;
+}
+.hw-lyrics .sung { color: #8b95a7; }
+.hw-lyrics .now { color: #ffd54f; }

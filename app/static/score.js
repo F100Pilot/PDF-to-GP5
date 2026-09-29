@@ -19,6 +19,9 @@
   const tiltLabel = document.getElementById("score-3d-tilt-label");
   const tiltInput = document.getElementById("score-3d-tilt");
   const TILT_KEY = "pdf-to-gp5.highway-tilt";
+  const sideLabel = document.getElementById("score-3d-side-label");
+  const sideInput = document.getElementById("score-3d-side");
+  const SIDE_KEY = "pdf-to-gp5.highway-side";
 
   let loading = null;
   let api = null;
@@ -159,7 +162,9 @@
     highwayLegend.hidden = false;
     highwayTrackLabel.hidden = false;
     tiltLabel.hidden = false;
+    sideLabel.hidden = false;
     window.Highway3D.setTilt(Number(tiltInput.value) / 100);
+    window.Highway3D.setSide(Number(sideInput.value) / 100);
     api.settings.player.scrollMode = alphaTab.ScrollMode.Off; // nothing to follow on the hidden notation
     api.updateSettings();
     try {
@@ -182,6 +187,7 @@
     highwayLegend.hidden = true;
     highwayTrackLabel.hidden = true;
     tiltLabel.hidden = true;
+    sideLabel.hidden = true;
     container.hidden = false;
     api.settings.player.scrollMode = alphaTab.ScrollMode.Continuous;
     api.settings.display.staveProfile = alphaTab.StaveProfile[notationView];
@@ -196,14 +202,19 @@
     if (in3D()) showHighway();
     else showNotation();
   });
-  try {
-    const saved = localStorage.getItem(TILT_KEY);
-    if (saved !== null) tiltInput.value = saved;
-  } catch { /* storage unavailable */ }
-  tiltInput.addEventListener("input", () => {
-    window.Highway3D.setTilt(Number(tiltInput.value) / 100);
-    try { localStorage.setItem(TILT_KEY, tiltInput.value); } catch { /* storage unavailable */ }
-  });
+  // Camera sliders, remembered per browser.
+  function cameraControl(input, key, apply) {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) input.value = saved;
+    } catch { /* storage unavailable */ }
+    input.addEventListener("input", () => {
+      apply(Number(input.value) / 100);
+      try { localStorage.setItem(key, input.value); } catch { /* storage unavailable */ }
+    });
+  }
+  cameraControl(tiltInput, TILT_KEY, (value) => window.Highway3D.setTilt(value));
+  cameraControl(sideInput, SIDE_KEY, (value) => window.Highway3D.setSide(value));
   highwayTrack.addEventListener("change", () => {
     if (api && api.score && in3D()) showHighway();
   });
