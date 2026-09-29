@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Desligar o vídeo: o botão "Vídeo YouTube" liga e desliga o vídeo. Desligado, o vídeo fica em pausa, deixa de acompanhar a partitura e o som da partitura volta (mesmo com "Silenciar os sons da partitura" marcado); a escolha fica guardada e as músicas seguintes não abrem nem pesquisam o vídeo até o voltar a ligar.
 - Barra de tempo da música por baixo dos botões da partitura: tempo atual e duração ("0:42 / 3:03", tempo da música, igual a qualquer velocidade); clicar ou arrastar avança ou recua, e o vídeo e a pista 3D acompanham. Na pista 3D, a barra de progresso mostra o mesmo tempo e também se pode clicar.
 - Banner "Novidades" na entrada da aplicação com as alterações das versões ainda não vistas pelo utilizador.
 - Várias tracks: carregar vários PDFs (um por track, até 7) e obter um único GP5; nome, afinação e som por track, ordem ajustável; tracks mais curtas completadas com pausas (com aviso).

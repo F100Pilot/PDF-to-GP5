@@ -227,7 +227,7 @@
         rate: typeof info.playbackRate === "number" && info.playbackRate > 0 ? info.playbackRate : previous.rate,
       };
     }
-    if (typeof time === "number" && song.playing && syncInput.checked) {
+    if (typeof time === "number" && song.playing && syncInput.checked && !panel.hidden) {
       const now = performance.now();
       if (now - lastDriftFix > DRIFT_CHECK_MS && Math.abs(time - expectedTime()) > DRIFT_S) {
         lastDriftFix = now;
@@ -236,11 +236,63 @@
     }
   });
 
+  // Closing the panel turns the video off: it pauses, stops following the score and the score's
+  // own sounds come back. The choice is remembered, so the next songs do not open it again.
+  const OFF_KEY = "pdf-to-gp5.video-off";
+  let songQuery = ""; // "artist title" of the current song, searched when the panel is opened
+  let songPending = false; // the current song's video has not been looked for yet (video was off)
+
+  function videoOff() {
+    try {
+      return localStorage.getItem(OFF_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
   function showPanel(open) {
     panel.hidden = !open;
     stageBox.classList.toggle("with-video", open);
     toggle.setAttribute("aria-pressed", String(open));
     window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+    if (open) {
+      onMuteScore(muteInput.checked);
+      if (song.playing && syncInput.checked) {
+        seekVideo();
+        send("playVideo");
+      }
+    } else {
+      send("pauseVideo");
+      onMuteScore(false);
+    }
+  }
+
+  // The user's on / off choice (the toggle button).
+  function switchVideo(open) {
+    try {
+      if (open) localStorage.removeItem(OFF_KEY);
+      else localStorage.setItem(OFF_KEY, "1");
+    } catch { /* storage unavailable */ }
+    showPanel(open);
+    if (open && songPending) loadSongVideo();
+  }
+
+  // Reuse the video chosen for this song before, else search YouTube for "artist title".
+  async function loadSongVideo() {
+    songPending = false;
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
+    } catch { /* storage unavailable or bad data */ }
+    if (saved && typeof saved.url === "string" && parseVideo(saved.url)) {
+      urlInput.value = saved.url;
+      offsetInput.value = String(Number(saved.offset) || 0);
+      showPanel(true);
+      loadVideo();
+    } else if (await findVideo(songQuery)) {
+      offsetInput.value = "0";
+      showPanel(true);
+    }
   }
 
   function watchUrl(id) {
@@ -294,7 +346,7 @@
     }
   }
 
-  toggle.addEventListener("click", () => showPanel(panel.hidden));
+  toggle.addEventListener("click", () => switchVideo(panel.hidden));
   resultsSelect.addEventListener("change", () => {
     urlInput.value = watchUrl(resultsSelect.value);
     offsetInput.value = "0";
@@ -330,7 +382,7 @@
   for (const button of document.querySelectorAll("[data-nudge]")) {
     button.addEventListener("click", () => setOffset(offset() + Number(button.dataset.nudge)));
   }
-  muteInput.addEventListener("change", () => onMuteScore(muteInput.checked));
+  muteInput.addEventListener("change", () => onMuteScore(muteInput.checked && !panel.hidden));
 
   window.VideoSync = {
     // Called by the score viewer.
@@ -338,32 +390,25 @@
     async setSong(key, muteScore, query) {
       songKey = key || "";
       onMuteScore = muteScore;
-      onMuteScore(muteInput.checked);
-      searchLink.href = `https://www.youtube.com/results?${new URLSearchParams({ search_query: query || "" })}`;
+      onMuteScore(muteInput.checked && !panel.hidden);
+      songQuery = query || "";
+      searchLink.href = `https://www.youtube.com/results?${new URLSearchParams({ search_query: songQuery })}`;
       manualHint.hidden = canSearch;
-      let saved = null;
-      try {
-        saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
-      } catch { /* storage unavailable or bad data */ }
-      if (saved && typeof saved.url === "string" && parseVideo(saved.url)) {
-        urlInput.value = saved.url;
-        offsetInput.value = String(Number(saved.offset) || 0);
-        showPanel(true);
-        loadVideo();
-      } else if (await findVideo(query)) {
-        offsetInput.value = "0";
-        showPanel(true);
+      if (videoOff()) {
+        songPending = true; // looked for only if the user turns the video on
+        return;
       }
+      await loadSongVideo();
     },
     // Score position: `realMs` as reported by alphaTab (scaled by the speed), `speed` the playback speed.
     position(realMs, speed, isSeek) {
       song.speed = speed || 1;
       song.ms = realMs * song.speed;
-      if (isSeek && syncInput.checked) seekVideo();
+      if (isSeek && syncInput.checked && !panel.hidden) seekVideo();
     },
     playing(isPlaying) {
       song.playing = isPlaying;
-      if (!syncInput.checked) return;
+      if (!syncInput.checked || panel.hidden) return;
       if (isPlaying) {
         seekVideo();
         send("playVideo");
