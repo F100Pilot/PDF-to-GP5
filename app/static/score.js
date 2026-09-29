@@ -32,6 +32,7 @@
   let shown = new Set();
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
   let timedLyrics = null; // complete lyrics from the PDF with their place in the music
+  let lastBytes = null; // the converted GP5 file
   let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
   // Last player position (alphaTab ticks; song time in ms, as at 100% speed) and whether the
   // time bar is being dragged (its thumb then follows the mouse, not the player).
@@ -281,6 +282,7 @@
   // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position;
   // `lyrics`: the complete lyrics from the PDF with their place in the music (report.timed_lyrics).
   async function show(bytes, trackCount, trackColors, lyrics) {
+    lastBytes = bytes;
     colors = trackColors || [];
     timedLyrics = Array.isArray(lyrics) ? lyrics : null;
     notice = "";
@@ -310,5 +312,18 @@
     box.hidden = true;
   }
 
-  window.ScoreView = { show, hide };
+  // The converted song as a Guitar Pro 7/8 file (.gp) with `audio` (mp3/ogg/wav bytes) as its audio
+  // track, bar 1 starting `offsetMs` into the audio (one sync point; Guitar Pro follows the tempo).
+  async function exportGp(audio, offsetMs) {
+    if (!lastBytes) throw new Error("Converta primeiro uma música.");
+    await loadAlphaTab();
+    const settings = new alphaTab.Settings();
+    const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(lastBytes, settings);
+    score.backingTrack = new alphaTab.model.BackingTrack();
+    score.backingTrack.rawAudioFile = audio;
+    score.applyFlatSyncPoints([{ barIndex: 0, barOccurence: 0, barPosition: 0, millisecondOffset: Math.round(offsetMs) }]);
+    return new alphaTab.exporter.Gp7Exporter().export(score, settings);
+  }
+
+  window.ScoreView = { show, hide, exportGp };
 })();

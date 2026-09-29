@@ -8,6 +8,7 @@
   <script src="highway3d.js" defer></script>
   <script src="video.js" defer></script>
   <script src="score.js" defer></script>
+  <script src="audio.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -89,6 +90,21 @@
       <div class="result-head">
         <h2>Resultado</h2>
         <a id="download" class="button" download>Descarregar .gp5</a>
+      </div>
+      <div class="audio-box">
+        <label>Áudio da música (opcional): com áudio, o ficheiro é .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, .gp5
+          <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav">
+        </label>
+        <div id="audio-tools" class="audio-tools" hidden>
+          <audio id="audio-preview" controls preload="metadata"></audio>
+          <label>Início da música no áudio (segundos)
+            <input id="audio-offset" type="number" min="0" step="0.01" value="0">
+          </label>
+          <button id="audio-mark" type="button">Marcar início</button>
+          <button id="audio-remove" type="button">Remover áudio</button>
+        </div>
+        <p id="audio-status" class="hint" role="status" hidden></p>
+        <p id="audio-help" class="hint" hidden>Ponha o áudio a tocar e carregue em "Marcar início" no primeiro tempo do compasso 1: o Guitar Pro alinha a partitura com o áudio a partir daí (pode afinar a sincronização no próprio Guitar Pro). O áudio fica só no seu computador: não é enviado para o servidor.</p>
       </div>
       <dl id="summary" class="summary"></dl>
       <div id="warnings-box" hidden>

@@ -56,6 +56,10 @@ Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arr
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Áudio (ficheiro .gp)
+
+Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 100 MB). Com áudio, "Descarregar" dá um ficheiro `.gp` (Guitar Pro 7/8) com o áudio como faixa de áudio e um ponto de sincronização no compasso 1 ("Marcar início" enquanto ouve o áudio na página; a sincronização pode ser afinada no Guitar Pro). Sem áudio, o download é o `.gp5` de sempre (o formato GP5 não guarda áudio). O `.gp` é criado no browser pelo alphaTab: o áudio não sai do computador. Confirme que o seu conversor (por exemplo para Rocksmith) aceita `.gp`; senão use o `.gp5`.
+
 ## Letra
 
 A letra impressa no PDF vai completa para o GP5 numa track própria, "Letra (voz)", silenciada (volume 0): uma nota por sílaba, no sítio onde a sílaba está impressa. Assim o Guitar Pro, o TuxGuitar e os conversores de GP5 para o Rocksmith (PSARC) leem a letra toda. Com 7 tracks já ocupadas, a letra vai para a track que toca em mais compassos com letra e a página avisa dos compassos que ficam sem ela.

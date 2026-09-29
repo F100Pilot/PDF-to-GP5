@@ -81,6 +81,13 @@ def test_3d_highway_files_are_served(client):
         assert response.status_code == 200 and "javascript" in response.headers["content-type"]
 
 
+def test_audio_for_gp_download_is_offered_and_can_play_locally(client):
+    response = client.get("/")
+    assert 'id="audio-file"' in response.text and 'src="audio.js"' in response.text
+    assert "media-src 'self' blob:" in response.headers["content-security-policy"]
+    assert client.get("/audio.js").status_code == 200
+
+
 def test_page_files_are_revalidated(client):
     for path in ("/", "/app.js", "/styles.css"):
         assert client.get(path).headers["cache-control"] == "no-cache"
