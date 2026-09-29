@@ -60,11 +60,11 @@ Colunas:
 | Indicação de compasso (4/4, 6/8…) | ⬜ | ✅ | ✅ | Happen To Me | Glifos `U+E080`–`E08B`; texto ainda não |
 | Mudança de compasso a meio | ⬜ | ✅ | ✅ | — | Algarismos SMuFL empilhados (MuseScore); o compasso de aviso no fim da linha e o número das pausas de vários compassos são ignorados. Tabs em texto: não |
 | Tempo inicial (♩ = 118, "Tempo: 120", "120 bpm") | ✅ | ✅ | ✅ | Happen To Me | |
-| Mudança de tempo a meio | ⬜ | ⬜ | ✅ | — | |
+| Mudança de tempo a meio | ✅ | ✅ | ✅ | Happen To Me (`♩ = 118` no c. 1) | "♩ = 90", "= 90", "Tempo 90", "90 bpm" por cima da tab; a marca do c. 1 é o tempo da música. Sem rit./accel. |
 | Armação de clave | ⬜ | ⬜ | ✅ | — | |
 | Repetições `‖: :‖` e "x3" | ✅ `\|: :\|` | ✅ | ✅ | — | Gravada: pontos de repetição SMuFL e "x3" por cima; texto: `\|:` `:\|` `\|*` `\|o` e "x3" depois da linha (sem sinais: a linha inteira repete). Sem número: 2 vezes. Opção "por extenso" (Rocksmith): compassos copiados pela ordem de reprodução |
 | Casas de 1.ª/2.ª vez (voltas) | ⬜ | ✅ | ✅ | — | "1.", "2.", "1., 2." por cima da pauta com a linha do colchete |
-| Coda, Segno, D.C., D.S., Fine | ⬜ | ⬜ | ✅ | — | |
+| Coda, Segno, D.C., D.S., Fine | ✅ | ✅ | ✅ | — | Gravada: símbolos SMuFL de Segno/Coda e texto ("D.S. al Coda", "To Coda", "Fine"…); texto: por cima da tab ou depois da linha. Ordem de reprodução igual à do alphaTab; o GP5 guarda cada sinal uma vez |
 | Secções (Intro, Verse, Chorus…) → marcadores | ✅ | ✅ | ✅ | Happen To Me | Gravada: texto a negrito acima da pauta; texto: `[Chorus]`, `Verse 2:` |
 
 ## 3. Notas

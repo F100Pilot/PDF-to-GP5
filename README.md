@@ -58,7 +58,7 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 
 ## Repetições
 
-Os sinais de repetição, o número de vezes ("x3") e as voltas (1.ª/2.ª vez) passam para o ficheiro. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).
+Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e os saltos D.C./D.S./To Coda/Fine passam para o ficheiro, tal como as mudanças de tempo. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).
 
 ## Áudio (ficheiro .gp)
 
@@ -144,7 +144,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 - Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
 - Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
-- D.S., D.C., Coda e Fine, mudanças de tempo a meio e acordes por extenso não são convertidos; nas tabs em texto também não as mudanças de compasso. Repetições e voltas só são lidas por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos).
+- Acordes por extenso, ritardando/accelerando ("rit.", "accel.") e, nas tabs em texto, mudanças de compasso não são convertidos. Repetições, voltas, D.C./D.S./Coda/Fine e marcas de tempo só são lidos por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos). O GP5 guarda cada sinal de navegação (Segno, Coda, D.S. al Coda…) uma só vez por música.
 
 ## Versões
 

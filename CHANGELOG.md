@@ -7,6 +7,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- D.C., D.S., Segno, Coda, "To Coda" e Fine (D.C./D.S. al Coda, al Fine): lidos por cima da tab (símbolos de Segno e Coda e texto nas tabs gravadas; texto por cima da tab ou depois da linha nas tabs em texto) e escritos no GP5. A partitura, a pista 3D e a barra de tempo seguem os saltos; com "por extenso" a música fica escrita pela ordem em que se toca, com o tempo certo depois de cada salto. O resumo mostra a "Navegação".
+- Mudanças de tempo a meio da música ("♩ = 90", "= 90", "Tempo 90" por cima da tab): cada uma passa para o GP5 no seu compasso (a partitura, a pista 3D, o vídeo e a barra de tempo acompanham) e aparecem no resumo. A marca do compasso 1 é o tempo da música; um tempo escolhido no formulário substitui-a.
 - Opção "Escrever as repetições por extenso (para o Rocksmith, que não tem repetições)" (em Ritmo; a escolha fica guardada): o GP5/.gp fica com os compassos repetidos copiados pela ordem em que se tocam (voltas e repetições dentro de repetições incluídas, na mesma ordem que o leitor da página), sem sinais de repetição; a letra, os marcadores de secção e a pista 3D seguem cada passagem.
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 

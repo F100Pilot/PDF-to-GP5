@@ -208,3 +208,23 @@ def test_time_signature_carries_over_to_the_next_line():
     measures = build_measures([line([(5, 6, 8)]), line()], RhythmOptions(), [])
     assert [m.time_signature for m in measures] == [(6, 8), (6, 8)]
     assert [sum(b.units for b in m.beats) for m in measures] == [24, 24]
+
+
+def test_navigation_marks_and_tempo_go_to_their_bars():
+    events = [TabEvent(x=x, string=1, fret=3) for x in (20, 120, 220)]
+    system = TabSystem(
+        1,
+        6,
+        events,
+        [0, 100, 200, 300],
+        0,
+        300,
+        6,
+        tempos=[(110, 90)],
+        signs=[(105, "Segno"), (296, "Fine")],
+        jumps=[(198, "Da Coda"), (305, "Da Capo al Fine")],
+    )
+    measures = build_measures([system], RhythmOptions(), [])
+    assert [m.tempo for m in measures] == [None, 90, None]
+    assert [m.sign for m in measures] == [None, "Segno", "Fine"]
+    assert [m.jump for m in measures] == [None, "Da Coda", "Da Capo al Fine"]

@@ -389,3 +389,21 @@ def test_ascii_count_after_a_line_without_signs_repeats_the_line():
     (system,), _ = _systems(ascii_tab_pdf([[line + "   x4" for line in STANDARD]]))
     bars = sorted(system.bars)
     assert system.repeat_starts == [bars[0]] and system.repeat_ends == [(bars[-1], 4)]
+
+
+def test_engraved_segno_jump_and_tempo_marks_above_the_staff():
+    segno = [_glyph("", 305, 80)]  # at the start of bar 2
+    tempo = _text("=90", 310, 70)
+    jump = _text("D.S.", 470, 84) + _text("al", 500, 84) + _text("Coda", 518, 84)  # ends at bar 2's end
+    (system,) = extract_engraved_systems(_signs_page(chars=[*segno, *tempo, *jump]))
+    assert system.signs == [(305, "Segno")]
+    assert system.jumps == [(541, "Da Segno al Coda")]
+    assert system.tempos == [(310, 90)]
+
+
+def test_ascii_navigation_and_tempo_marks():
+    tab = [line + ("   D.S. al Coda" if i == 0 else "") for i, line in enumerate(STANDARD)]
+    (system,), _ = _systems(ascii_tab_pdf([tab], extra_lines=["Tempo 90           Fine"]))
+    assert [name for _, name in system.jumps] == ["Da Segno al Coda"]
+    assert [name for _, name in system.signs] == ["Fine"]
+    assert [bpm for _, bpm in system.tempos] == [90]

@@ -64,6 +64,11 @@ def _is_music_glyph(text: str) -> bool:
     return any("" <= ch <= "" or ch == "♩" for ch in text)
 
 
+def tempo_from_text(text: str) -> int | None:
+    """BPM of a tempo mark ("♩ = 90", "= 90", "Tempo 90", "90 bpm"), or None."""
+    return _detect_tempo([text])
+
+
 def _detect_tempo(texts: list[str]) -> int | None:
     for text in texts:
         for pattern in _TEMPO_PATTERNS:

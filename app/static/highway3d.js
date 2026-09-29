@@ -451,34 +451,72 @@
 
   // The bars in the order they are played, with repeats and voltas unrolled as alphaTab plays
   // them, each with its start in playback ticks (the player reports positions in these ticks).
-  // A repeat end without a start goes back to the song's start; repeats can nest, and a repeat
-  // inside a repeated passage is played again (with its own count) on every pass, as alphaTab does.
+  // alphaTab's Direction values (model.Direction) for D.C. / D.S. / Coda / Fine.
+  const DIRECTION = {
+    fine: 0, segno: 1, coda: 3, daCapo: 5, daCapoAlCoda: 6, daCapoAlFine: 8,
+    dalSegno: 9, dalSegnoAlCoda: 10, dalSegnoAlFine: 12, toCoda: 17,
+  };
+  const JUMPS = new Map([
+    [DIRECTION.daCapo, { toSegno: false, until: "" }],
+    [DIRECTION.daCapoAlCoda, { toSegno: false, until: "coda" }],
+    [DIRECTION.daCapoAlFine, { toSegno: false, until: "fine" }],
+    [DIRECTION.dalSegno, { toSegno: true, until: "" }],
+    [DIRECTION.dalSegnoAlCoda, { toSegno: true, until: "coda" }],
+    [DIRECTION.dalSegnoAlFine, { toSegno: true, until: "fine" }],
+  ]);
+  const has = (bar, direction) => Boolean(bar.directions && bar.directions.has(direction));
+
+  // The bars in the order they are played, as alphaTab plays them (the same rules as the server's
+  // app/repeats.py): a repeat end without a start goes back to the song's start; repeats can nest,
+  // and a repeat inside a repeated passage is played again on every pass; a D.C. / D.S. jump is
+  // taken once (a D.S. without a Segno is ignored); after it repeats and voltas no longer count,
+  // "To Coda" goes to the Coda and "Fine" ends the song.
   function playbackOrder(masterBars) {
     const order = [];
     const jumps = masterBars.map(() => 0); // times each repeat end has sent playback back
     const starts = [0]; // open repeats: the bar each goes back to (innermost last)
+    const segno = masterBars.findIndex((bar) => has(bar, DIRECTION.segno));
+    const coda = masterBars.findIndex((bar) => has(bar, DIRECTION.coda));
+    let jumped = null; // the D.C. / D.S. jump taken
     let tick = 0;
     let pass = 0; // 0 the first time through a repeat, 1 the second… (chooses the volta)
     for (let i = 0, guard = 0; i < masterBars.length && guard < MAX_PLAYED_BARS; guard += 1) {
       const bar = masterBars[i];
-      if (bar.isRepeatStart && i !== starts[starts.length - 1]) {
-        starts.push(i);
-        pass = 0;
-      }
-      const skipped = bar.alternateEndings !== 0 && (bar.alternateEndings & (1 << pass)) === 0;
-      if (!skipped) {
-        order.push({ masterBar: bar, tick });
-        tick += barLength(bar);
-        if (bar.repeatCount > 1) {
-          if (jumps[i] < bar.repeatCount - 1) {
-            jumps[i] += 1;
-            pass = jumps[i];
-            i = starts[starts.length - 1];
-            continue;
-          }
-          jumps[i] = 0;
+      if (!jumped) {
+        if (bar.isRepeatStart && i !== starts[starts.length - 1]) {
+          starts.push(i);
           pass = 0;
-          if (starts.length > 1) starts.pop();
+        }
+        if (bar.alternateEndings !== 0 && (bar.alternateEndings & (1 << pass)) === 0) {
+          i += 1; // a volta for another pass
+          continue;
+        }
+      }
+      order.push({ masterBar: bar, tick });
+      tick += barLength(bar);
+      if (!jumped && bar.repeatCount > 1) {
+        if (jumps[i] < bar.repeatCount - 1) {
+          jumps[i] += 1;
+          pass = jumps[i];
+          i = starts[starts.length - 1];
+          continue;
+        }
+        jumps[i] = 0;
+        pass = 0;
+        if (starts.length > 1) starts.pop();
+      }
+      if (jumped) {
+        if (jumped.until === "fine" && has(bar, DIRECTION.fine)) break;
+        if (jumped.until === "coda" && has(bar, DIRECTION.toCoda) && coda >= 0) {
+          i = coda;
+          continue;
+        }
+      } else {
+        const jump = [...JUMPS].find(([direction, kind]) => has(bar, direction) && (!kind.toSegno || segno >= 0));
+        if (jump) {
+          jumped = jump[1];
+          i = jumped.toSegno ? segno : 0;
+          continue;
         }
       }
       i += 1;

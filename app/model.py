@@ -81,6 +81,9 @@ class TabSystem:
     lyrics: list[tuple[float, str, bool]] = field(default_factory=list)  # (x, syllable, joins next word)
     dynamics: list[tuple[float, int]] = field(default_factory=list)  # (x, MIDI velocity)
     time_signatures: list[tuple[float, int, int]] = field(default_factory=list)  # (x, numerator, denominator)
+    tempos: list[tuple[float, int]] = field(default_factory=list)  # (x, BPM) tempo marks above the staff
+    signs: list[tuple[float, str]] = field(default_factory=list)  # (x, "Segno" / "Coda" / "Fine")
+    jumps: list[tuple[float, str]] = field(default_factory=list)  # (x, "Da Segno al Coda"…) at the end of a bar
     repeat_starts: list[float] = field(default_factory=list)  # x of bar lines opening a repeat ("|:")
     repeat_ends: list[tuple[float, int]] = field(default_factory=list)  # (x of the ":|" bar line, times played)
     endings: list[tuple[float, float, tuple[int, ...]]] = field(default_factory=list)  # volta (x0, x1, passes)
@@ -134,6 +137,9 @@ class ScoreMeasure:
     repeat_open: bool = False  # a repeat starts at this bar ("|:")
     repeat_times: int = 0  # a repeat ends with this bar (":|"), played this many times in all
     endings: tuple[int, ...] = ()  # volta ("1.", "2."): bar played only on these passes of the repeat
+    tempo: int | None = None  # BPM from the start of this bar (a tempo change printed here)
+    sign: str | None = None  # jump target at this bar: "Segno", "Coda"; or "Fine" (the song ends after it)
+    jump: str | None = None  # after this bar: "Da Capo", "Da Segno al Coda", … or "Da Coda" (To Coda)
 
     @property
     def units(self) -> int:

@@ -138,6 +138,19 @@ _MELODIC_CHANNELS = [c for c in range(16) if c != 9]
 MAX_TRACKS = len(_MELODIC_CHANNELS) // 2
 MAX_STRINGS = 7  # the GP5 track header has room for 7 string tunings
 MAX_REPEAT_TIMES = 32  # a repeat played more often is most likely a misread count
+# Navigation marks as Guitar Pro names them: targets (at the start of a bar; "Fine" ends the song
+# after its bar) and jumps (after their bar; "Da Coda" is "To Coda").
+DIRECTION_SIGNS = ("Segno", "Coda", "Fine")
+DIRECTION_JUMPS = (
+    "Da Capo",
+    "Da Capo al Coda",
+    "Da Capo al Fine",
+    "Da Segno",
+    "Da Segno al Coda",
+    "Da Segno al Fine",
+    "Da Coda",
+)
+MIN_TEMPO, MAX_TEMPO = 20, 400
 # One colour per track position, shared with the web page (/api/options). Dark enough
 # for white text on top.
 TRACK_COLORS = (
@@ -169,6 +182,11 @@ def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
         gp_measure = gp.Measure(track, header)
         voice = gp_measure.voices[0]
         voice.beats.extend(_make_beat(voice, b) for b in measure.beats)
+        if number == 1 and measure.tempo and MIN_TEMPO <= measure.tempo <= MAX_TEMPO and voice.beats:
+            # A tempo change is stored once, on the first beat of the bar in the first track.
+            voice.beats[0].effect.mixTableChange = gp.MixTableChange(
+                tempo=gp.MixTableItem(value=measure.tempo), hideTempo=False
+            )
         # Guitar Pro itself stores one empty beat in the unused second voice.
         second = gp_measure.voices[1]
         second.beats.append(gp.Beat(second, status=gp.BeatStatus.empty))
@@ -205,6 +223,8 @@ def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
             # PyGuitarPro counts the extra passes (the file stores the total).
             repeatClose=min(measure.repeat_times, MAX_REPEAT_TIMES) - 1 if measure.repeat_times >= 2 else -1,
             repeatAlternative=sum(1 << (n - 1) for n in set(measure.endings) if 1 <= n <= 8),
+            direction=gp.DirectionSign(measure.sign) if measure.sign in DIRECTION_SIGNS else None,
+            fromDirection=gp.DirectionSign(measure.jump) if measure.jump in DIRECTION_JUMPS else None,
         )
         marker = next((s.measures[number - 1].marker for s in scores if s.measures[number - 1].marker), None)
         if marker:

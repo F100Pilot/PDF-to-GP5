@@ -6,8 +6,9 @@ import re
 from statistics import median
 
 from ..model import Link, TabEvent, TabSystem
+from .bar_signs import navigation
 from .common import repeat_count, shared_bars, split_fret_number
-from .metadata import line_text
+from .metadata import line_text, tempo_from_text
 from .pdf_reader import Char, Page, TextLine, group_lines
 
 _BODY_CHARS = set("-0123456789|hpbrs/\\~xX()<>.:*^=+tTo")
@@ -274,6 +275,46 @@ def _ranges_above(lines: list[TextLine], index: int) -> list[tuple[str, float, f
     return ranges
 
 
+def _marks(chars: list[Char]) -> tuple[list[tuple[float, int]], list[tuple[float, str]], list[tuple[float, str]]]:
+    """Tempo marks, Segno/Coda/Fine and D.C./D.S./To Coda in a run of text, as (tempos, signs,
+    jumps) with x positions (start of the text; end of it for jumps and "Fine")."""
+    tempos: list[tuple[float, int]] = []
+    signs: list[tuple[float, str]] = []
+    jumps: list[tuple[float, str]] = []
+    phrases: list[list[Char]] = []
+    for char in chars:
+        if phrases and char.x0 - phrases[-1][-1].x1 <= char.bottom - char.top:
+            phrases[-1].append(char)
+        else:
+            phrases.append([char])
+    for phrase in phrases:
+        text = line_text(TextLine(phrase))
+        found = navigation(text)
+        if found and found[0] == "jump":
+            jumps.append((phrase[-1].x1, found[1]))
+        elif found:
+            signs.append((phrase[-1].x1, found[1]))
+        elif (bpm := tempo_from_text(text)) is not None:
+            tempos.append((phrase[0].x0, bpm))
+    return tempos, signs, jumps
+
+
+def _marks_above(lines: list[TextLine], index: int):
+    """Tempo and navigation marks on the (up to two) lines just above a tab block."""
+    tempos, signs, jumps = [], [], []
+    for back in (1, 2):
+        if index - back < 0:
+            break
+        line, below = lines[index - back], lines[index - back + 1]
+        if below.yc - line.yc > 4 * (line.bottom - line.top):
+            break
+        found = _marks(line.chars)
+        tempos += found[0]
+        signs += found[1]
+        jumps += found[2]
+    return tempos, signs, jumps
+
+
 def _trailing_count(line: TextLine, body: list[Char]) -> int | None:
     """Repeat count written after a tab line ("--3--|   x4")."""
     return repeat_count("".join(c.text for c in line.chars if c.x0 > body[-1].x1))
@@ -288,6 +329,7 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     group_section: str | None = None
     group_ranges: list[tuple[str, float, float]] = []
     group_times: list[int] = []  # repeat counts written after the tab lines ("x4")
+    group_marks: tuple[list, list, list] = ([], [], [])  # tempo / sign / jump marks for the block
     ignored = 0
 
     def flush() -> None:
@@ -306,6 +348,9 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             ignored += len(group)
         if group_section and len(systems) > first:
             systems[first].sections = [(systems[first].start_x, group_section)]
+        if len(systems) > first:
+            system = systems[first]
+            system.tempos, system.signs, system.jumps = (sorted(items) for items in group_marks)
         if group_ranges and len(systems) > first:
             system = systems[first]
             for attribute, start, end in group_ranges:
@@ -336,10 +381,15 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             group_times = []
             group_section = _section_above(lines, index) if parsed else None
             group_ranges = _ranges_above(lines, index) if parsed else []
+            group_marks = _marks_above(lines, index) if parsed else ([], [], [])
             if not parsed and _is_dashy(line.text) and len(line.text) >= 12 and not _effect_ranges(line):
                 ignored += 1
         if times:
             group_times.append(times)
+        if parsed:  # "D.S. al Coda" written after a tab line: after its last bar
+            _, trailing_signs, trailing_jumps = _marks([c for c in line.chars if c.x0 > parsed[1][-1].x1])
+            group_marks[1].extend(trailing_signs)
+            group_marks[2].extend(trailing_jumps)
     flush()
     if ignored:
         warnings.append(

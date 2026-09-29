@@ -316,6 +316,13 @@
     return details;
   }
 
+  // Guitar Pro names of the navigation marks, as printed in scores.
+  const NAVIGATION = {
+    "Da Capo": "D.C.", "Da Capo al Coda": "D.C. al Coda", "Da Capo al Fine": "D.C. al Fine",
+    "Da Segno": "D.S.", "Da Segno al Coda": "D.S. al Coda", "Da Segno al Fine": "D.S. al Fine",
+    "Da Coda": "To Coda",
+  };
+
   function renderResult(report) {
     const auto = (key) => (report.auto && report.auto[key] ? " (auto)" : "");
     document.getElementById("summary").replaceWith(Object.assign(summaryList([
@@ -324,6 +331,13 @@
       // Later time signatures ("3/4 no c. 17") and repeats, when the PDF has them.
       ...((report.time_signature_changes || []).length
         ? [["Mudanças de compasso", report.time_signature_changes.map((c) => `${c.time_signature} no c. ${c.bar}`).join(", ")]]
+        : []),
+      ...((report.tempo_changes || []).length
+        ? [["Mudanças de tempo", report.tempo_changes.map((c) => `${c.tempo} no c. ${c.bar}`).join(", ")]]
+        : []),
+      ...((report.navigation || []).length
+        ? [["Navegação", report.navigation.map((n) => `${NAVIGATION[n.name] || n.name} (c. ${n.bar})`).join(", ")
+          + (report.repeats_expanded ? " (por extenso)" : "")]]
         : []),
       ...(report.repeats ? [["Repetições", `${report.repeats}${report.repeats_expanded ? " (por extenso)" : ""}`]] : []),
       ["Tracks", report.tracks.length], ["Compassos", report.measures], ["Notas", report.notes],

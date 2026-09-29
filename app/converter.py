@@ -465,6 +465,9 @@ def _unify_bars(scores: list[Score], signature: tuple[int, int]) -> list[tuple[i
         repeat_open = any(m.repeat_open for m in column)
         repeat_times = max(m.repeat_times for m in column)
         endings = next((m.endings for m in column if m.endings), ())
+        tempo = next((m.tempo for m in column if m.tempo), None)
+        sign = next((m.sign for m in column if m.sign), None)
+        jump = next((m.jump for m in column if m.jump), None)
         for track, measure in enumerate(column):
             if measure.units != units:
                 if measure.units > units and any(b.notes for b in measure.beats):
@@ -472,26 +475,64 @@ def _unify_bars(scores: list[Score], signature: tuple[int, int]) -> list[tuple[i
                 measure.beats = _fit(measure.beats, units)
             measure.time_signature = signature
             measure.repeat_open, measure.repeat_times, measure.endings = repeat_open, repeat_times, endings
+            measure.tempo, measure.sign, measure.jump = tempo, sign, jump
     return cut
 
 
-def _drop_opening_signature(systems: list[TabSystem]) -> None:
-    """Forget the first time signature printed in a part (later changes still apply)."""
+def _tidy_navigation(scores: list[Score], tempo: int) -> list[str]:
+    """Keep only real tempo changes, and each navigation mark once (a GP5 file stores each of
+    "Segno", "Coda", "D.S. al Coda"… for one bar only). Returns warnings for marks left out."""
+    current = tempo
+    seen: set[str] = set()
+    dropped: list[str] = []
+    for index in range(len(scores[0].measures)):
+        column = [score.measures[index] for score in scores]
+        first = column[0]
+        change = first.tempo if first.tempo and first.tempo != current else None
+        current = first.tempo or current
+        marks = []
+        for name in (first.sign, first.jump):
+            if name and name in seen:
+                dropped.append(f"{name} (compasso {index + 1})")
+            marks.append(name if name and name not in seen else None)
+            if name:
+                seen.add(name)
+        for measure in column:
+            measure.tempo = change
+            measure.sign, measure.jump = marks
+    if not dropped:
+        return []
+    return ["Sinais de navegação repetidos ignorados (o GP5 guarda cada um uma só vez): " + ", ".join(dropped) + "."]
+
+
+def _drop_opening(systems: list[TabSystem], attribute: str) -> None:
+    """Forget the first time signature / tempo mark printed in a part (later changes still apply)."""
     for system in systems:
-        if system.time_signatures:
-            system.time_signatures = sorted(system.time_signatures)[1:]
+        if getattr(system, attribute):
+            setattr(system, attribute, sorted(getattr(system, attribute))[1:])
             return
 
 
-def _expand_repeats(scores: list[Score], track_reports: list[dict], order: list[int]) -> None:
-    """Write every track out in playing order (bars copied, repeat signs removed), and move the
-    lyric syllables of each bar to every place the bar is played."""
+def _expand_repeats(scores: list[Score], track_reports: list[dict], order: list[int], tempo: int = 0) -> None:
+    """Write every track out in playing order (bars copied; repeat signs, voltas and D.C./D.S./Coda
+    removed), and move the lyric syllables of each bar to every place the bar is played. A bar
+    played after a jump gets the tempo in force at its place in the score."""
+    in_force: list[int] = []
+    for measure in scores[0].measures:
+        tempo = measure.tempo or tempo
+        in_force.append(tempo)
     for score in scores:
         measures = score.measures
         score.measures = [copy.deepcopy(measures[index]) for index in order]
-        for number, measure in enumerate(score.measures, start=1):
+        previous = None
+        for number, (measure, index) in enumerate(zip(score.measures, order, strict=True), start=1):
             measure.number = number
             measure.repeat_open, measure.repeat_times, measure.endings = False, 0, ()
+            measure.sign = measure.jump = None
+            measure.tempo = in_force[index] if previous is not None and in_force[index] != previous else None
+            if number == 1 and measures[index].tempo:
+                measure.tempo = measures[index].tempo
+            previous = in_force[index]
     for report in track_reports:
         by_bar: dict[int, list[tuple[int, float, str, bool]]] = {}
         for syllable in report["_lyrics"]:
@@ -541,10 +582,13 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
     title = options.title.strip() or detected.title or ""
     artist = options.artist.strip() or detected.artist or ""
     tempo = options.tempo or detected.tempo or DEFAULT_TEMPO
+    if options.tempo:
+        for item in parsed:
+            _drop_opening(item.systems, "tempos")  # the user's tempo replaces the printed one
     if options.numerator and options.denominator:
         numerator, denominator = options.numerator, options.denominator
         for item in parsed:
-            _drop_opening_signature(item.systems)  # the user's choice replaces the printed one
+            _drop_opening(item.systems, "time_signatures")  # the user's choice replaces the printed one
     elif detected.numerator and detected.denominator:
         numerator, denominator = detected.numerator, detected.denominator
     else:
@@ -593,17 +637,21 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         track_reports[track]["warnings"].append(
             f"Compasso {bar}: as notas não cabem na métrica do compasso; o excesso foi cortado."
         )
+    song_warnings: list[str] = _tidy_navigation(scores, tempo)
     repeats = sum(1 for measure in scores[0].measures if measure.repeat_times)
-    song_warnings: list[str] = []
+    tempo_changes = [{"bar": n, "tempo": m.tempo} for n, m in enumerate(scores[0].measures, start=1) if m.tempo]
+    navigation = [
+        {"bar": n, "name": name} for n, m in enumerate(scores[0].measures, start=1) for name in (m.sign, m.jump) if name
+    ]
     expanded = False
-    if options.expand_repeats and any(m.repeat_times or m.endings for m in scores[0].measures):
+    if options.expand_repeats and (repeats or navigation or any(m.endings for m in scores[0].measures)):
         order = playback_order(scores[0].measures, options.max_measures + 1)
         if len(order) > options.max_measures:
             song_warnings.append(
                 f"Repetições por extenso: a música teria mais de {options.max_measures} compassos; ficam as repetições."
             )
         else:
-            _expand_repeats(scores, track_reports, order)
+            _expand_repeats(scores, track_reports, order, tempo)
             total_measures = len(order)
             expanded = True
     meters = [measure.time_signature or (numerator, denominator) for measure in scores[0].measures]
@@ -671,6 +719,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             if (n, d) != previous
         ],
         "repeats": repeats,
+        "tempo_changes": tempo_changes,
+        "navigation": navigation,  # Segno / Coda / Fine and D.C. / D.S. / To Coda, by bar
         "repeats_expanded": expanded,  # written out in playing order (no repeat signs in the file)
         "auto": {
             "title": not options.title.strip() and bool(detected.title),

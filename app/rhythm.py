@@ -283,6 +283,14 @@ def _spacing_measures(
     numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
     pending_sections = sorted(system.sections)
     pending_signatures = sorted(system.time_signatures)
+    # Tempo marks and Segno / Coda start their bar; jumps and "Fine" are printed at the end of theirs.
+    tolerance = system.char_width
+    pending_tempos = sorted(system.tempos)
+    pending_starts = sorted((x, name) for x, name in system.signs if name != "Fine")
+    pending_ends = sorted(
+        [(x, "sign", name) for x, name in system.signs if name == "Fine"]
+        + [(x, "jump", name) for x, name in system.jumps]
+    )
     measures: list[ScoreMeasure] = []
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
         printed = [(n, d) for x, n, d in pending_signatures if x < end]
@@ -306,6 +314,18 @@ def _spacing_measures(
             for measure in produced:
                 measure.time_signature = signature
             _mark_repeats(system, start, end, produced)
+            for x, bpm in pending_tempos:
+                if x < end:
+                    produced[0].tempo = bpm
+            for x, name in pending_starts:
+                if x < end:
+                    produced[0].sign = name
+            for x, kind, name in pending_ends:
+                if x - tolerance < end:
+                    setattr(produced[-1], kind, name)
+            pending_tempos = [item for item in pending_tempos if item[0] >= end]
+            pending_starts = [item for item in pending_starts if item[0] >= end]
+            pending_ends = [item for item in pending_ends if item[0] - tolerance >= end]
             names = [name for x, name in pending_sections if x < end]
             pending_sections = [(x, name) for x, name in pending_sections if x >= end]
             if names:
@@ -318,6 +338,9 @@ def _spacing_measures(
             else:
                 produced[0].number = first_number
         measures.extend(produced)
+    if measures:  # printed past the last bar line: the line's last bar
+        for _, kind, name in pending_ends:
+            setattr(measures[-1], kind, name)
     return measures, signature
 
 

@@ -9,8 +9,8 @@ from __future__ import annotations
 import re
 
 from .common import repeat_count
-from .metadata import COMMON_TIME, CUT_TIME, TIME_SIGNATURE_DIGITS
-from .pdf_reader import Char, Page, group_lines
+from .metadata import COMMON_TIME, CUT_TIME, TIME_SIGNATURE_DIGITS, line_text, tempo_from_text
+from .pdf_reader import Char, Page, TextLine, group_lines
 from .rhythm_marks import glyph_ys
 
 REPEAT_DOT = ""
@@ -175,3 +175,83 @@ def voltas(
             end = next((b for b in bars if b > first.x0 + spacing), x1)
             found.append((first.x0 - spacing, end, passes))
     return found
+
+
+# Navigation marks. Text is compared without spaces, dots and case ("D.S. al Coda" -> "dsalcoda").
+_JUMP_TEXTS = {
+    "dsalcoda": "Da Segno al Coda",
+    "dalsegnoalcoda": "Da Segno al Coda",
+    "dsalfine": "Da Segno al Fine",
+    "dalsegnoalfine": "Da Segno al Fine",
+    "ds": "Da Segno",
+    "dalsegno": "Da Segno",
+    "dcalcoda": "Da Capo al Coda",
+    "dacapoalcoda": "Da Capo al Coda",
+    "dcalfine": "Da Capo al Fine",
+    "dacapoalfine": "Da Capo al Fine",
+    "dc": "Da Capo",
+    "dacapo": "Da Capo",
+    "tocoda": "Da Coda",
+}
+_SIGN_GLYPHS = {"\ue047": "Segno", "\ue048": "Coda", "\ue049": "Coda"}  # segno, coda, square coda
+
+
+def navigation(text: str) -> tuple[str, str] | None:
+    """("jump", Guitar Pro name) for "D.S. al Coda", "D.C.", "To Coda"…, ("sign", "Fine") for
+    "Fine"; None for any other text."""
+    key = re.sub(r"[\s.,:;()\[\]]", "", text).lower()
+    if key in _JUMP_TEXTS:
+        return "jump", _JUMP_TEXTS[key]
+    if key in ("fine", "segno", "coda"):
+        return "sign", key.title()  # "Coda" as a heading marks where the Coda starts
+    return None
+
+
+def _phrases_above(
+    page: Page, top: float, x0: float, x1: float, spacing: float, height: float
+) -> list[tuple[float, float, str]]:
+    """Phrases (words closer than a character height) above the staff as (x0, x1, text), music
+    glyphs included."""
+    chars = [c for c in page.chars if x0 - spacing <= c.x0 <= x1 + spacing and top - height * spacing <= c.yc < top]
+    phrases: list[tuple[float, float, str]] = []
+    for line in group_lines(chars):
+        run: list[Char] = []
+        for char in [*line.chars, None]:
+            if char is not None and run and char.x0 - run[-1].x1 <= char.bottom - char.top:
+                run.append(char)
+                continue
+            if run:
+                text = line_text(TextLine(run))
+                phrases.append((run[0].x0, run[-1].x1, text))
+            run = [char] if char is not None else []
+    return phrases
+
+
+def navigation_marks(
+    page: Page, top: float, x0: float, x1: float, spacing: float
+) -> tuple[list[tuple[float, str]], list[tuple[float, str]]]:
+    """Segno / Coda / Fine (x where printed) and D.C. / D.S. / To Coda jumps (x where the text
+    ends: the jump comes after that bar) above the staff."""
+    signs: list[tuple[float, str]] = []
+    jumps: list[tuple[float, str]] = []
+    for char in page.chars:
+        name = _SIGN_GLYPHS.get(char.text)
+        if name and x0 - spacing <= char.xc <= x1 and top - 8 * spacing <= glyph_ys(char)[1] < top:
+            signs.append((char.x0, name))
+    for start, end, text in _phrases_above(page, top, x0, x1, spacing, 8):
+        found = navigation("".join(ch for ch in text if not "\ue000" <= ch <= "\uf8ff"))
+        if found and found[0] == "jump":
+            jumps.append((end, found[1]))
+        elif found:
+            signs.append((end, found[1]))
+    return sorted(signs), sorted(jumps)
+
+
+def tempo_marks(page: Page, top: float, x0: float, x1: float, spacing: float) -> list[tuple[float, int]]:
+    """Tempo marks ("♩ = 90") above the staff as (x, BPM)."""
+    marks: list[tuple[float, int]] = []
+    for start, _, text in _phrases_above(page, top, x0, x1, spacing, 8):
+        bpm = tempo_from_text(text)
+        if bpm is not None:
+            marks.append((start, bpm))
+    return sorted(marks)

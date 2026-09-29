@@ -195,3 +195,35 @@ def test_roundtrip_repeats_voltas_and_time_signature_changes():
     assert [h.isRepeatOpen for h in headers] == [True, False, False, False, False]
     assert [h.repeatClose for h in headers] == [-1, 2, -1, -1, -1]  # PyGuitarPro counts the extra passes
     assert [h.repeatAlternative for h in headers] == [0, 0b011, 0b100, 0, 0]
+
+
+def test_roundtrip_navigation_marks_and_tempo_changes():
+    def bar(**marks):
+        measure = ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 3)])], time_signature=(4, 4))
+        for name, value in marks.items():
+            setattr(measure, name, value)
+        return measure
+
+    measures = [
+        bar(),
+        bar(sign="Segno", tempo=90),
+        bar(jump="Da Coda"),
+        bar(jump="Da Segno al Coda", tempo=140),
+        bar(sign="Coda"),
+    ]
+    data = write_gp5(Score(6, list(TUNINGS["standard"]), measures, 4, 4), SongInfo(title="T", artist="A", tempo=120))
+    song = gp.parse(io.BytesIO(data))
+    headers = song.measureHeaders
+    assert [h.direction.name if h.direction else None for h in headers] == [None, "Segno", None, None, "Coda"]
+    assert [h.fromDirection.name if h.fromDirection else None for h in headers] == [
+        None,
+        None,
+        "Da Coda",
+        "Da Segno al Coda",
+        None,
+    ]
+    tempos = [
+        m.voices[0].beats[0].effect.mixTableChange.tempo.value if m.voices[0].beats[0].effect.mixTableChange else None
+        for m in song.tracks[0].measures
+    ]
+    assert tempos == [None, 90, None, 140, None] and song.tempo == 120
