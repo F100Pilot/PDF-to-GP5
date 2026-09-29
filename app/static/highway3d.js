@@ -13,6 +13,7 @@
   const MIN_ANCHOR_WIDTH = 4;
   const FRETS = 24;
   const STRING_GAP = 0.42;
+  const BEND_RISE = STRING_GAP / 4; // trail height per quarter tone: a full-tone bend reaches the next string
   // Rocksmith string colours, lowest string first; a 7th (low) string gets grey.
   const STRING_COLORS = [0xe53935, 0xfdd835, 0x1e88e5, 0xfb8c00, 0x43a047, 0x8e24aa];
   const EXTRA_LOW_COLOR = 0x9e9e9e;
@@ -223,6 +224,28 @@
     }
   }
 
+  // Bend height along a note and the notes tied to it: [{ tick, value }] in quarter tones, or null
+  // when nothing in the chain is bent. A tied note without bend points keeps the previous height.
+  function bendCurve(chain) {
+    if (!chain.some((part) => part.hasBend)) return null;
+    const curve = [];
+    let value = 0;
+    for (const part of chain) {
+      const start = part.beat.absolutePlaybackStart;
+      const duration = part.beat.playbackDuration;
+      const points = part.hasBend && part.bendPoints ? part.bendPoints : [];
+      if (!points.length) {
+        curve.push({ tick: start, value }, { tick: start + duration, value });
+        continue;
+      }
+      for (const point of points) {
+        value = point.value;
+        curve.push({ tick: start + (point.offset / 60) * duration, value });
+      }
+    }
+    return curve;
+  }
+
   // Playable notes of the track with their techniques; ties are folded into the sustain of the
   // note they continue.
   function collectNotes(track) {
@@ -235,10 +258,9 @@
           const tick = beat.absolutePlaybackStart;
           const struck = beat.notes.filter((note) => !note.isTieDestination);
           for (const note of struck) {
-            let length = beat.playbackDuration;
-            for (let next = note.tieDestination; next; next = next.tieDestination) {
-              length += next.beat.playbackDuration;
-            }
+            const chain = [note];
+            for (let next = note.tieDestination; next; next = next.tieDestination) chain.push(next);
+            const length = chain.reduce((sum, part) => sum + part.beat.playbackDuration, 0);
             const target = note.slideTarget;
             const legatoFrom = note.isHammerPullDestination && note.hammerPullOrigin;
             notes.push({
@@ -253,6 +275,7 @@
               vibrato: note.vibrato,
               tap: beat.tap,
               bend: bendText(note),
+              bendCurve: bendCurve(chain),
               slideOut: note.slideOutType,
               slideIn: note.slideInType,
               slideTo: target ? { tick: target.beat.absolutePlaybackStart, fret: target.fret } : null,
@@ -351,15 +374,29 @@
       mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
       lane.add(mesh);
     };
-    // Vibrato: a wavy tube along the sustain.
-    const wave = (material, x, z0, length, y, wide) => {
+    // Sustain as a tube: rises with the bend curve (Rocksmith style) and wiggles with vibrato.
+    const sustainTube = (material, x, y, note, lengthTicks) => {
+      const curve = note.bendCurve || [{ tick: note.tick, value: 0 }, { tick: note.tick + lengthTicks, value: 0 }];
+      const amplitude = note.vibrato === 2 ? 0.22 : note.vibrato ? 0.12 : 0;
       const points = [];
-      const steps = Math.max(8, Math.round(length * 6));
-      for (let i = 0; i <= steps; i += 1) {
-        const z = z0 - (length * i) / steps;
-        points.push(new THREE.Vector3(x + Math.sin(i * 1.3) * (wide ? 0.22 : 0.12), y, z));
+      for (let i = 0; i + 1 < curve.length; i += 1) {
+        const a = curve[i];
+        const b = curve[i + 1];
+        const steps = Math.max(2, Math.round((b.tick - a.tick) * Z_PER_TICK * 6));
+        for (let step = i ? 1 : 0; step <= steps; step += 1) {
+          const t = step / steps;
+          const tick = a.tick + (b.tick - a.tick) * t;
+          const z = -tick * Z_PER_TICK;
+          points.push(new THREE.Vector3(
+            x + Math.sin(z * 4) * amplitude,
+            y + (a.value + (b.value - a.value) * t) * BEND_RISE,
+            z,
+          ));
+        }
       }
-      lane.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), steps * 2, 0.04, 6), material));
+      if (points.length < 2 || points[0].distanceTo(points[points.length - 1]) < 0.01) return;
+      const path = new THREE.CatmullRomCurve3(points, false, "centripetal");
+      lane.add(new THREE.Mesh(new THREE.TubeGeometry(path, points.length * 2, note.bendCurve ? 0.06 : 0.045, 6), material));
     };
     const tag = (text, x, y, z, color) => {
       const sprite = label(text, 0.3, true, color);
@@ -412,8 +449,8 @@
         const up = note.slideOut === SLIDE_OUT.outUp || note.slideOut === SLIDE_OUT.pickUp;
         const to = Math.min(FRETS, Math.max(0, note.fret + (up ? 4 : -4)));
         ribbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY);
-      } else if (note.vibrato) {
-        wave(trailMaterials[note.string], x, z, length, trailY, note.vibrato === 2);
+      } else if (note.bendCurve || note.vibrato) {
+        sustainTube(trailMaterials[note.string], x, trailY, note, length / Z_PER_TICK);
       } else if (note.length >= SUSTAIN_MIN) {
         ribbon(trailMaterials[note.string], x, z, x, z - length, trailY);
       }
@@ -486,8 +523,9 @@
     stage.anchor.scale.x = high - low + 1;
     stage.anchor.position.x += (centre - stage.anchor.position.x) * 0.15;
     const midY = stringY(Math.ceil(song.count / 2), song.count);
-    stage.camera.position.set(stage.cameraX, midY + 3.6, 8.5);
-    stage.camera.lookAt(stage.cameraX, midY - 1.2, -16);
+    // Fairly low, Rocksmith-like camera: string heights (and bends rising) stay readable.
+    stage.camera.position.set(stage.cameraX, midY + 1.7, 7.5);
+    stage.camera.lookAt(stage.cameraX, midY - 0.4, -20);
     stage.renderer.render(stage.scene, stage.camera);
   }
 
