@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 
 from ..model import Link, TabEvent, TabSystem
 from .annotations import dynamics, lyrics, section_labels
+from .bar_signs import repeat_counts, repeat_signs, time_signatures, voltas
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
 from .rhythm_marks import glyph_ys, read_rhythm
@@ -451,6 +452,32 @@ def _measure_numbers(chars: list[Char], staff: list[_StaffLine], spacing: float,
     return result
 
 
+def _trim_margins(
+    bars: list[float],
+    signatures: list[tuple[float, int, int]],
+    repeat_starts: list[float],
+    events: list[TabEvent],
+    spacing: float,
+) -> tuple[list[float], list[tuple[float, int, int]]]:
+    """Drop the staff margins that are not bars.
+
+    * A repeat opening a line is drawn after the clef (and time signature): the narrow space
+      before it holds no notes and is not a bar.
+    * A time signature after the last bar line of a line only announces the next line's
+      (courtesy signature): it is not a bar, and the next line prints the signature again.
+    """
+
+    def empty(start: float, end: float) -> bool:
+        return end - start < 6 * spacing and not any(start <= e.x < end for e in events)
+
+    if len(bars) >= 3 and bars[1] in repeat_starts and empty(bars[0], bars[1]):
+        bars = bars[1:]
+    if len(bars) >= 3 and empty(bars[-2], bars[-1]) and any(x >= bars[-2] for x, _, _ in signatures):
+        signatures = [sign for sign in signatures if sign[0] < bars[-2]]
+        bars = bars[:-1]
+    return bars, signatures
+
+
 def extract_engraved_systems(page: Page) -> list[TabSystem]:
     """Tab staves on the page; staves without fret numbers are kept as rest bars."""
     systems: list[TabSystem] = []
@@ -477,11 +504,15 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             and not any(abs((v.x0 + v.x1) / 2 - ax) < 1 for ax, _ in arrows)
         ]
         digit_width = spacing * 0.6  # fret digits are roughly 0.6 staff spaces wide
-        bars = shared_bars([bar_xs], 0.5 * digit_width)
+        drawn = shared_bars([bar_xs], 0.5 * digit_width)
+        bars = list(drawn)
         if not bars or bars[0] - x0 > digit_width:
             bars.insert(0, x0)
         if x1 - bars[-1] > digit_width:
             bars.append(x1)
+        signatures = time_signatures(page.chars, top, bottom, x0, x1, spacing)
+        starts, ends = repeat_signs(page.chars, top, bottom, spacing, drawn)
+        bars, signatures = _trim_margins(bars, signatures, starts, events, spacing)
         system = TabSystem(
             page=page.number,
             string_count=len(staff),
@@ -496,6 +527,10 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             sections=section_labels(page, top, x0, x1, spacing),
             lyrics=lyrics(page, bottom, x0, x1, spacing),
             dynamics=dynamics(page, top, bottom, x0, x1, spacing),
+            time_signatures=signatures,
+            repeat_starts=starts,
+            repeat_ends=repeat_counts(page, top, x0, x1, spacing, ends),
+            endings=voltas(page, top, x0, x1, spacing, bars),
             rhythm=[
                 replace(m, vibrato=True) if not m.is_rest and any(a <= m.x <= b for a, b in vibrato_ranges) else m
                 for m in read_rhythm(page, top, bottom, x0, x1, spacing)

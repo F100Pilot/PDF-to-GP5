@@ -321,6 +321,11 @@
     document.getElementById("summary").replaceWith(Object.assign(summaryList([
       ["Título", (report.title || "—") + auto("title")], ["Artista", (report.artist || "—") + auto("artist")],
       ["BPM", report.tempo + auto("tempo")], ["Compasso", report.time_signature + auto("time_signature")],
+      // Later time signatures ("3/4 no c. 17") and repeats, when the PDF has them.
+      ...((report.time_signature_changes || []).length
+        ? [["Mudanças de compasso", report.time_signature_changes.map((c) => `${c.time_signature} no c. ${c.bar}`).join(", ")]]
+        : []),
+      ...(report.repeats ? [["Repetições", report.repeats]] : []),
       ["Tracks", report.tracks.length], ["Compassos", report.measures], ["Notas", report.notes],
       ["Secções", report.sections && report.sections.length ? report.sections.length : "—"],
       ["Letra", report.lyrics ? `${report.lyrics.track}` : "—"],

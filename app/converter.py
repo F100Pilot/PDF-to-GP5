@@ -14,7 +14,7 @@ from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
-from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, split_units
+from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, signature_units, split_units
 from .tunings import TUNINGS, resolve_tuning
 
 INSTRUMENTS: dict[str, int] = {
@@ -260,21 +260,20 @@ VOCAL_TRACK_NAME = "Letra (voz)"
 VOICE_PROGRAM = 53  # General MIDI "Voice Oohs"; the track is muted anyway
 
 
-def _vocal_score(
-    syllables: list[tuple[int, float, str, bool]], measures: int, numerator: int, denominator: int
-) -> Score:
+def _vocal_score(syllables: list[tuple[int, float, str, bool]], meters: list[tuple[int, int]]) -> Score:
     """A silent track with a short note on each lyric syllable, where it is printed.
 
     Guitar Pro keeps lyrics on the played notes of one track, so no guitar part can carry all of
     them (the parts rest while the singer sings). This track gives every syllable its own note in
     its place, so the whole text reaches the GP5 (and tools that read it, e.g. for Rocksmith vocals).
+    ``meters``: the time signature of each bar of the song.
     """
-    units = numerator * 32 // denominator
     by_bar: dict[int, list[float]] = {}
     for bar, position, *_ in syllables:
         by_bar.setdefault(bar, []).append(position)
     result: list[ScoreMeasure] = []
-    for number in range(1, measures + 1):
+    for number, meter in enumerate(meters, start=1):
+        units = signature_units(meter)
         positions = by_bar.get(number, [])
         grid = 2 if len(positions) <= units // 2 else 1  # 16ths, or 32nds for very dense text
         onsets: list[int] = []
@@ -294,13 +293,12 @@ def _vocal_score(
             beats.extend(ScoreBeat(part) for part in parts[1:])  # no ties: they would take a syllable
             cursor = end
         beats.extend(ScoreBeat(part) for part in split_units(units - cursor))
-        result.append(ScoreMeasure(beats))
+        result.append(ScoreMeasure(beats, time_signature=meter))
     return Score(
         6,
         list(TUNINGS["standard"]),
         result,
-        numerator,
-        denominator,
+        *meters[0],
         name=VOCAL_TRACK_NAME,
         instrument=VOICE_PROGRAM,
         muted=True,
@@ -429,6 +427,59 @@ def _align_by_numbers(score: Score) -> list[int] | None:
     return missing
 
 
+def _fit(beats: list[ScoreBeat], units: int) -> list[ScoreBeat]:
+    """Cut or pad (with rests) a bar's beats to ``units`` 32nds."""
+    fitted: list[ScoreBeat] = []
+    filled = 0
+    for beat in beats:
+        if filled + beat.units <= units:
+            fitted.append(beat)
+            filled += beat.units
+            continue
+        parts = split_units(units - filled)
+        if parts:
+            fitted.append(ScoreBeat(parts[0], beat.notes))
+            fitted.extend(ScoreBeat(part) for part in parts[1:])
+        filled = units
+        break
+    fitted.extend(ScoreBeat(part) for part in split_units(units - filled))
+    return fitted
+
+
+def _unify_bars(scores: list[Score], signature: tuple[int, int]) -> list[tuple[int, int]]:
+    """Give all tracks the same time signature and repeat signs in each bar (a GP5 file stores
+    them once per bar for every track).
+
+    A bar takes the time signature read by the first track that has it (bars filled in with rests
+    keep the one in force); repeat signs and voltas found in any track apply to all. Returns the
+    (track index, bar number) pairs whose notes did not fit the bar and were cut.
+    """
+    cut: list[tuple[int, int]] = []
+    for index in range(len(scores[0].measures)):
+        column = [score.measures[index] for score in scores]
+        signature = next((m.time_signature for m in column if m.time_signature), signature)
+        units = signature_units(signature)
+        repeat_open = any(m.repeat_open for m in column)
+        repeat_times = max(m.repeat_times for m in column)
+        endings = next((m.endings for m in column if m.endings), ())
+        for track, measure in enumerate(column):
+            if measure.units != units:
+                if measure.units > units and any(b.notes for b in measure.beats):
+                    cut.append((track, index + 1))
+                measure.beats = _fit(measure.beats, units)
+            measure.time_signature = signature
+            measure.repeat_open, measure.repeat_times, measure.endings = repeat_open, repeat_times, endings
+    return cut
+
+
+def _drop_opening_signature(systems: list[TabSystem]) -> None:
+    """Forget the first time signature printed in a part (later changes still apply)."""
+    for system in systems:
+        if system.time_signatures:
+            system.time_signatures = sorted(system.time_signatures)[1:]
+            return
+
+
 def _pad(score: Score, measures: int) -> int:
     """Append full-bar rests so every track has the same number of bars; returns bars added."""
     missing = measures - len(score.measures)
@@ -469,6 +520,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
     tempo = options.tempo or detected.tempo or DEFAULT_TEMPO
     if options.numerator and options.denominator:
         numerator, denominator = options.numerator, options.denominator
+        for item in parsed:
+            _drop_opening_signature(item.systems)  # the user's choice replaces the printed one
     elif detected.numerator and detected.denominator:
         numerator, denominator = detected.numerator, detected.denominator
     else:
@@ -512,6 +565,13 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
                 f"acrescentados {added} compasso(s) de pausa no fim{where}."
             )
 
+    cut = _unify_bars(scores, (numerator, denominator))
+    for track, bar in cut:
+        track_reports[track]["warnings"].append(
+            f"Compasso {bar}: as notas não cabem na métrica do compasso; o excesso foi cortado."
+        )
+    meters = [measure.time_signature or (numerator, denominator) for measure in scores[0].measures]
+
     lyric_candidates = [i for i, r in enumerate(track_reports) if r["_lyrics"]]
     lyrics = None
     timed_lyrics: list[list] = []
@@ -531,7 +591,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
 
         if len(scores) < MAX_TRACKS:
             # A silent "Letra (voz)" track with a note per syllable: the whole text fits in the GP5.
-            scores.append(_vocal_score(syllables, total_measures, numerator, denominator))
+            scores.append(_vocal_score(syllables, meters))
+            _unify_bars(scores, (numerator, denominator))  # the repeat signs
             chosen = len(scores) - 1
             lyrics_track_name = VOCAL_TRACK_NAME
         else:  # no room for another track: the part playing in most bars with lyrics
@@ -562,7 +623,14 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         "title": title,
         "artist": artist,
         "tempo": tempo,
-        "time_signature": f"{numerator}/{denominator}",
+        "time_signature": f"{meters[0][0]}/{meters[0][1]}",
+        # Bars where the time signature changes, and repeats (":|") in the song.
+        "time_signature_changes": [
+            {"bar": bar, "time_signature": f"{n}/{d}"}
+            for bar, (previous, (n, d)) in enumerate(itertools.pairwise(meters), start=2)
+            if (n, d) != previous
+        ],
+        "repeats": sum(1 for measure in scores[0].measures if measure.repeat_times),
         "auto": {
             "title": not options.title.strip() and bool(detected.title),
             "artist": not options.artist.strip() and bool(detected.artist),

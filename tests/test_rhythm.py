@@ -174,3 +174,37 @@ def test_measure_cap_is_enforced():
     ]
     with pytest.raises(ConversionError, match="compassos"):
         convert(ascii_tab_pdf([tab]), ConversionOptions(max_measures=2))
+
+
+def test_time_signature_change_and_repeat_signs_per_bar():
+    events = [TabEvent(x=x, string=1, fret=3) for x in (20, 120, 220)]
+    system = TabSystem(
+        page=1,
+        string_count=6,
+        events=events,
+        bars=[0, 100, 200, 300],
+        start_x=0,
+        end_x=300,
+        char_width=6,
+        time_signatures=[(105, 3, 4)],  # printed at the start of bar 2
+        repeat_starts=[100],
+        repeat_ends=[(200, 2), (300, 3)],
+        endings=[(100, 200, (1,)), (200, 300, (2,))],
+    )
+    measures = build_measures([system], RhythmOptions(numerator=4, denominator=4), [])
+    assert [m.time_signature for m in measures] == [(4, 4), (3, 4), (3, 4)]
+    assert [sum(b.units for b in m.beats) for m in measures] == [32, 24, 24]
+    assert [m.repeat_open for m in measures] == [False, True, False]
+    assert [m.repeat_times for m in measures] == [0, 2, 3]
+    assert [m.endings for m in measures] == [(), (1,), (2,)]
+
+
+def test_time_signature_carries_over_to_the_next_line():
+    def line(signatures=()):
+        return TabSystem(
+            1, 6, [TabEvent(x=20, string=1, fret=0)], [0, 100], 0, 100, 6, time_signatures=list(signatures)
+        )
+
+    measures = build_measures([line([(5, 6, 8)]), line()], RhythmOptions(), [])
+    assert [m.time_signature for m in measures] == [(6, 8), (6, 8)]
+    assert [sum(b.units for b in m.beats) for m in measures] == [24, 24]

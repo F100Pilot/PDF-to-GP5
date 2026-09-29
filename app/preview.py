@@ -43,7 +43,20 @@ def render_preview(score: Score, max_measures: int = 32, per_line: int = 4) -> s
     for start in range(0, len(measures), per_line):
         rhythm = " " * (width + 1)
         rows = [label.ljust(width) + "|" for label in labels]
-        for measure in measures[start : start + per_line]:
+        for index, measure in enumerate(measures[start : start + per_line], start=start):
+            # Time signature changes, voltas ("1.") and repeat signs ("|:" / ":|x3").
+            previous = measures[index - 1].time_signature if index else None
+            tags = []
+            if measure.time_signature and measure.time_signature != previous:
+                tags.append("{}/{}".format(*measure.time_signature))
+            if measure.endings:
+                tags.append(",".join(map(str, measure.endings)) + ".")
+            if tags:
+                rhythm += " [" + " ".join(tags) + "]"
+                rows = [row + "-" * (len(" ".join(tags)) + 3) for row in rows]
+            if measure.repeat_open:
+                rhythm += " "
+                rows = [row + ":" for row in rows]
             for beat in measure.beats:
                 cells = [""] * score.string_count
                 for note in beat.notes:
@@ -52,8 +65,13 @@ def render_preview(score: Score, max_measures: int = 32, per_line: int = 4) -> s
                 col = max(3, max(len(c) for c in cells) + 1, len(mark) + 1)
                 rhythm += " " + mark.ljust(col - 1)
                 rows = [row + "-" + cell.ljust(col - 1, "-") for row, cell in zip(rows, cells)]
-            rows = [row + "-|" for row in rows]
-            rhythm += "  "
+            if measure.repeat_times:
+                count = f"x{measure.repeat_times}"
+                rows = [row + "-:|" + "-" * (len(count) - 2) for row in rows]
+                rhythm += " " + count
+            else:
+                rows = [row + "-|" for row in rows]
+                rhythm += "  "
         blocks.append("\n".join([rhythm.rstrip(), *rows]))
     if len(score.measures) > max_measures:
         blocks.append(f"... (+{len(score.measures) - max_measures} compassos)")

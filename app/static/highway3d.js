@@ -418,16 +418,16 @@
   // Lyric syllables of the song. Preferably the complete lyrics as printed in the PDF, each with
   // its bar and place in the bar ([bar, position 0..1, syllable, joins_next]); otherwise the GP5
   // lyrics, which Guitar Pro can only attach to played notes of one track.
-  function collectLyrics(score, timed) {
+  function collectLyrics(score, timed, timeline) {
     if (Array.isArray(timed) && timed.length) {
       const placed = [];
       for (const [bar, position, text, joins] of timed) {
         const masterBar = score.masterBars[bar - 1];
         if (!masterBar || typeof text !== "string") continue;
-        const barTicks = (TICKS_PER_QUARTER * 4 * masterBar.timeSignatureNumerator) / masterBar.timeSignatureDenominator;
-        placed.push({ tick: masterBar.start + Number(position) * barTicks, text: joins ? `${text}-` : text });
+        const tick = masterBar.start + Number(position) * barLength(masterBar);
+        placed.push({ tick, text: joins ? `${text}-` : text });
       }
-      return placed.sort((a, b) => a.tick - b.tick);
+      return timeline.unroll(placed).sort((a, b) => a.tick - b.tick);
     }
     const syllables = [];
     for (const track of score.tracks) {
@@ -440,7 +440,90 @@
         }
       }
     }
-    return syllables.sort((a, b) => a.tick - b.tick);
+    return timeline.unroll(syllables).sort((a, b) => a.tick - b.tick);
+  }
+
+  function barLength(masterBar) {
+    return (TICKS_PER_QUARTER * 4 * masterBar.timeSignatureNumerator) / masterBar.timeSignatureDenominator;
+  }
+
+  const MAX_PLAYED_BARS = 20000;
+
+  // The bars in the order they are played, with repeats and voltas unrolled as alphaTab plays
+  // them, each with its start in playback ticks (the player reports positions in these ticks).
+  // A repeat end without a start goes back to the song's start; repeats can nest, and a repeat
+  // inside a repeated passage is played again (with its own count) on every pass, as alphaTab does.
+  function playbackOrder(masterBars) {
+    const order = [];
+    const jumps = masterBars.map(() => 0); // times each repeat end has sent playback back
+    const starts = [0]; // open repeats: the bar each goes back to (innermost last)
+    let tick = 0;
+    let pass = 0; // 0 the first time through a repeat, 1 the second… (chooses the volta)
+    for (let i = 0, guard = 0; i < masterBars.length && guard < MAX_PLAYED_BARS; guard += 1) {
+      const bar = masterBars[i];
+      if (bar.isRepeatStart && i !== starts[starts.length - 1]) {
+        starts.push(i);
+        pass = 0;
+      }
+      const skipped = bar.alternateEndings !== 0 && (bar.alternateEndings & (1 << pass)) === 0;
+      if (!skipped) {
+        order.push({ masterBar: bar, tick });
+        tick += barLength(bar);
+        if (bar.repeatCount > 1) {
+          if (jumps[i] < bar.repeatCount - 1) {
+            jumps[i] += 1;
+            pass = jumps[i];
+            i = starts[starts.length - 1];
+            continue;
+          }
+          jumps[i] = 0;
+          pass = 0;
+          if (starts.length > 1) starts.pop();
+        }
+      }
+      i += 1;
+    }
+    return order;
+  }
+
+  // Maps things placed in score time (ticks from alphaTab's score model) to playback time: an
+  // item in a repeated bar appears once per time the bar is played.
+  function makeTimeline(score) {
+    const masterBars = score.masterBars;
+    const order = playbackOrder(masterBars);
+    const offsets = masterBars.map(() => []);
+    for (const { masterBar, tick } of order) offsets[masterBar.index].push(tick - masterBar.start);
+    const linear = order.length === masterBars.length && offsets.every((list) => list.length === 1 && list[0] === 0);
+    const last = order[order.length - 1];
+    const barOf = (tick) => {
+      let low = 0;
+      let high = masterBars.length - 1;
+      while (low < high) {
+        const mid = (low + high + 1) >> 1;
+        if (masterBars[mid].start <= tick) low = mid;
+        else high = mid - 1;
+      }
+      return low;
+    };
+    return {
+      order,
+      endTick: last ? last.tick + barLength(last.masterBar) : 1,
+      // Copies of `items` ({ tick, … }) for every time their bar is played; `shift(item, offset)`
+      // moves an item's other ticks too.
+      unroll(items, shift = (item, offset) => ({ ...item, tick: item.tick + offset })) {
+        if (linear) return items;
+        return items.flatMap((item) => (masterBars.length ? offsets[barOf(item.tick)] : [0]).map((offset) => shift(item, offset)));
+      },
+    };
+  }
+
+  function shiftNote(note, offset) {
+    return {
+      ...note,
+      tick: note.tick + offset,
+      bendCurve: note.bendCurve && note.bendCurve.map((point) => ({ tick: point.tick + offset, value: point.value })),
+      slideTo: note.slideTo && { ...note.slideTo, tick: note.slideTo.tick + offset },
+    };
   }
 
   // Playable notes of the track with their techniques; ties are folded into the sustain of the
@@ -538,7 +621,10 @@
     const count = track.staves[0].tuning.length;
     buildStrings(count);
     buildHeadstock(track.staves[0].tuning, count);
-    const { notes, chords } = collectNotes(track);
+    const timeline = makeTimeline(score);
+    const collected = collectNotes(track);
+    const notes = timeline.unroll(collected.notes, shiftNote).sort((a, b) => a.tick - b.tick);
+    const chords = timeline.unroll(collected.chords).sort((a, b) => a.tick - b.tick);
     const anchors = computeAnchors(notes);
     const lane = new THREE.Group();
 
@@ -664,20 +750,20 @@
     const barMaterial = new THREE.MeshBasicMaterial({ color: 0xcfd8e3, transparent: true, opacity: 0.85, clippingPlanes: laneClip() });
     const beatMaterial = new THREE.MeshBasicMaterial({ color: 0x5b667a, transparent: true, opacity: 0.7, clippingPlanes: laneClip() });
     const bars = [];
-    for (const masterBar of score.masterBars) {
+    for (const { masterBar, tick: barStart } of timeline.order) {
       const beatTicks = (TICKS_PER_QUARTER * 4) / masterBar.timeSignatureDenominator;
       for (let beat = 0; beat < masterBar.timeSignatureNumerator; beat += 1) {
         const line = new THREE.Mesh(unit, beat ? beatMaterial : barMaterial);
         line.scale.set(FRETS + 1, beat ? 0.01 : 0.02, beat ? 0.03 : 0.08);
-        line.position.set((FRETS - 1) / 2, 0.03, -(masterBar.start + beat * beatTicks) * Z_PER_TICK);
+        line.position.set((FRETS - 1) / 2, 0.03, -(barStart + beat * beatTicks) * Z_PER_TICK);
         lane.add(line);
       }
       const section = masterBar.section && masterBar.section.text ? masterBar.section.text : "";
-      bars.push({ tick: masterBar.start, section });
-      const nearest = Math.min(indexOf(notes, masterBar.start), notes.length - 1);
+      bars.push({ tick: barStart, section, number: masterBar.index + 1 });
+      const nearest = Math.min(indexOf(notes, barStart), notes.length - 1);
       const zone = anchors[nearest] || { low: 1, high: MIN_ANCHOR_WIDTH };
       const x = fretX(zone.low) - 1.3;
-      const z = -masterBar.start * Z_PER_TICK;
+      const z = -barStart * Z_PER_TICK;
       const number = label(String(masterBar.index + 1), 0.5, true, "#cfd8e3");
       number.position.set(x, 0.35, z);
       lane.add(number);
@@ -687,8 +773,7 @@
         lane.add(name);
       }
     }
-    const last = score.masterBars[score.masterBars.length - 1];
-    const endTick = last ? last.start + (TICKS_PER_QUARTER * 4 * last.timeSignatureNumerator) / last.timeSignatureDenominator : 1;
+    const endTick = timeline.endTick;
 
     const top = stringY(1, count) + 0.2;
     const bottom = stringY(count, count) - 0.2;
@@ -724,8 +809,8 @@
     ].filter(Boolean);
     clearEffects();
     song = {
-      lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom,
-      lyrics: collectLyrics(score, timedLyrics), nextHit: 0, nextChord: 0,
+      lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom, barCount: score.masterBars.length,
+      lyrics: collectLyrics(score, timedLyrics, timeline), nextHit: 0, nextChord: 0,
     };
     stage.hud.bar = -1;
     stage.hud.line = -1;
@@ -908,7 +993,7 @@
       hud.bar = bar;
       let section = "";
       for (let i = bar; i >= 0 && !section; i -= 1) section = song.bars[i].section;
-      hud.position.textContent = `Compasso ${bar + 1} / ${song.bars.length}${section ? ` · ${section}` : ""}`;
+      hud.position.textContent = `Compasso ${song.bars[bar].number} / ${song.barCount}${section ? ` · ${section}` : ""}`;
     }
     updateLyrics(tick, bar);
     const percent = Math.round((1000 * Math.min(Math.max(tick, 0), song.endTick)) / song.endTick) / 10;

@@ -80,6 +80,10 @@ class TabSystem:
     sections: list[tuple[float, str]] = field(default_factory=list)  # (x, "Chorus") above the staff
     lyrics: list[tuple[float, str, bool]] = field(default_factory=list)  # (x, syllable, joins next word)
     dynamics: list[tuple[float, int]] = field(default_factory=list)  # (x, MIDI velocity)
+    time_signatures: list[tuple[float, int, int]] = field(default_factory=list)  # (x, numerator, denominator)
+    repeat_starts: list[float] = field(default_factory=list)  # x of bar lines opening a repeat ("|:")
+    repeat_ends: list[tuple[float, int]] = field(default_factory=list)  # (x of the ":|" bar line, times played)
+    endings: list[tuple[float, float, tuple[int, ...]]] = field(default_factory=list)  # volta (x0, x1, passes)
 
 
 @dataclass
@@ -126,11 +130,24 @@ class ScoreMeasure:
     beats: list[ScoreBeat]
     number: int | None = None  # bar number printed in the PDF, when known
     marker: str | None = None  # section name starting at this bar
+    time_signature: tuple[int, int] | None = None  # (numerator, denominator); None: not read (filler bar)
+    repeat_open: bool = False  # a repeat starts at this bar ("|:")
+    repeat_times: int = 0  # a repeat ends with this bar (":|"), played this many times in all
+    endings: tuple[int, ...] = ()  # volta ("1.", "2."): bar played only on these passes of the repeat
+
+    @property
+    def units(self) -> int:
+        """Length of the bar's contents in 32nd notes."""
+        return sum(beat.units for beat in self.beats)
 
 
 @dataclass
 class Score:
-    """One track: its strings, tuning and measures (all tracks share the time signature)."""
+    """One track: its strings, tuning and measures.
+
+    ``numerator``/``denominator`` are the song's first time signature; bars that change it carry
+    their own (``ScoreMeasure.time_signature``). Time signatures and repeats are shared by all tracks.
+    """
 
     string_count: int
     tuning: list[int]  # MIDI values, string 1 first

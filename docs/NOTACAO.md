@@ -58,12 +58,12 @@ Colunas:
 | Barras de compasso | ✅ | ✅ | ✅ | Happen To Me | |
 | Números de compasso (alinhamento entre tracks) | ⛔ | ✅ | — | Happen To Me | |
 | Indicação de compasso (4/4, 6/8…) | ⬜ | ✅ | ✅ | Happen To Me | Glifos `U+E080`–`E08B`; texto ainda não |
-| Mudança de compasso a meio | ⬜ | ⬜ | ✅ | — | Hoje: um compasso para toda a música |
+| Mudança de compasso a meio | ⬜ | ✅ | ✅ | — | Algarismos SMuFL empilhados (MuseScore); o compasso de aviso no fim da linha e o número das pausas de vários compassos são ignorados. Tabs em texto: não |
 | Tempo inicial (♩ = 118, "Tempo: 120", "120 bpm") | ✅ | ✅ | ✅ | Happen To Me | |
 | Mudança de tempo a meio | ⬜ | ⬜ | ✅ | — | |
 | Armação de clave | ⬜ | ⬜ | ✅ | — | |
-| Repetições `‖: :‖` e "x3" | ⬜ | ⬜ | ✅ | — | Hoje ignoradas (tocadas uma vez) |
-| Casas de 1.ª/2.ª vez (voltas) | ⬜ | ⬜ | ✅ | — | |
+| Repetições `‖: :‖` e "x3" | ✅ `\|: :\|` | ✅ | ✅ | — | Gravada: pontos de repetição SMuFL e "x3" por cima; texto: `\|:` `:\|` `\|*` `\|o` e "x3" depois da linha (sem sinais: a linha inteira repete). Sem número: 2 vezes |
+| Casas de 1.ª/2.ª vez (voltas) | ⬜ | ✅ | ✅ | — | "1.", "2.", "1., 2." por cima da pauta com a linha do colchete |
 | Coda, Segno, D.C., D.S., Fine | ⬜ | ⬜ | ✅ | — | |
 | Secções (Intro, Verse, Chorus…) → marcadores | ✅ | ✅ | ✅ | Happen To Me | Gravada: texto a negrito acima da pauta; texto: `[Chorus]`, `Verse 2:` |
 

@@ -6,11 +6,13 @@ import re
 from statistics import median
 
 from ..model import Link, TabEvent, TabSystem
-from .common import shared_bars, split_fret_number
+from .common import repeat_count, shared_bars, split_fret_number
 from .metadata import line_text
 from .pdf_reader import Char, Page, TextLine, group_lines
 
-_BODY_CHARS = set("-0123456789|hpbrs/\\~xX()<>.:*^=+tT")
+_BODY_CHARS = set("-0123456789|hpbrs/\\~xX()<>.:*^=+tTo")
+# Repeat dots written against a bar line: "|:--" / "|*--" / "|o--" open a repeat, "--:|" closes it.
+_REPEAT_DOTS = set(":*o")
 _LABEL_RE = re.compile(r"^[A-Ga-g][#b]?$")
 _PROSE_RE = re.compile(r"[A-Za-z]{3,}")
 _SECTION_RE = re.compile(
@@ -74,9 +76,14 @@ def _starts_note(chars: list[Char], i: int) -> bool:
     return i < len(chars) and (chars[i].text.isdigit() or chars[i].text in "(<")
 
 
-def _parse_string(chars: list[Char], string: int, unit: float) -> tuple[list[TabEvent], list[float]]:
+def _parse_string(
+    chars: list[Char], string: int, unit: float
+) -> tuple[list[TabEvent], list[float], list[float], list[float]]:
+    """Events, bar lines, and bar lines opening / closing a repeat on one tab string."""
     events: list[TabEvent] = []
     bars: list[float] = []
+    repeat_starts: list[float] = []
+    repeat_ends: list[float] = []
     pending: Link | None = None
     slide_in: str | None = None
     tapped = False
@@ -129,9 +136,13 @@ def _parse_string(chars: list[Char], string: int, unit: float) -> tuple[list[Tab
             events[-1].vibrato = True
         elif t == "|":
             bars.append(char.x0)
+            if i + 1 < len(chars) and chars[i + 1].text in _REPEAT_DOTS:
+                repeat_starts.append(char.x0)
+            if i > 0 and chars[i - 1].text in _REPEAT_DOTS:
+                repeat_ends.append(char.x0)
             pending, slide_in, tapped = None, None, False
         i += 1
-    return events, bars
+    return events, bars, repeat_starts, repeat_ends
 
 
 def _parse_bend(chars: list[Char], i: int, event: TabEvent, unit: float) -> int:
@@ -155,27 +166,47 @@ def _parse_bend(chars: list[Char], i: int, event: TabEvent, unit: float) -> int:
     return i
 
 
-def _build_system(page: int, group: list[tuple[str, list[Char]]]) -> TabSystem:
+def _snap(xs: list[float], bars: list[float], tolerance: float) -> list[float]:
+    """The bar lines (from ``bars``) near the positions ``xs``."""
+    return sorted({b for x in xs for b in bars if abs(b - x) <= tolerance})
+
+
+def _build_system(page: int, group: list[tuple[str, list[Char]]], times: int | None = None) -> TabSystem:
+    """One tab system; ``times``: repeat count written after the lines ("x4"), if any."""
     all_chars = [c for _, body in group for c in body]
     dash_widths = [c.x1 - c.x0 for c in all_chars if c.text == "-"]
     unit = median(dash_widths or [c.x1 - c.x0 for c in all_chars])
     events: list[TabEvent] = []
     bar_lists: list[list[float]] = []
+    start_marks: list[float] = []
+    end_marks: list[float] = []
     for string, (_, body) in enumerate(group, start=1):
-        string_events, string_bars = _parse_string(body, string, unit)
+        string_events, string_bars, starts, ends = _parse_string(body, string, unit)
         events.extend(string_events)
         bar_lists.append(string_bars)
+        start_marks.extend(starts)
+        end_marks.extend(ends)
     labels = [label for label, _ in group]
+    bars = shared_bars(bar_lists, 0.6 * unit)
+    # Repeat dots are often written on a few strings only: one is enough.
+    repeat_starts = _snap(start_marks, bars, 0.6 * unit)
+    ends = _snap(end_marks, bars, 0.6 * unit)
+    if times and not ends and len(bars) >= 2:
+        # "x4" after a line without repeat signs: the whole line is played that many times.
+        repeat_starts, ends = [bars[0]], [bars[-1]]
+    repeat_ends = [(x, times if times and x == ends[-1] else 2) for x in ends]
     return TabSystem(
         page=page,
         string_count=len(group),
         events=events,
-        bars=shared_bars(bar_lists, 0.6 * unit),
+        bars=bars,
         start_x=min(c.x0 for c in all_chars),
         end_x=max(c.x1 for c in all_chars),
         char_width=unit,
         labels=labels if all(labels) else [],
         source="ascii",
+        repeat_starts=repeat_starts,
+        repeat_ends=repeat_ends,
     )
 
 
@@ -243,6 +274,11 @@ def _ranges_above(lines: list[TextLine], index: int) -> list[tuple[str, float, f
     return ranges
 
 
+def _trailing_count(line: TextLine, body: list[Char]) -> int | None:
+    """Repeat count written after a tab line ("--3--|   x4")."""
+    return repeat_count("".join(c.text for c in line.chars if c.x0 > body[-1].x1))
+
+
 def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     """Find groups of consecutive tab lines on a page."""
     systems: list[TabSystem] = []
@@ -251,13 +287,14 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     group_ys: list[float] = []
     group_section: str | None = None
     group_ranges: list[tuple[str, float, float]] = []
+    group_times: list[int] = []  # repeat counts written after the tab lines ("x4")
     ignored = 0
 
     def flush() -> None:
         nonlocal ignored
         first = len(systems)
         if MIN_STRINGS <= len(group) <= MAX_STRINGS:
-            systems.append(_build_system(page.number, group))
+            systems.append(_build_system(page.number, group, max(group_times, default=None)))
         elif len(group) > MAX_STRINGS:
             chunks = _split_stacked(group)
             systems.extend(_build_system(page.number, chunk) for chunk in chunks)
@@ -288,6 +325,7 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             else:
                 previous = lines[index - 1]
                 adjacent = previous.yc == group_ys[-1] and gap <= 2.6 * (previous.bottom - previous.top)
+        times = _trailing_count(line, parsed[1]) if parsed else None
         if parsed and adjacent:
             group.append(parsed)
             group_ys.append(line.yc)
@@ -295,10 +333,13 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             flush()
             group = [parsed] if parsed else []
             group_ys = [line.yc] if parsed else []
+            group_times = []
             group_section = _section_above(lines, index) if parsed else None
             group_ranges = _ranges_above(lines, index) if parsed else []
             if not parsed and _is_dashy(line.text) and len(line.text) >= 12 and not _effect_ranges(line):
                 ignored += 1
+        if times:
+            group_times.append(times)
     flush()
     if ignored:
         warnings.append(

@@ -303,3 +303,89 @@ def test_ascii_palm_mute_and_let_ring_lines_above_tab():
     assert warnings == []
     notes = _events_by_string(systems[0])[1]
     assert [(e.palm_mute, e.let_ring) for e in notes] == [(True, False)] * 4 + [(False, True)] * 4
+
+
+# --- Time signatures, repeats and voltas (MuseScore-style SMuFL glyphs) ---------------------------
+# Staff lines at y 100..150 (spacing 10). Music-font glyphs are drawn about one em (size 40 here)
+# above their text box, so a glyph drawn at y has its box at y + 36.
+
+
+def _glyph(text, x, drawn_y, size=40):
+    from app.extract.pdf_reader import Char
+
+    return Char(text, x, x + 8, drawn_y + 0.9 * size, drawn_y + 1.9 * size, "Leland")
+
+
+def _text(text, x, top, height=8):
+    from app.extract.pdf_reader import Char
+
+    return [Char(ch, x + 6 * i, x + 6 * i + 5, top, top + height, "Edwin-Roman") for i, ch in enumerate(text)]
+
+
+def _signs_page(bar_xs=(50, 300, 550), notes=((100, "3"), (350, "5")), chars=(), segments=(), x1=550):
+    from app.extract.pdf_reader import Char, Page, Segment
+
+    lines = [Segment(50, x1, 100 + 10 * i, 100 + 10 * i) for i in range(6)]
+    bars = [Segment(x, x, 100, 150) for x in bar_xs]
+    fret_chars = [Char(fret, x, x + 6, 116, 124) for x, fret in notes]
+    return Page(1, 600, 800, [*fret_chars, *chars], [*lines, *bars, *segments], [])
+
+
+def test_engraved_time_signature_needs_two_stacked_rows():
+    signature = [_glyph("", 310, 112), _glyph("", 310, 132)]  # 3/4 at the start of bar 2
+    rest_count = [_glyph("", 150, 93)]  # "2" over a multi-bar rest: one row only
+    (system,) = extract_engraved_systems(_signs_page(chars=[*signature, *rest_count]))
+    assert system.time_signatures == [(310, 3, 4)]
+
+
+def test_engraved_repeat_dots_count_and_volta():
+    from app.extract.pdf_reader import Segment
+
+    start_dots = [_glyph("", 304, 115), _glyph("", 304, 135)]
+    end_dots = [_glyph("", 540, 115), _glyph("", 540, 135)]
+    count = _text("x3", 525, 72)
+    volta = _text("1.", 306, 60)
+    bracket = Segment(302, 540, 57, 57)
+    page = _signs_page(chars=[*start_dots, *end_dots, *count, *volta], segments=[bracket])
+    (system,) = extract_engraved_systems(page)
+    assert system.repeat_starts == [300]
+    assert system.repeat_ends == [(550, 3)]
+    assert system.endings == [(302, 540, (1,))]
+
+
+def test_engraved_repeat_end_defaults_to_two_times_and_stray_dot_is_ignored():
+    end_dots = [_glyph("", 540, 115), _glyph("", 540, 135)]
+    stray = [_glyph("", 200, 125)]
+    (system,) = extract_engraved_systems(_signs_page(chars=[*end_dots, *stray]))
+    assert system.repeat_starts == [] and system.repeat_ends == [(550, 2)]
+
+
+def test_engraved_repeat_after_clef_and_courtesy_signature_are_not_bars():
+    start_dots = [_glyph("", 84, 115), _glyph("", 84, 135)]  # "|:" drawn after the clef
+    courtesy = [_glyph("", 510, 112), _glyph("", 510, 132)]  # next line's 3/4, after the last bar
+    page = _signs_page(bar_xs=(50, 80, 300, 500), chars=[*start_dots, *courtesy], x1=550)
+    (system,) = extract_engraved_systems(page)
+    assert [round(b) for b in system.bars] == [80, 300, 500]
+    assert system.repeat_starts == [80]
+    assert system.time_signatures == []
+
+
+def test_ascii_repeat_signs_and_count():
+    tab = [
+        "e|:-0---3-:|-5---|   x3",
+        "B|--1-------|-----|",
+        "G|:-------- :|-----|".replace(" ", ""),
+        "D|----------|-----|",
+        "A|----------|-----|",
+        "E|----------|-----|",
+    ]
+    (system,), _ = _systems(ascii_tab_pdf([tab]))
+    bars = sorted(system.bars)
+    assert system.repeat_starts == [bars[0]]
+    assert system.repeat_ends == [(bars[1], 3)]
+
+
+def test_ascii_count_after_a_line_without_signs_repeats_the_line():
+    (system,), _ = _systems(ascii_tab_pdf([[line + "   x4" for line in STANDARD]]))
+    bars = sorted(system.bars)
+    assert system.repeat_starts == [bars[0]] and system.repeat_ends == [(bars[-1], 4)]

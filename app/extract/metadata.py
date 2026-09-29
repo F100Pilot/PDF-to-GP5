@@ -20,8 +20,8 @@ _METRONOME_NOTES = {
     "♩": 1.0,  # ♩
 }
 _METRONOME_DOT = ""
-_TIME_SIG_DIGITS = {chr(0xE080 + d): d for d in range(10)}
-_COMMON_TIME, _CUT_TIME = "", ""
+TIME_SIGNATURE_DIGITS = {chr(0xE080 + d): d for d in range(10)}
+COMMON_TIME, CUT_TIME = "", ""
 
 _TEMPO_PATTERNS = [
     re.compile(r"(?P<note>[-♩])\s*(?P<dot>[.]?)\s*=\s*(?P<bpm>\d{2,3})\b"),
@@ -81,11 +81,11 @@ def _detect_tempo(texts: list[str]) -> int | None:
 
 def _detect_time_signature(page: Page) -> tuple[int, int] | None:
     """First stacked pair of SMuFL time-signature glyphs (or common/cut time)."""
-    glyphs = sorted((c for c in page.chars if c.text in _TIME_SIG_DIGITS), key=lambda c: (c.x0, c.top))
+    glyphs = sorted((c for c in page.chars if c.text in TIME_SIGNATURE_DIGITS), key=lambda c: (c.x0, c.top))
     for special in page.chars:
-        if special.text == _COMMON_TIME and (not glyphs or special.x0 < glyphs[0].x0):
+        if special.text == COMMON_TIME and (not glyphs or special.x0 < glyphs[0].x0):
             return 4, 4
-        if special.text == _CUT_TIME and (not glyphs or special.x0 < glyphs[0].x0):
+        if special.text == CUT_TIME and (not glyphs or special.x0 < glyphs[0].x0):
             return 2, 2
     if not glyphs:
         return None
@@ -96,7 +96,7 @@ def _detect_time_signature(page: Page) -> tuple[int, int] | None:
     if len(tops) != 2:
         return None
     rows = [sorted((c for c in cluster if round(c.top) == t), key=lambda c: c.x0) for t in tops]
-    numerator, denominator = (int("".join(str(_TIME_SIG_DIGITS[c.text]) for c in row)) for row in rows)
+    numerator, denominator = (int("".join(str(TIME_SIGNATURE_DIGITS[c.text]) for c in row)) for row in rows)
     if 1 <= numerator <= 16 and denominator in (2, 4, 8, 16):
         return numerator, denominator
     return None

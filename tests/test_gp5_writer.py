@@ -170,3 +170,28 @@ def test_roundtrip_natural_harmonic_and_tapping():
     assert isinstance(beats[0].notes[0].effect.harmonic, gp.NaturalHarmonic)
     assert beats[0].effect.slapEffect == gp.SlapEffect.none
     assert beats[1].effect.slapEffect == gp.SlapEffect.tapping
+
+
+def test_roundtrip_repeats_voltas_and_time_signature_changes():
+    def bar(units, signature, **marks):
+        return ScoreMeasure([ScoreBeat(units, [ScoreNote(1, 3)])], time_signature=signature, **marks)
+
+    measures = [
+        bar(32, (4, 4), repeat_open=True),
+        bar(32, (4, 4), repeat_times=3, endings=(1, 2)),
+        bar(32, (4, 4), endings=(3,)),
+        bar(24, (3, 4)),
+        bar(12, (6, 16)),
+    ]
+    data = write_gp5(Score(6, list(TUNINGS["standard"]), measures, 4, 4), SongInfo(title="T", artist="A", tempo=100))
+    headers = gp.parse(io.BytesIO(data)).measureHeaders
+    assert [(h.timeSignature.numerator, h.timeSignature.denominator.value) for h in headers] == [
+        (4, 4),
+        (4, 4),
+        (4, 4),
+        (3, 4),
+        (6, 16),
+    ]
+    assert [h.isRepeatOpen for h in headers] == [True, False, False, False, False]
+    assert [h.repeatClose for h in headers] == [-1, 2, -1, -1, -1]  # PyGuitarPro counts the extra passes
+    assert [h.repeatAlternative for h in headers] == [0, 0b011, 0b100, 0, 0]

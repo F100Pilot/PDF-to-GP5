@@ -6,7 +6,11 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-09-29
 ### Adicionado
+- Repetições: sinais de repetição `|: :|` (pontos de repetição nas tabs gravadas; `|:`, `:|`, `|*`, `|o` nas tabs em texto), número de vezes ("x3", "3x", "(x3)", "3 vezes"; 2 quando não está escrito) e casas de 1.ª/2.ª vez (voltas "1.", "2.", "1., 2.") passam para o GP5. Nas tabs em texto, "x4" depois de uma linha sem sinais repete a linha inteira. A partitura toca as repetições, e a pista 3D e a barra de tempo seguem a ordem em que a música é tocada (o compasso mostrado é o impresso).
+- Mudanças de compasso a meio da música (ex.: um compasso em 2/4 ou uma secção em 3/4): cada compasso fica com o seu compasso no GP5, na partitura e na pista 3D; o compasso de aviso no fim da linha e o número por cima das pausas de vários compassos não contam como mudança. O resumo mostra as mudanças de compasso e o número de repetições; a pré-visualização em texto mostra `|:`, `:|x3`, `[1.]` e `[3/4]`.
 - Desligar o vídeo: o botão "Vídeo YouTube" liga e desliga o vídeo. Desligado, o vídeo fica em pausa, deixa de acompanhar a partitura e o som da partitura volta (mesmo com "Silenciar os sons da partitura" marcado); a escolha fica guardada e as músicas seguintes não abrem nem pesquisam o vídeo até o voltar a ligar.
 - Barra de tempo da música por baixo dos botões da partitura: tempo atual e duração ("0:42 / 3:03", tempo da música, igual a qualquer velocidade); clicar ou arrastar avança ou recua, e o vídeo e a pista 3D acompanham. Na pista 3D, a barra de progresso mostra o mesmo tempo e também se pode clicar.
 - Banner "Novidades" na entrada da aplicação com as alterações das versões ainda não vistas pelo utilizador.

@@ -137,6 +137,7 @@ def _make_beat(voice: gp.Voice, beat: ScoreBeat) -> gp.Beat:
 _MELODIC_CHANNELS = [c for c in range(16) if c != 9]
 MAX_TRACKS = len(_MELODIC_CHANNELS) // 2
 MAX_STRINGS = 7  # the GP5 track header has room for 7 string tunings
+MAX_REPEAT_TIMES = 32  # a repeat played more often is most likely a misread count
 # One colour per track position, shared with the web page (/api/options). Dark enough
 # for white text on top.
 TRACK_COLORS = (
@@ -192,11 +193,18 @@ def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
     song.measureHeaders = []
     first = scores[0]
     start = gp.Duration.quarterTime
-    for number in range(1, len(first.measures) + 1):
+    for number, measure in enumerate(first.measures, start=1):
+        # Time signature and repeats are stored once per bar for all tracks (the converter makes
+        # the tracks agree); bars without their own time signature use the song's.
+        numerator, denominator = measure.time_signature or (first.numerator, first.denominator)
         header = gp.MeasureHeader(
             number=number,
             start=start,
-            timeSignature=gp.TimeSignature(numerator=first.numerator, denominator=gp.Duration(value=first.denominator)),
+            timeSignature=gp.TimeSignature(numerator=numerator, denominator=gp.Duration(value=denominator)),
+            isRepeatOpen=measure.repeat_open,
+            # PyGuitarPro counts the extra passes (the file stores the total).
+            repeatClose=min(measure.repeat_times, MAX_REPEAT_TIMES) - 1 if measure.repeat_times >= 2 else -1,
+            repeatAlternative=sum(1 << (n - 1) for n in set(measure.endings) if 1 <= n <= 8),
         )
         marker = next((s.measures[number - 1].marker for s in scores if s.measures[number - 1].marker), None)
         if marker:

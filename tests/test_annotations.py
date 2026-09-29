@@ -129,7 +129,7 @@ def test_vocal_track_gives_every_syllable_its_own_note():
     from app.converter import _vocal_score
 
     syllables = [(1, 0.0, "one", False), (1, 0.5, "two", True), (1, 0.52, "three", False), (3, 0.25, "four", False)]
-    vocal = _vocal_score(syllables, 3, 4, 4)
+    vocal = _vocal_score(syllables, [(4, 4)] * 3)
     assert vocal.muted and len(vocal.measures) == 3
     for measure in vocal.measures:
         assert sum(beat.units for beat in measure.beats) == 32
@@ -137,3 +137,36 @@ def test_vocal_track_gives_every_syllable_its_own_note():
     assert [len(p) for p in played] == [3, 0, 1]
     line, dropped = _lyrics_text(syllables, vocal)
     assert dropped == [] and line == (1, "one two-three four")
+
+
+def test_tracks_share_time_signatures_and_repeats_per_bar():
+    from app.converter import _unify_bars
+    from app.model import Score, ScoreBeat, ScoreMeasure, ScoreNote
+
+    guitar = Score(
+        6,
+        [64] * 6,
+        [
+            ScoreMeasure([ScoreBeat(32)], time_signature=(4, 4)),
+            ScoreMeasure([ScoreBeat(24, [ScoreNote(1, 0)])], time_signature=(3, 4), repeat_open=True, repeat_times=2),
+            ScoreMeasure([ScoreBeat(24)], time_signature=(3, 4)),
+        ],
+        4,
+        4,
+    )
+    bass = Score(
+        4,
+        [43] * 4,
+        [
+            ScoreMeasure([ScoreBeat(32)], time_signature=(4, 4)),
+            ScoreMeasure([ScoreBeat(32)]),  # bar filled in with a rest (not in the PDF): 4/4 length
+            ScoreMeasure([ScoreBeat(32, [ScoreNote(1, 5)])], time_signature=(4, 4)),  # read too long
+        ],
+        4,
+        4,
+    )
+    cut = _unify_bars([guitar, bass], (4, 4))
+    assert [m.time_signature for m in bass.measures] == [(4, 4), (3, 4), (3, 4)]
+    assert [m.units for m in bass.measures] == [32, 24, 24]
+    assert bass.measures[1].repeat_open and bass.measures[1].repeat_times == 2
+    assert bass.measures[2].beats[0].notes and cut == [(1, 3)]

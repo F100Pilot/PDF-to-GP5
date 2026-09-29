@@ -136,7 +136,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 - Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
 - Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
-- Repetições, acordes por extenso e marcações de palm-mute não são convertidos.
+- D.S., D.C., Coda e Fine, mudanças de tempo a meio e acordes por extenso não são convertidos; nas tabs em texto também não as mudanças de compasso. Repetições e voltas só são lidas por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos).
 
 ## Versões
 

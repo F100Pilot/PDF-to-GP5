@@ -242,15 +242,39 @@ def _notated_items(
     return [(notes, length) for _, notes, length in sorted(entries, key=lambda e: e[0])]
 
 
+def signature_units(signature: tuple[int, int]) -> int:
+    """Bar length in 32nd notes of a time signature (numerator, denominator)."""
+    numerator, denominator = signature
+    return numerator * 32 // denominator
+
+
+def _mark_repeats(system: TabSystem, start: float, end: float, produced: list[ScoreMeasure]) -> None:
+    """Repeat signs and volta brackets of the bar between two bar lines."""
+    tolerance = system.char_width
+    if any(abs(x - start) <= tolerance for x in system.repeat_starts):
+        produced[0].repeat_open = True
+    times = [count for x, count in system.repeat_ends if abs(x - end) <= tolerance]
+    if times:
+        produced[-1].repeat_times = max(times)
+    for x0, x1, passes in system.endings:
+        if x0 - tolerance <= start < x1 - tolerance:
+            for measure in produced:
+                measure.endings = passes
+
+
 def _spacing_measures(
     system: TabSystem,
     columns: list[_Column],
-    units: int,
+    signature: tuple[int, int],
     warnings: list[str],
     next_number: int | None = None,
     stats: RhythmStats | None = None,
     track_has_rhythm: bool = False,
-) -> list[ScoreMeasure]:
+) -> tuple[list[ScoreMeasure], tuple[int, int]]:
+    """Measures of one line of tab, and the time signature in force at its end.
+
+    A time signature printed in a bar (or before the first bar line) applies from that bar on.
+    """
     bounds = sorted(system.bars)
     if not bounds or columns and columns[0].x < bounds[0]:
         bounds.insert(0, system.start_x)
@@ -258,12 +282,30 @@ def _spacing_measures(
         bounds.append(system.end_x)
     numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
     pending_sections = sorted(system.sections)
+    pending_signatures = sorted(system.time_signatures)
     measures: list[ScoreMeasure] = []
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
+        printed = [(n, d) for x, n, d in pending_signatures if x < end]
+        pending_signatures = [item for item in pending_signatures if item[0] >= end]
+        if printed:
+            signature = printed[-1]
         produced = _segment_measures(
-            system, columns, start, end, units, warnings, stats, numbers, index, next_number, track_has_rhythm
+            system,
+            columns,
+            start,
+            end,
+            signature_units(signature),
+            warnings,
+            stats,
+            numbers,
+            index,
+            next_number,
+            track_has_rhythm,
         )
         if produced:
+            for measure in produced:
+                measure.time_signature = signature
+            _mark_repeats(system, start, end, produced)
             names = [name for x, name in pending_sections if x < end]
             pending_sections = [(x, name) for x, name in pending_sections if x >= end]
             if names:
@@ -276,7 +318,7 @@ def _spacing_measures(
             else:
                 produced[0].number = first_number
         measures.extend(produced)
-    return measures
+    return measures, signature
 
 
 def _segment_measures(
@@ -389,8 +431,12 @@ def build_measures(
     system_measures: list[int] | None = None,
     stats: RhythmStats | None = None,
 ) -> list[ScoreMeasure]:
-    """Build all measures; ``system_measures`` (if given) receives the bar count per system."""
+    """Build all measures; ``system_measures`` (if given) receives the bar count per system.
+
+    ``options`` gives the time signature of the first bar; signatures printed later change it.
+    """
     units = options.measure_units
+    signature = (options.numerator, options.denominator)
     per_system = [(s, _columns(s, warnings)) for s in systems]
     use_spacing = options.mode == "spacing" or (options.mode == "auto" and all(len(s.bars) >= 2 for s in systems))
     if options.mode == "auto" and not use_spacing:
@@ -400,8 +446,8 @@ def build_measures(
     if use_spacing:
         for index, (system, columns) in enumerate(per_system):
             following = systems[index + 1].bar_numbers if index + 1 < len(systems) else []
-            system_bars = _spacing_measures(
-                system, columns, units, warnings, following[0] if following else None, stats, track_has_rhythm
+            system_bars, signature = _spacing_measures(
+                system, columns, signature, warnings, following[0] if following else None, stats, track_has_rhythm
             )
             measures.extend(system_bars)
             if system_measures is not None:
@@ -410,6 +456,8 @@ def build_measures(
         beat_units = 32 // options.fixed_value
         items = [(_to_notes(c.events), beat_units) for _, columns in per_system for c in columns]
         measures = _sequence(items, units)
+        for measure in measures:  # no bar lines: one time signature, no repeats
+            measure.time_signature = signature
     fill_tied_continuations(measures)
     resolve_links(measures)
     return measures
