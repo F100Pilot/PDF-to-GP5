@@ -4,11 +4,15 @@ Only content offered for download is processed:
 
 * a direct audio/video file (the server hands out the file itself);
 * media published under a Creative Commons or public-domain licence (as the site reports it);
-* a site the owner of this installation declares as their own (``AUDIO_DOWNLOAD_HOSTS``).
+* a site the owner of this installation declares as their own (``AUDIO_DOWNLOAD_HOSTS``);
+* the audio of ONE YouTube video for personal use, when the app is used on the computer it runs
+  on (``personal``: the request comes from this computer, to a local address — see main.py).
 
-YouTube pages are processed only when licensed Creative Commons (its terms forbid downloading
-otherwise). No cookies, logins or account data are ever used, and DRM-protected formats are
-never selected, so nothing behind authentication, a paywall or DRM is reachable.
+YouTube's terms forbid downloading outside its own features, so on any other request a YouTube
+page is processed only when licensed Creative Commons: a copy of this app published on the
+internet does not become a YouTube converter for its visitors. No cookies, logins or account
+data are ever used, and DRM-protected formats are never selected, so nothing behind
+authentication, a paywall or DRM is reachable.
 
 Each job gets its own temporary folder, removed once the MP3 has been downloaded, when the job
 fails, or after ``AUDIO_TTL_S``. Downloads and conversions run in a worker thread with a size
@@ -180,24 +184,33 @@ def check_limits(info: dict) -> None:
 # --- May this content be downloaded? ---------------------------------------------------------------
 
 
-def authorize(info: dict, url: str) -> str:
-    """Why the content may be downloaded ("direct", "licence" or "declared"), or raise with the
-    reason it may not. ``info`` is yt-dlp's description of the page (no download yet); the
-    technical limits are checked separately (check_limits)."""
+def authorize(info: dict, url: str, personal: bool = False) -> str:
+    """Why the content may be downloaded ("direct", "licence", "declared" or "personal"), or
+    raise with the reason it may not. ``info`` is yt-dlp's description of the page (no download
+    yet); the technical limits are checked separately (check_limits). ``personal``: the app is
+    used on the computer it runs on, where a YouTube video's audio is for personal use."""
     page = info.get("webpage_url") or url
     host = (urlsplit(page).hostname or "").lower()
     licence = str(info.get("license") or "").strip()
     if _FREE_LICENCE.search(licence):
         return "licence"
+    if personal and _is_youtube(host) and not host.endswith("googlevideo.com"):
+        return "personal"
     if info.get("direct") and not _is_youtube(host):
         return "direct"
     if _declared(host):
         return "declared"
     detail = f" (licença indicada: {licence[:80]})" if licence else ""
+    youtube = (
+        " Vídeos do YouTube só são processados para uso pessoal, com a aplicação aberta no próprio "
+        "computador onde corre."
+        if _is_youtube(host)
+        else ""
+    )
     raise AudioDownloadError(
         "Este conteúdo não está disponível para download: não é um ficheiro direto nem tem licença "
         f"Creative Commons ou de domínio público{detail}. Só é processado conteúdo que pode ser "
-        "descarregado (ficheiros seus, Creative Commons, domínio público)."
+        f"descarregado (ficheiros seus, Creative Commons, domínio público).{youtube}"
     )
 
 
@@ -255,7 +268,12 @@ class _Stop(Exception):
 
 
 class _QuietLogger:
-    """yt-dlp messages go to our log (never to the page: they may contain the URL)."""
+    """yt-dlp messages go to our log (never to the page: they may contain the URL). Warnings and
+    errors are also kept, so a failure can say its cause (explain_failure) instead of a generic
+    message."""
+
+    def __init__(self) -> None:
+        self.messages: list[str] = []
 
     def debug(self, message: str) -> None:
         logger.debug("yt-dlp: %s", message)
@@ -265,9 +283,83 @@ class _QuietLogger:
 
     def warning(self, message: str) -> None:
         logger.info("yt-dlp: %s", message)
+        self.messages.append(message)
 
     def error(self, message: str) -> None:
         logger.info("yt-dlp: %s", message)
+        self.messages.append(message)
+
+
+# What yt-dlp says, lower case → the cause shown to the user, first match wins. A missing
+# JavaScript runtime comes first: without one YouTube refuses in a way that also reads like
+# "sign in", and signing in would not help.
+_FAILURE_CAUSES = (
+    (
+        ("no supported javascript runtime", "challenge solving failed", "signature solving failed"),
+        (
+            "O YouTube exige resolver um desafio em JavaScript e falta o runtime: instale o Deno "
+            "(winget install DenoLand.Deno) ou o Node.js, confirme que o yt-dlp[default] está "
+            "instalado (pip install -r requirements.txt) e reinicie a aplicação."
+        ),
+    ),
+    (
+        ("confirm your age", "age-restricted", "inappropriate for some users"),
+        "O vídeo tem restrição de idade: o YouTube só o mostra com sessão iniciada.",
+    ),
+    (
+        ("not a bot",),
+        (
+            "O YouTube pediu para confirmar que não é um robô (acontece a pedidos sem sessão "
+            "iniciada, que esta aplicação não usa). Tente mais tarde ou noutra rede."
+        ),
+    ),
+    (("private video",), "O vídeo é privado."),
+    (
+        ("requested format is not available", "only images are available"),
+        (
+            "O YouTube não entregou nenhum formato de áudio. Atualize o yt-dlp (pip install -U "
+            '"yt-dlp[default]") e confirme que tem o Deno ou o Node.js instalado.'
+        ),
+    ),
+    (
+        ("video unavailable", "not available in your country", "has been removed"),
+        "O vídeo não está disponível (removido, privado ou bloqueado neste país).",
+    ),
+    (
+        ("certificate verify failed",),
+        (
+            "A ligação segura ao site foi recusada (certificado inválido): confirme a data e a hora "
+            "do computador e se um antivírus ou proxy está a inspecionar as ligações HTTPS."
+        ),
+    ),
+    (
+        (
+            "unable to connect to proxy",
+            "getaddrinfo failed",
+            "name or service not known",
+            "temporary failure in name resolution",
+            "failed to resolve",
+            "connection refused",
+            "network is unreachable",
+            "timed out",
+        ),
+        "Não foi possível ligar ao site: confirme a ligação à internet (ou a firewall/proxy).",
+    ),
+)
+
+
+def explain_failure(messages: list[str]) -> str | None:
+    """The cause of a failed yt-dlp run, from what it printed; None when it is not recognised."""
+    text = " ".join(messages).lower()
+    for hints, cause in _FAILURE_CAUSES:
+        if any(hint in text for hint in hints):
+            return cause
+    return None
+
+
+def _messages(ydl: object, exc: BaseException) -> list[str]:
+    log = getattr(ydl, "params", {}).get("logger")
+    return [*getattr(log, "messages", []), str(exc)]
 
 
 def _options(directory: Path, hook: Callable[[dict], None]) -> dict:
@@ -277,7 +369,8 @@ def _options(directory: Path, hook: Callable[[dict], None]) -> dict:
         "paths": {"home": str(directory), "temp": str(directory)},
         "noplaylist": True,
         "quiet": True,
-        "no_warnings": True,
+        # Warnings reach our logger only (never the page); they carry the cause of a YouTube refusal.
+        "no_warnings": False,
         "noprogress": True,
         "logger": _QuietLogger(),
         "socket_timeout": 20,
@@ -306,7 +399,8 @@ def _probe(url: str, directory: Path, hook: Callable[[dict], None]) -> tuple[obj
     except yt_dlp.utils.DownloadError as exc:
         ydl.close()
         raise AudioDownloadError(
-            "Não foi possível ler esse endereço (página não suportada, conteúdo protegido ou sem áudio)."
+            explain_failure(_messages(ydl, exc))
+            or "Não foi possível ler esse endereço (página não suportada, conteúdo protegido ou sem áudio)."
         ) from exc
     return ydl, info or {}
 
@@ -318,7 +412,7 @@ def _download(ydl: object, info: dict, directory: Path) -> Path:
     try:
         ydl.process_info(info)
     except yt_dlp.utils.DownloadError as exc:
-        raise AudioDownloadError("O download falhou.") from exc
+        raise AudioDownloadError(explain_failure(_messages(ydl, exc)) or "O download falhou.") from exc
     finally:
         ydl.close()
     root = directory.resolve()
@@ -404,7 +498,8 @@ class Job:
     progress: float = 0.0  # 0…1
     error: str = ""
     title: str = ""
-    reason: str = ""  # why it may be downloaded: direct / licence / declared
+    reason: str = ""  # why it may be downloaded: direct / licence / declared / personal
+    personal: bool = False  # used on the computer the app runs on (see authorize)
     file: Path | None = None
     cancelled: bool = False
 
@@ -452,9 +547,9 @@ class JobStore:
         with self._lock:
             return sum(job.status in ACTIVE for job in self._jobs.values())
 
-    def create(self, url: str, bitrate: int) -> Job:
+    def create(self, url: str, bitrate: int, personal: bool = False) -> Job:
         directory = Path(tempfile.mkdtemp(prefix=TEMP_PREFIX))
-        job = Job(uuid.uuid4().hex, url, bitrate, directory)
+        job = Job(uuid.uuid4().hex, url, bitrate, directory, personal=personal)
         with self._lock:
             self._jobs[job.id] = job
         if self._executor is None:
@@ -510,7 +605,7 @@ def run_job(job: Job) -> None:
         ydl, info = _probe(job.url, job.directory, hook)
         try:
             check_limits(info)
-            job.reason = authorize(info, job.url)
+            job.reason = authorize(info, job.url, job.personal)
         except AudioDownloadError:
             close = getattr(ydl, "close", None)
             if close:

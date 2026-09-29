@@ -178,6 +178,100 @@ def test_js_runtimes_found_on_this_computer(monkeypatch):
     assert ad.youtube_ready() == (False, "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)")
 
 
+@pytest.mark.parametrize(
+    ("info", "url"),
+    [
+        ({"title": "A song", "license": "Standard YouTube License"}, "https://www.youtube.com/watch?v=x"),
+        ({"webpage_url": "https://music.youtube.com/watch?v=x"}, "https://www.youtube.com/watch?v=x"),
+    ],
+)
+def test_a_youtube_video_is_for_personal_use_on_this_computer(info, url):
+    assert ad.authorize(info, url, personal=True) == "personal"
+    with pytest.raises(ad.AudioDownloadError, match="uso pessoal"):
+        ad.authorize(info, url)  # the same video, asked from elsewhere
+
+
+@pytest.mark.parametrize(
+    ("info", "url"),
+    [
+        ({}, "https://example.com/page"),  # personal use opens YouTube videos, not any site
+        ({"direct": True}, "https://rr1.googlevideo.com/videoplayback"),
+    ],
+)
+def test_personal_use_does_not_open_other_content(info, url):
+    with pytest.raises(ad.AudioDownloadError, match="não está disponível"):
+        ad.authorize(info, url, personal=True)
+
+
+@pytest.mark.parametrize(
+    ("messages", "cause"),
+    [
+        (
+            [
+                "[youtube] x: No supported JavaScript runtime could be found.",
+                "ERROR: [youtube] x: Sign in to confirm you're not a bot",
+            ],
+            "runtime",  # the runtime is named first: signing in would not help
+        ),
+        (["ERROR: [youtube] x: Sign in to confirm you’re not a bot."], "robô"),
+        (["ERROR: [youtube] x: Sign in to confirm your age."], "idade"),
+        (["ERROR: [youtube] x: Private video. Sign in if you've been granted access"], "privado"),
+        (["ERROR: [youtube] x: Video unavailable. This video has been removed"], "não está disponível"),
+        (["ERROR: [youtube] x: Requested format is not available."], "Atualize o yt-dlp"),
+        (
+            [
+                (
+                    "ERROR: [youtube] x: Unable to download API page: [SSL: CERTIFICATE_VERIFY_FAILED] "
+                    "certificate verify failed: self-signed certificate in certificate chain"
+                )
+            ],
+            "certificado",
+        ),
+        (
+            [
+                (
+                    "ERROR: [youtube] x: Unable to download API page: ('Unable to connect to proxy', "
+                    "OSError('Tunnel connection failed: 403 Forbidden'))"
+                )
+            ],
+            "ligação à internet",
+        ),
+        (
+            ["ERROR: [youtube] x: Unable to download API page: <urlopen error [Errno 11001] getaddrinfo failed>"],
+            "internet",
+        ),
+    ],
+)
+def test_a_failure_says_its_cause(messages, cause):
+    assert cause in ad.explain_failure(messages)
+
+
+def test_an_unrecognised_failure_has_no_invented_cause():
+    assert ad.explain_failure(["ERROR: something new"]) is None
+
+
+def test_the_cause_reaches_the_user_instead_of_a_generic_message(monkeypatch, tmp_path):
+    """yt-dlp's warning about the missing runtime used to be switched off (no_warnings) and every
+    failure became "Não foi possível ler esse endereço"."""
+    import yt_dlp
+
+    class FakeYoutubeDL:
+        def __init__(self, params):
+            self.params = params
+            assert params["no_warnings"] is False
+
+        def extract_info(self, url, download):
+            self.params["logger"].warning("[youtube] x: No supported JavaScript runtime could be found.")
+            raise yt_dlp.utils.DownloadError("ERROR: [youtube] x: Sign in to confirm you're not a bot")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", FakeYoutubeDL)
+    with pytest.raises(ad.AudioDownloadError, match="Deno"):
+        ad._probe("https://www.youtube.com/watch?v=abcDEF12345", tmp_path, lambda _: None)
+
+
 def test_youtube_cannot_be_declared_as_own_site(monkeypatch):
     monkeypatch.setattr(ad, "settings", dataclasses.replace(ad.settings, audio_download_hosts=("youtube.com",)))
     with pytest.raises(ad.AudioDownloadError):
@@ -232,6 +326,7 @@ def fake_ytdlp(monkeypatch, public_dns):
 
     monkeypatch.setattr(ad, "_probe", probe)
     monkeypatch.setattr(ad, "_download", download)
+    monkeypatch.setattr(ad, "youtube_ready", lambda: (True, ""))
     return state
 
 
@@ -276,6 +371,40 @@ def test_job_refused_when_not_downloadable_leaves_nothing(client, fake_ytdlp):
     assert done["status"] == "error" and "não está disponível" in done["message"]
     assert not folder.exists()
     assert client.get(f"/api/audio/jobs/{job_id}/file").status_code == 409
+
+
+def test_a_youtube_videos_audio_on_this_computer_becomes_an_mp3(fake_ytdlp):
+    """The page opened at http://127.0.0.1 on the computer the server runs on (start-casa.bat)."""
+    local = TestClient(app, base_url="http://127.0.0.1:8020", client=("127.0.0.1", 50000))
+    fake_ytdlp["info"] = {"title": "Song", "license": "Standard YouTube License", "duration": 1.0}
+    job_id = local.post("/api/audio/jobs", json={"url": "abcDEF12345", "bitrate": 192, "authorized": True}).json()["id"]
+    done = _wait(local, job_id)
+    assert done["status"] == "done" and done["allowed_because"] == "personal"
+    assert local.get(f"/api/audio/jobs/{job_id}/file").status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("base_url", "client_address"),
+    [
+        ("http://testserver", ("127.0.0.1", 50000)),  # a proxy on this machine, public name
+        ("http://127.0.0.1:8020", ("203.0.113.9", 50000)),  # another computer
+    ],
+)
+def test_youtube_from_anywhere_else_stays_creative_commons_only(fake_ytdlp, base_url, client_address):
+    other = TestClient(app, base_url=base_url, client=client_address)
+    fake_ytdlp["info"] = {"title": "Song", "license": "Standard YouTube License", "duration": 1.0}
+    job_id = other.post("/api/audio/jobs", json={"url": "abcDEF12345", "authorized": True}).json()["id"]
+    done = _wait(other, job_id)
+    assert done["status"] == "error" and "uso pessoal" in done["message"]
+
+
+def test_youtube_without_its_runtime_is_refused_up_front(client, fake_ytdlp, monkeypatch):
+    monkeypatch.setattr(ad, "youtube_ready", lambda: (False, "falta um runtime JavaScript"))
+    refused = client.post("/api/audio/jobs", json={"url": "abcDEF12345", "authorized": True})
+    assert refused.status_code == 503 and "runtime JavaScript" in refused.json()["detail"]
+    ok = client.post("/api/audio/jobs", json={"url": "https://example.com/a.wav", "authorized": True})
+    assert ok.status_code == 202  # other addresses do not need it
+    _wait(client, ok.json()["id"])
 
 
 def test_request_validation(client, fake_ytdlp):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ipaddress
 import json
 import logging
 import mimetypes
@@ -366,6 +367,21 @@ class AudioJobRequest(BaseModel):
     authorized: bool = False  # the user confirms they may download this content
 
 
+def _loopback(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return host == "localhost"
+
+
+def _used_on_this_computer(request: Request) -> bool:
+    """The page was opened on the computer the server runs on (http://127.0.0.1…/localhost):
+    the request comes from this machine AND is addressed to a local name. Both, so a reverse
+    proxy on the same machine publishing the app under a public name does not count."""
+    client = request.client.host if request.client else ""
+    return _loopback(client) and _loopback(request.url.hostname or "")
+
+
 @app.post("/api/audio/jobs", status_code=202)
 async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
     """Start getting the audio of `url` as an MP3; poll GET /api/audio/jobs/{id} for progress."""
@@ -374,7 +390,10 @@ async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
     if not usable:
         raise HTTPException(status_code=503, detail=f"Obter áudio de um URL não está disponível: {problem}.")
     if not body.authorized:
-        raise HTTPException(status_code=422, detail="Confirme que tem autorização para descarregar este conteúdo.")
+        raise HTTPException(
+            status_code=422,
+            detail="Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo.",
+        )
     if body.bitrate not in audio_download.BITRATES:
         raise HTTPException(status_code=422, detail="Qualidade inválida (128, 192, 256 ou 320 kbit/s).")
     if not audio_limiter.allow(client_key(request.client.host if request.client else None)):
@@ -385,9 +404,14 @@ async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
         url = await run_in_threadpool(audio_download.resolve_source, body.url)
     except audio_download.AudioDownloadError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if audio_download.youtube_id(url):
+        # Say what is missing now, not after a download that YouTube would refuse.
+        ready, problem = audio_download.youtube_ready()
+        if not ready:
+            raise HTTPException(status_code=503, detail=f"Vídeos do YouTube indisponíveis: {problem}.")
     if audio_download.jobs.active() >= settings.audio_concurrent_jobs:
         raise HTTPException(status_code=503, detail="Já está a ser obtido um áudio. Aguarde que termine.")
-    return audio_download.jobs.create(url, body.bitrate).public()
+    return audio_download.jobs.create(url, body.bitrate, _used_on_this_computer(request)).public()
 
 
 def _audio_job(job_id: str) -> audio_download.Job:

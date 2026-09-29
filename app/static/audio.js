@@ -489,7 +489,7 @@
       return;
     }
     if (!authorizedInput.checked) {
-      setUrlStatus("Confirme que tem autorização para descarregar este conteúdo.", true);
+      setUrlStatus("Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo.", true);
       return;
     }
     saveLink.hidden = true;
