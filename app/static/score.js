@@ -33,6 +33,14 @@
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
   let timedLyrics = null; // complete lyrics from the PDF with their place in the music
   let lastBytes = null; // the converted GP5 file
+  const mutedBy = new Set(); // "video" / "audio": the score's own sounds are silenced for them
+
+  // Silence the score's sounds while the video or the song's audio plays instead.
+  function muteFor(source, muted) {
+    if (muted) mutedBy.add(source);
+    else mutedBy.delete(source);
+    if (api) api.masterVolume = mutedBy.size ? 0 : 1;
+  }
   let notationView = viewSelect.value === "3D" ? "Default" : viewSelect.value; // last notation (non-3D) view
   // Last player position (alphaTab ticks; song time in ms, as at 100% speed) and whether the
   // time bar is being dragged (its thumb then follows the mouse, not the player).
@@ -114,9 +122,9 @@
     api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
     api.renderFinished.on(() => setStatus(notice));
     api.scoreLoaded.on((score) => {
-      window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => {
-        api.masterVolume = muted ? 0 : 1; // listen to the video only
-      }, [score.artist, score.title].filter(Boolean).join(" "));
+      api.masterVolume = mutedBy.size ? 0 : 1;
+      window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
+        [score.artist, score.title].filter(Boolean).join(" "));
       buildTrackBar(score);
       buildHighwayTracks(score);
       if (in3D()) showHighway();
@@ -125,6 +133,7 @@
       updateTimeline(e);
       window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek);
       window.VideoSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
+      window.AudioSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
     });
     api.soundFontLoad.on((e) => {
       if (e.total) setStatus(`A carregar os sons… ${Math.round((100 * e.loaded) / e.total)}%`);
@@ -140,6 +149,7 @@
       playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
       window.Highway3D.setPlaying(playing);
       window.VideoSync.playing(playing);
+      window.AudioSync.playing(playing);
     });
   }
 
@@ -277,6 +287,7 @@
   speedSelect.addEventListener("change", () => {
     if (api) api.playbackSpeed = Number(speedSelect.value);
     window.VideoSync.speed(Number(speedSelect.value));
+    window.AudioSync.speed(Number(speedSelect.value));
   });
 
   // Show the score of a converted file. `bytes`: GP5 file; `trackColors`: one CSS colour per track position;
@@ -325,5 +336,14 @@
     return new alphaTab.exporter.Gp7Exporter().export(score, settings);
   }
 
-  window.ScoreView = { show, hide, exportGp };
+  // For the song's audio controls: play / pause the score, restart it at bar 1 (keeps playing).
+  function playPause() {
+    if (api && !playButton.disabled) api.playPause();
+  }
+
+  function restart() {
+    if (api && !playButton.disabled) api.tickPosition = 0;
+  }
+
+  window.ScoreView = { show, hide, exportGp, muteFor, playPause, restart, ready: () => Boolean(api) && !playButton.disabled };
 })();

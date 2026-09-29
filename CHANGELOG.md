@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Áudio da música a tocar com a partitura: Tocar (no painel do áudio ou na partitura) toca os dois, e a Pausa, o Parar, a barra de tempo e a velocidade comandam também o áudio; "Marcar início" recomeça a partitura no compasso 1 no instante marcado, com botões ±0,1 s/±1 s para afinar; opções "Tocar com a partitura" e "Silenciar os sons da partitura". Painel do áudio com o aspeto do resto da página (sem o leitor do browser).
 - Ícone da aplicação no separador do browser (deixa de aparecer `GET /favicon.ico 404` no servidor).
 - D.C., D.S., Segno, Coda, "To Coda" e Fine (D.C./D.S. al Coda, al Fine): lidos por cima da tab (símbolos de Segno e Coda e texto nas tabs gravadas; texto por cima da tab ou depois da linha nas tabs em texto) e escritos no GP5. A partitura, a pista 3D e a barra de tempo seguem os saltos; com "por extenso" a música fica escrita pela ordem em que se toca, com o tempo certo depois de cada salto. O resumo mostra a "Navegação".
 - Mudanças de tempo a meio da música ("♩ = 90", "= 90", "Tempo 90" por cima da tab): cada uma passa para o GP5 no seu compasso (a partitura, a pista 3D, o vídeo e a barra de tempo acompanham) e aparecem no resumo. A marca do compasso 1 é o tempo da música; um tempo escolhido no formulário substitui-a.

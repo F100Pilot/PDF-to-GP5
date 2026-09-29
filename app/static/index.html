@@ -94,19 +94,41 @@
         <a id="download" class="button" download>Descarregar .gp5</a>
       </div>
       <div class="audio-box">
-        <label>Áudio da música (opcional): com áudio, o ficheiro é .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, .gp5
-          <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav">
-        </label>
+        <div class="audio-head">
+          <div>
+            <strong>Áudio da música</strong> <span class="muted">(opcional)</span>
+            <p class="hint">Com áudio, o download é um .gp (Guitar Pro 7/8) com a faixa de áudio; sem áudio, é .gp5. O áudio fica só no seu computador.</p>
+          </div>
+          <div class="audio-file">
+            <input id="audio-file" type="file" accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav" hidden>
+            <button id="audio-choose" type="button" class="icon">Escolher áudio…</button>
+            <span id="audio-name" class="audio-name">Nenhum ficheiro</span>
+            <button id="audio-remove" type="button" class="icon" hidden>Remover</button>
+          </div>
+        </div>
+        <audio id="audio-preview" preload="auto"></audio>
         <div id="audio-tools" class="audio-tools" hidden>
-          <audio id="audio-preview" controls preload="metadata"></audio>
-          <label>Início da música no áudio (segundos)
+          <div class="audio-transport">
+            <button id="audio-play" type="button">▶ Tocar</button>
+            <span id="audio-time" class="score-time">0:00 / 0:00</span>
+          </div>
+          <label class="audio-offset">Início da música no áudio (s)
             <input id="audio-offset" type="number" min="0" step="0.01" value="0">
           </label>
-          <button id="audio-mark" type="button">Marcar início</button>
-          <button id="audio-remove" type="button">Remover áudio</button>
+          <div class="video-offset-tools">
+            <button id="audio-mark" type="button" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
+            <button type="button" class="icon" data-audio-nudge="-1">−1 s</button>
+            <button type="button" class="icon" data-audio-nudge="-0.1">−0,1 s</button>
+            <button type="button" class="icon" data-audio-nudge="0.1">+0,1 s</button>
+            <button type="button" class="icon" data-audio-nudge="1">+1 s</button>
+          </div>
+          <div class="audio-options">
+            <label class="check"><input id="audio-sync" type="checkbox" checked> Tocar com a partitura</label>
+            <label class="check"><input id="audio-mute-score" type="checkbox" checked> Silenciar os sons da partitura</label>
+          </div>
         </div>
         <p id="audio-status" class="hint" role="status" hidden></p>
-        <p id="audio-help" class="hint" hidden>Ponha o áudio a tocar e carregue em "Marcar início" no primeiro tempo do compasso 1: o Guitar Pro alinha a partitura com o áudio a partir daí (pode afinar a sincronização no próprio Guitar Pro). O áudio fica só no seu computador: não é enviado para o servidor.</p>
+        <p id="audio-help" class="hint" hidden>Tocar toca o áudio e a partitura juntos (tal como o Tocar da partitura, a barra de tempo e a velocidade). Para acertar: carregue em Tocar e, quando ouvir o primeiro tempo do compasso 1, em "Marcar início" (a partitura recomeça no compasso 1 nesse instante); os botões ± afinam, mesmo a tocar. O mesmo início vai para o .gp.</p>
       </div>
       <dl id="summary" class="summary"></dl>
       <div id="warnings-box" hidden>
