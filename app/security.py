@@ -42,8 +42,9 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers.extend(self.headers)
-                if is_api:
-                    headers.append((b"cache-control", b"no-store"))
+                # API answers are never stored; page files are revalidated on every load
+                # (cheap ETag check) so an update shows up without a forced reload.
+                headers.append((b"cache-control", b"no-store" if is_api else b"no-cache"))
                 message["headers"] = headers
             await send(message)
 

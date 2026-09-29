@@ -54,6 +54,11 @@ def test_options(client):
     assert client.get("/api/options").headers["cache-control"] == "no-store"
 
 
+def test_page_files_are_revalidated(client):
+    for path in ("/", "/app.js", "/styles.css"):
+        assert client.get(path).headers["cache-control"] == "no-cache"
+
+
 def test_convert_json(client):
     response = _post(client, ascii_tab_pdf([TAB]), title="Riff", tempo="90", tuning="drop_d")
     assert response.status_code == 200, response.text
