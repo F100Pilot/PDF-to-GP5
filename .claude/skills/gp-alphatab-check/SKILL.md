@@ -16,6 +16,7 @@ here and report the result. They do not run it themselves.
    - An attached PDF: convert it here, from the repo root:
      ```python
      from app.converter import convert, ConversionOptions
+
      open(out, "wb").write(convert(open(pdf, "rb").read(), ConversionOptions()).gp5)
      ```
      Write `out` in the scratchpad. Never commit the user's PDFs or GP files.
