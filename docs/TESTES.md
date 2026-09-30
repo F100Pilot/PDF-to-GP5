@@ -22,6 +22,19 @@ PDFs usados (os teus, não guardados no repositório): Daughtry "September" (Lea
 Guitar); Eagles "Hotel California" (Lead 1, 2, 3 e Pro, duas versões); Russell
 Dickerson "Happen To Me" (Acoustic, Guitar 1 a 4 e Pro).
 
+## `.gp` exportados por ti, verificados aqui
+
+| Ficheiro | Data | Verificação | Resultado |
+|---|---|---|---|
+| `September.gp` (6 pistas, com áudio) | 2026-09-30 | `gp-alphatab-check` | Igual ao `.gp` que o alphaTab exporta (5692 notas, 71 compassos) |
+| | | `rockforge-alphatab-check` | As 6 pistas iguais, incluindo a forma dos bends |
+| | | Áudio no ficheiro | `Content/Assets/backing-track.mp3` (5,7 MB), pista de áudio ativa; o RockForge encontra-o e extrai um MP3 válido |
+| | | Sincronização | O RockForge lê um início de −2,15 s (o compasso 1 começa antes da gravação), sem o pôr a 0 |
+| | | Bends (Lead Guitar) | Os 18 chegam ao RockForge com a curva completa; o primeiro sobe ½ tom e volta, como no alphaTab |
+
+O que falta nestes ficheiros é o teste à mão: abrir no Guitar Pro 8 e gerar o
+PSARC no RockForge (pontos 2 e 3 abaixo).
+
 ## Verificado aqui, no browser
 
 Com a aplicação a correr e o Chromium sem janela (Playwright). Sem rede, sem
@@ -40,7 +53,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 |---|---|---|---|
 | 1 | **Bends no Guitar Pro e no TuxGuitar** | Converter o PDF do "September" e abrir o GP5 | Os bends aparecem, com a mesma forma que na partitura da aplicação: o bend com release sobe, fica e volta; o bend simples sobe ao longo da nota |
 | 2 | **`.gp` com áudio no Guitar Pro 8** | Converter, escolher o MP3, acertar o início e exportar `.gp` | O Guitar Pro toca o áudio e a partitura em sincronia |
-| 3 | **`.gp` com áudio no RockForge** | Importar o `.gp` do ponto 2 no RockForge | Aparece "Usar o áudio que vem dentro do ficheiro GP" e as notas batem com a música, também com um início antes do áudio (acerto negativo) |
+| 3 | **`.gp` com áudio no RockForge** | Importar o `.gp` do ponto 2 no RockForge (o `September.gp` de 2026-09-30 já passou as verificações acima) | Aparece "Usar o áudio que vem dentro do ficheiro GP" e as notas batem com a música, também com um início antes do áudio (acerto negativo) |
 | 4 | **Acerto do início com música real** | Painel do áudio, com uma música | Os botões mexem o valor em 1 s, 0,1 s e 0,01 s, e ouve-se a diferença |
 | 5 | **Biblioteca noutro browser** | Abrir a aplicação no Edge e no Chrome | As mesmas músicas nos dois, vindas da pasta `~/PDF-to-GP5/Biblioteca` |
 | 6 | **Capa automática** | Converter uma música com artista e título | A capa do álbum aparece na biblioteca; "Procurar capa" e "Escolher imagem" funcionam |
