@@ -105,7 +105,9 @@
 
   function showState() {
     const playing = following() ? song.playing : !player.paused && !waiting;
-    playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
+    playButton.querySelector(".audio-play-icon").textContent = playing ? "❚❚" : "▶";
+    playButton.querySelector(".audio-play-label").textContent = playing ? "Pausa" : "Tocar";
+    playButton.setAttribute("aria-label", playing ? "Pausa" : "Tocar");
     timeLabel.textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
   }
 
@@ -114,21 +116,37 @@
   // back with the "Áudio" button by the score, or collapse it to the transport row.
   let panelHidden = false;
 
+  const videoPanel = document.getElementById("video-panel");
+
+  // Collapsed, the panel folds to a narrow strip at the side (Tocar and expand) and the score
+  // takes the width; with the video panel also open the column stays wide for it, and the audio
+  // panel shrinks to its title row and Tocar.
+  function layoutStage() {
+    const narrow = !panel.hidden && panel.classList.contains("collapsed") && videoPanel.hidden;
+    if (stageBox.classList.contains("side-collapsed") === narrow) return;
+    stageBox.classList.toggle("side-collapsed", narrow);
+    window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
+  }
+
   function showPanel(loaded) {
     const open = loaded && !panelHidden;
     toggleButton.hidden = !loaded;
     toggleButton.setAttribute("aria-pressed", String(open));
     if (panel.hidden === !open) return;
     panel.hidden = !open;
-    stageBox.classList.toggle("with-side", open || !document.getElementById("video-panel").hidden);
+    stageBox.classList.toggle("with-side", open || !videoPanel.hidden);
+    layoutStage();
     window.dispatchEvent(new Event("resize")); // let the score / highway take the new width
   }
 
   function setCollapsed(collapsed) {
     panelBody.hidden = collapsed;
-    collapseButton.textContent = collapsed ? "▾" : "▴";
+    panel.classList.toggle("collapsed", collapsed);
+    collapseButton.textContent = collapsed ? "◂" : "▸";
     collapseButton.setAttribute("aria-expanded", String(!collapsed));
-    collapseButton.title = collapsed ? "Expandir o painel" : "Colapsar: fica só o Tocar e o tempo";
+    collapseButton.title = collapsed ? "Expandir o painel do áudio" : "Recolher o painel para o lado (a partitura fica mais larga)";
+    collapseButton.setAttribute("aria-label", collapsed ? "Expandir o painel do áudio" : "Recolher o painel do áudio");
+    layoutStage();
     try {
       localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
     } catch {
@@ -136,7 +154,9 @@
     }
   }
 
-  collapseButton.addEventListener("click", () => setCollapsed(!panelBody.hidden));
+  // The video panel opening or closing changes how a collapsed audio panel is laid out.
+  new MutationObserver(layoutStage).observe(videoPanel, { attributes: true, attributeFilter: ["hidden"] });
+  collapseButton.addEventListener("click", () => setCollapsed(!panel.classList.contains("collapsed")));
   hideButton.addEventListener("click", () => {
     panelHidden = true;
     showPanel(Boolean(audio));
@@ -406,6 +426,12 @@
 
   window.AudioSync = {
     useFile: (file) => useAudioFile(file),
+    // Show the panel again after it was closed with ✕ (the Áudio button does the same).
+    showPanel() {
+      panelHidden = false;
+      showPanel(Boolean(audio));
+    },
+    hasAudio: () => Boolean(audio),
     // Delay (+) or advance (−) the score by `seconds` against the audio (keyboard [ and ]).
     nudge(seconds) {
       if (audio) nudgeScore(seconds);

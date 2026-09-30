@@ -40,9 +40,11 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Alterado
+- Painel do áudio no leitor: colapsar recolhe-o para o lado, numa barra estreita (expandir, Tocar/Pausa), e a partitura fica com a largura toda; com o painel do vídeo também aberto, fica só a linha do título e o Tocar. O botão "Áudio", que volta a mostrar o painel depois de fechado com ✕, passou para a barra de reprodução (sempre visível), e também está no Ctrl K ("Mostrar o painel do áudio").
 - Interface nova, com uma página por assunto e um menu à esquerda (barra de separadores em baixo, no telemóvel): Converter, Resultado, Tocar, Áudio e Definições. Cada página tem o seu endereço (`#/tocar`…), o recuar/avançar do browser funciona e mudar de página não interrompe a música. Depois de converter abre o Resultado; "Abrir no leitor" leva à partitura. As páginas sem música mostram o que fazer. O painel de sincronização do áudio continua ao lado da partitura, a colapsar e a esconder como antes. Nova página Definições com o estado do servidor (conversão, URL → MP3, YouTube, pesquisa do vídeo) e a versão. Visual renovado (tema claro/escuro do sistema, fontes Sora e IBM Plex Sans incluídas na aplicação); o painel Novidades fica na página Converter, com altura limitada.
 
 ### Corrigido
+- Notas ligadas só com haste (continuação de uma ligadura) ficavam com o volume por defeito (f) em vez da dinâmica em vigor: a partitura mostrava "f" a meio do compasso e o som subia.
 - Compasso vazio atravessado por uma ligadura (a nota ligada não é impressa e a semibreve não tem haste): passa a ser a continuação da nota durante o compasso inteiro, em vez de pausa.
 - Linha só com mínimas (hastes curtas): eram lidas como semínimas, porque a haste "normal" era medida na própria linha; o compasso ficava com ritmo estimado.
 - Dinâmicas escritas com uma letra por glifo ("ppp" como três "p", "mf" como "m" + "f"): eram lidas como p e f; passam a ppp e mf.

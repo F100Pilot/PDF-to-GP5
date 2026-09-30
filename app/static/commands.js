@@ -68,6 +68,16 @@
         })),
       );
     }
+    if (window.AudioSync && window.AudioSync.hasAudio()) {
+      list.push({
+        label: "Mostrar o painel do áudio",
+        group: "Leitor",
+        run: () => {
+          window.AudioSync.showPanel();
+          window.location.hash = "#/tocar";
+        },
+      });
+    }
     list.push(
       { label: "Tema: do sistema", group: "Aparência", run: () => setTheme("system") },
       { label: "Tema: claro", group: "Aparência", run: () => setTheme("light") },

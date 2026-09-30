@@ -204,7 +204,6 @@
                 <input id="score-3d-side" type="range" min="-100" max="100" value="0">
               </label>
               <div class="score-player">
-                <button id="audio-toggle" type="button" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Áudio</button>
                 <button id="video-toggle" type="button" aria-pressed="false" title="Ligar ou desligar o vídeo (desligado: fica em pausa e volta o som da partitura)">Vídeo YouTube</button>
               </div>
             </div>
@@ -221,11 +220,12 @@
                 <audio id="audio-preview" preload="auto"></audio>
                 <div class="side-head">
                   <strong class="side-title">Áudio: <span id="audio-panel-name"></span></strong>
-                  <button id="audio-collapse" type="button" class="icon" aria-expanded="true" aria-controls="audio-panel-body" title="Colapsar: fica só o Tocar e o tempo">▴</button>
+                  <button id="audio-collapse" type="button" class="icon" aria-expanded="true" aria-controls="audio-panel-body" title="Recolher o painel para o lado (a partitura fica mais larga)" aria-label="Recolher o painel do áudio">▸</button>
                   <button id="audio-hide" type="button" class="icon" title="Esconder o painel (o áudio continua; volta com o botão Áudio, junto à partitura)" aria-label="Esconder o painel do áudio">✕</button>
                 </div>
+                <span class="side-rail-label" aria-hidden="true">Áudio</span>
                 <div class="audio-transport">
-                  <button id="audio-play" type="button">▶ Tocar</button>
+                  <button id="audio-play" type="button"><span class="audio-play-icon" aria-hidden="true">▶</span><span class="audio-play-label">Tocar</span></button>
                   <span id="audio-time" class="score-time">0:00 / 0:00</span>
                 </div>
                 <div id="audio-panel-body" class="side-body">
@@ -314,6 +314,7 @@
                   <option value="1.25">125%</option>
                 </select>
               </label>
+              <button id="audio-toggle" type="button" class="secondary" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Áudio</button>
               <button id="score-loop" type="button" class="secondary" aria-pressed="false" disabled title="Repetir um trecho: carregue no início (A) e depois no fim (B); outra vez para desligar">Loop A–B</button>
             </div>
           </section>

@@ -126,6 +126,14 @@ def test_stem_without_fret_ties_the_previous_notes():
     assert second.units == 16 and [(n.string, n.fret, n.tie) for n in second.notes] == [(2, 7, True), (3, 5, True)]
 
 
+def test_tied_continuation_keeps_the_dynamic():
+    """A stem-only tie is not re-struck: it keeps the note's velocity (else the score shows a
+    dynamic change to the default f in the middle of the bar)."""
+    events = [TabEvent(x=10, string=2, fret=7, velocity=79)]
+    measures = build_measures([_system(events, [RhythmMark(10, 16), RhythmMark(50, 16)])], RhythmOptions(), [])
+    assert [n.velocity for n in measures[0].beats[1].notes] == [79]
+
+
 def _flag(x: float) -> Char:
     # Music-font glyph box reported about one em below the drawn flag (as in MuseScore PDFs).
     return Char("", x, x + 5, STEM_BOTTOM + 8, STEM_BOTTOM + 28)

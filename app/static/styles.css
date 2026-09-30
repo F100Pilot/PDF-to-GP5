@@ -430,7 +430,7 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .side-head button { padding: 2px 8px; line-height: 1.2; }
 .side-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 #audio-toggle { margin: 0; }
-.score-player #audio-toggle[aria-pressed="true"], .score-player #video-toggle[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.transport #audio-toggle[aria-pressed="true"], .score-player #video-toggle[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .volume input { padding: 0; width: 100%; cursor: pointer; }
 .volume { gap: 2px; }
 .volume-head { display: flex; justify-content: space-between; gap: 8px; }
@@ -571,3 +571,27 @@ kbd { font: 500 0.6875rem/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, mon
 .track.dragging { opacity: 0.5; }
 .track.drop-before { box-shadow: 0 -3px 0 var(--accent); }
 .track.drop-after { box-shadow: 0 3px 0 var(--accent); }
+
+/* Audio panel folded to the side: a narrow strip with expand, Tocar/Pausa and its name. */
+.audio-play-icon { display: inline-block; min-width: 1.2em; }
+.audio-play-label { margin-left: 0.35em; }
+.side-rail-label { display: none; }
+@media (min-width: 901px) {
+  .score-stage.with-side.side-collapsed { grid-template-columns: minmax(0, 1fr) 64px; }
+  .side-collapsed .side-panel.collapsed { justify-items: center; gap: 12px; padding: 10px 6px; }
+  .side-collapsed .side-panel.collapsed .side-head { flex-direction: column; }
+  .side-collapsed .side-panel.collapsed .side-title,
+  .side-collapsed .side-panel.collapsed #audio-time,
+  .side-collapsed .side-panel.collapsed .audio-play-label { display: none; }
+  .side-collapsed .side-panel.collapsed .side-head button { width: 44px; height: 36px; }
+  .side-collapsed .side-panel.collapsed .audio-transport { flex-direction: column; }
+  .side-collapsed .side-panel.collapsed #audio-play { width: 44px; min-width: 0; height: 44px; padding: 0; }
+  .side-collapsed .side-panel.collapsed .side-rail-label {
+    display: block;
+    writing-mode: vertical-rl;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+}

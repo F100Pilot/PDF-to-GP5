@@ -111,7 +111,9 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
 
 def _ties(notes: list[ScoreNote]) -> list[ScoreNote]:
     return [
-        ScoreNote(string=n.string, fret=n.fret, tie=True, let_ring=n.let_ring, palm_mute=n.palm_mute)
+        ScoreNote(
+            string=n.string, fret=n.fret, tie=True, let_ring=n.let_ring, palm_mute=n.palm_mute, velocity=n.velocity
+        )
         for n in notes
         if not n.dead
     ]
