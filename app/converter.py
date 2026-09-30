@@ -8,6 +8,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
+from .extract.ascii_tab import extract_ascii_systems
 from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
 from .extract.pdf_reader import PdfReadError, read_document
@@ -100,11 +101,13 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
     warnings: list[str] = []
     systems: list[TabSystem] = []
     for page in pages:
-        systems.extend(extract_engraved_systems(page))
+        ascii_systems, page_warnings = extract_ascii_systems(page)
+        warnings.extend(page_warnings)
+        systems.extend(ascii_systems or extract_engraved_systems(page))
     if not systems:
         raise ConversionError(
-            "Não foi encontrada tablatura no PDF. São suportadas tablaturas gravadas por editores "
-            "(Songsterr, Guitar Pro, MuseScore, TuxGuitar)."
+            "Não foi encontrada tablatura no PDF. São suportadas tablaturas em texto (ex.: e|--0--2--|) "
+            "e tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar)."
         )
     metadata = detect_metadata(pages, info)
     return _ParsedPdf(systems, metadata, detect_part_name(pages, metadata), warnings)
@@ -421,6 +424,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
         "measures": len(measures),
         "notes": note_count,
         "systems": len(kept),
+        "sources": sorted({s.source for s in kept}),
         "pages": sorted({s.page for s in kept}),
         "rhythm_from_notation": stats.notated,
         "rhythm_estimated": stats.estimated,
@@ -429,6 +433,7 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
         "systems_detail": [
             {
                 "page": s.page,
+                "source": s.source,
                 "notes": len(s.events),
                 "measures": system_measures[i] if i < len(system_measures) else None,
             }

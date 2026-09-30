@@ -78,6 +78,7 @@ class TabSystem:
     end_x: float
     char_width: float  # horizontal clustering unit
     labels: list[str] = field(default_factory=list)  # tuning labels, string 1 first
+    source: str = "ascii"  # "ascii" | "engraved"
     # Printed number of the bar starting at bars[i] (engraved tabs only), used to
     # detect multi-bar rests. len == len(bars) - 1 when present.
     bar_numbers: list[int | None] = field(default_factory=list)

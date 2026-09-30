@@ -8,6 +8,26 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 
+def ascii_tab_pdf(
+    systems: list[list[str]], font_size: int = 10, extra_lines: list[str] | None = None, line_spacing: float = 1.15
+) -> bytes:
+    """Render tab systems as monospaced text lines (like a printed .txt tab)."""
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    pdf.setFont("Courier", font_size)
+    y = A4[1] - 60
+    for line in extra_lines or []:
+        pdf.drawString(40, y, line)
+        y -= font_size * 2
+    for system in systems:
+        for line in system:
+            pdf.drawString(40, y, line)
+            y -= font_size * line_spacing
+        y -= font_size * 2 * line_spacing
+    pdf.save()
+    return buffer.getvalue()
+
+
 def engraved_tab_pdf(
     staves: list,
     strings: int = 6,
@@ -15,7 +35,6 @@ def engraved_tab_pdf(
     widths: list[float] | None = None,
     measure_number_noise: int = 0,
     ranges: list[tuple[int, str, float, float]] | None = None,
-    extra_lines: list[str] | None = None,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -24,9 +43,8 @@ def engraved_tab_pdf(
     as one staff. Flags: "(" draws parentheses as curved paths, "P"/"H" prints
     the letter above the staff between the previous note and this one.
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
-    staff followed by a dashed line up to x_to. ``extra_lines`` are text lines
-    printed above the first staff (title, artist, tempo…). Staff lines are drawn
-    one segment per measure, right to left, as some editors do.
+    staff followed by a dashed line up to x_to. Staff lines are drawn one
+    segment per measure, right to left, as some editors do.
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -34,10 +52,6 @@ def engraved_tab_pdf(
     pdf = canvas.Canvas(buffer, pagesize=A4)
     spacing = 7.0
     x0 = 60.0
-    # At the fret size: with so few notes, bigger digits (a tempo) would shift which size counts as a fret.
-    pdf.setFont("Helvetica", 7)
-    for i, line in enumerate(extra_lines or []):
-        pdf.drawString(x0, A4[1] - 40 - i * 12, line)
     for index, measures in enumerate(staves):
         top = A4[1] - 100 - index * 90
         x1 = x0 + (widths[index] if widths else 480.0)

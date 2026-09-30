@@ -1,10 +1,71 @@
+from app.extract.ascii_tab import extract_ascii_systems
 from app.extract.engraved_tab import extract_engraved_systems
 from app.extract.pdf_reader import Segment, read_pages
-from tests.pdf_factory import engraved_tab_pdf
+from tests.pdf_factory import ascii_tab_pdf, engraved_tab_pdf
+
+STANDARD = [
+    "e|-0---3h5---7p5-|",
+    "B|---------------|",
+    "G|-----------4/6-|",
+    "D|-5b7r5--x------|",
+    "A|---(3)--7~-----|",
+    "E|---------------|",
+]
+
+
+def _systems(pdf: bytes):
+    page = read_pages(pdf, max_pages=5)[0]
+    return extract_ascii_systems(page)
+
+
+def _events_by_string(system):
+    result = {}
+    for event in sorted(system.events, key=lambda e: e.x):
+        result.setdefault(event.string, []).append(event)
+    return result
+
+
+def test_ascii_detects_system_labels_and_bars():
+    systems, warnings = _systems(ascii_tab_pdf([STANDARD], extra_lines=["Intro - Some Song", "Tuning: standard"]))
+    assert warnings == []
+    assert len(systems) == 1
+    system = systems[0]
+    assert system.string_count == 6
+    assert system.labels == ["e", "B", "G", "D", "A", "E"]
+    assert len(system.bars) == 2
+
+
+def test_ascii_techniques():
+    events = _events_by_string(_systems(ascii_tab_pdf([STANDARD]))[0][0])
+    high = events[1]
+    assert [e.fret for e in high] == [0, 3, 5, 7, 5]
+    assert high[2].link.value == "h" and high[4].link.value == "p"
+    assert events[3][1].link.value == "/"
+    bend, dead = events[4]
+    assert (bend.fret, bend.bend_semitones, bend.bend_release) == (5, 2, True)
+    assert dead.dead
+    ghost, vib = events[5]
+    assert ghost.parenthesized and ghost.fret == 3
+    assert vib.vibrato and vib.fret == 7
+
+
+def test_ascii_ignores_prose_and_trailing_repeat_marks():
+    tab = [line + "   x4" for line in STANDARD]
+    systems, _ = _systems(ascii_tab_pdf([tab], extra_lines=["This is just text - not a tab ---"]))
+    assert len(systems) == 1
+    assert not any(e.fret == 4 and e.x > systems[0].bars[-1] for e in systems[0].events)
+
+
+def test_ascii_bass_four_strings_and_two_systems():
+    bass = ["G|-----|", "D|-----|", "A|-3-5-|", "E|-----|"]
+    bass = [line.replace("|", "|------", 1) for line in bass]
+    systems, _ = _systems(ascii_tab_pdf([bass, bass]))
+    assert [s.string_count for s in systems] == [4, 4]
 
 
 def test_engraved_staff_and_numbers():
     page = read_pages(engraved_tab_pdf([[(1, 0), (2, 12)], [(6, 3)]]), max_pages=5)[0]
+    assert extract_ascii_systems(page)[0] == []
     systems = extract_engraved_systems(page)
     assert len(systems) == 1
     system = systems[0]
@@ -37,6 +98,28 @@ def test_engraved_frets_survive_many_small_digits_on_page():
 def test_engraved_reads_bar_numbers():
     systems = _engraved(engraved_tab_pdf([[[(1, 0)], [], [(1, 2)]]], bar_numbers=[[7, 8, 12]]))
     assert systems[0].bar_numbers == [7, 8, 12]
+
+
+def test_ascii_tolerates_unknown_symbols_and_rejects_prose():
+    tab = [line.replace("-0---", "-0v--") for line in STANDARD]
+    tab[3] = "D|-5b7r5--x--T[2]---------|"
+    systems, _ = _systems(ascii_tab_pdf([tab], extra_lines=["---- Chorus ---- (play twice) ----"]))
+    assert len(systems) == 1 and systems[0].string_count == 6
+
+
+def test_ascii_double_spaced_lines():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD, STANDARD], line_spacing=2.2))
+    assert [s.string_count for s in systems] == [6, 6]
+
+
+def test_ascii_systems_without_blank_line_are_split_by_labels():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD + STANDARD]))
+    assert [s.string_count for s in systems] == [6, 6]
+
+
+def test_ascii_reports_incomplete_tab_lines():
+    _, warnings = _systems(ascii_tab_pdf([STANDARD[:3]]))
+    assert any("ignoradas" in w for w in warnings)
 
 
 def test_engraved_parentheses_drawn_as_curves():
@@ -157,6 +240,11 @@ def test_vibrato_wiggle_line_above_staff():
     assert event.vibrato
 
 
+def test_ascii_section_label_above_tab_block():
+    systems, _ = _systems(ascii_tab_pdf([STANDARD], extra_lines=["[Chorus]"]))
+    assert systems[0].sections == [(systems[0].start_x, "Chorus")]
+
+
 def _slide_page(segments, curves=()):
     """Staff at y 100..150 (string 3 at 120); "7" at x 100..106 and "12" at x 130..142 on string 3."""
     from app.extract.pdf_reader import Char, Page, Segment
@@ -203,6 +291,50 @@ def test_engraved_long_stroke_beside_one_note_is_ignored():
 
     events = _slide_events(_slide_page([Segment(145, 190, 121, 128, rising=False)]))
     assert events[12].slide_out is None
+
+
+TECHNIQUES = [
+    "e|-/5---7\\---------------------|",
+    "B|-7pb9---7pb9r7---------------|",
+    "G|-<12>---5h7t12p7-------------|",
+    "D|-----------------------------|",
+    "A|-----------------------------|",
+    "E|-----------------------------|",
+]
+
+
+def test_ascii_slide_in_out_prebend_harmonic_and_tapping():
+    systems, warnings = _systems(ascii_tab_pdf([TECHNIQUES]))
+    assert warnings == []
+    events = _events_by_string(systems[0])
+    slide_in, slide_out = events[1]
+    assert (slide_in.fret, slide_in.slide_in, slide_in.link) == (5, "below", None)
+    assert (slide_out.fret, slide_out.slide_out) == (7, "down")
+    prebend, prebend_release = events[2]
+    assert (prebend.fret, prebend.bend_pre, prebend.bend_semitones, prebend.bend_release) == (7, True, 2, False)
+    assert (prebend_release.bend_pre, prebend_release.bend_release) == (True, True)
+    harmonic, first, hammer, tap, pull = events[3]
+    assert (harmonic.fret, harmonic.harmonic) == (12, "natural")
+    assert first.harmonic is None and not first.tapped
+    assert hammer.link.value == "h" and not hammer.tapped
+    assert (tap.fret, tap.tapped) == (12, True)
+    assert (pull.fret, pull.link.value, pull.tapped) == (7, "p", False)
+
+
+def test_ascii_palm_mute_and_let_ring_lines_above_tab():
+    tab = [
+        "e|-0-0-0-0--0-0-0-0-----|",
+        "B|----------------------|",
+        "G|----------------------|",
+        "D|----------------------|",
+        "A|----------------------|",
+        "E|----------------------|",
+    ]
+    marks = "   PM-----| let ring------"
+    systems, warnings = _systems(ascii_tab_pdf([tab], extra_lines=[marks]))
+    assert warnings == []
+    notes = _events_by_string(systems[0])[1]
+    assert [(e.palm_mute, e.let_ring) for e in notes] == [(True, False)] * 4 + [(False, True)] * 4
 
 
 # --- Time signatures, repeats and voltas (MuseScore-style SMuFL glyphs) ---------------------------
@@ -270,6 +402,27 @@ def test_engraved_repeat_after_clef_and_courtesy_signature_are_not_bars():
     assert system.time_signatures == []
 
 
+def test_ascii_repeat_signs_and_count():
+    tab = [
+        "e|:-0---3-:|-5---|   x3",
+        "B|--1-------|-----|",
+        "G|:-------- :|-----|".replace(" ", ""),
+        "D|----------|-----|",
+        "A|----------|-----|",
+        "E|----------|-----|",
+    ]
+    (system,), _ = _systems(ascii_tab_pdf([tab]))
+    bars = sorted(system.bars)
+    assert system.repeat_starts == [bars[0]]
+    assert system.repeat_ends == [(bars[1], 3)]
+
+
+def test_ascii_count_after_a_line_without_signs_repeats_the_line():
+    (system,), _ = _systems(ascii_tab_pdf([[line + "   x4" for line in STANDARD]]))
+    bars = sorted(system.bars)
+    assert system.repeat_starts == [bars[0]] and system.repeat_ends == [(bars[-1], 4)]
+
+
 def test_engraved_segno_jump_and_tempo_marks_above_the_staff():
     segno = [_glyph("", 305, 80)]  # at the start of bar 2
     tempo = _text("=90", 310, 70)
@@ -278,6 +431,14 @@ def test_engraved_segno_jump_and_tempo_marks_above_the_staff():
     assert system.signs == [(305, "Segno")]
     assert system.jumps == [(541, "Da Segno al Coda")]
     assert system.tempos == [(310, 90)]
+
+
+def test_ascii_navigation_and_tempo_marks():
+    tab = [line + ("   D.S. al Coda" if i == 0 else "") for i, line in enumerate(STANDARD)]
+    (system,), _ = _systems(ascii_tab_pdf([tab], extra_lines=["Tempo 90           Fine"]))
+    assert [name for _, name in system.jumps] == ["Da Segno al Coda"]
+    assert [name for _, name in system.signs] == ["Fine"]
+    assert [bpm for _, bpm in system.tempos] == [90]
 
 
 def test_engraved_small_digits_are_grace_notes_of_the_next_note():

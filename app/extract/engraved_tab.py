@@ -698,6 +698,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             end_x=x1,
             char_width=digit_width,
             labels=_labels(page.chars, staff, spacing),
+            source="engraved",
             bar_numbers=_measure_numbers(page.chars, staff, spacing, bars),
             sections=section_labels(page, top, x0, x1, spacing),
             lyrics=lyrics(page, bottom, x0, x1, spacing),

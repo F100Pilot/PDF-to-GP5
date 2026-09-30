@@ -369,6 +369,7 @@
       ["Ficheiro", track.filename || "—"], ["Compassos", track.measures], ["Notas", track.notes],
       ["Cordas", track.strings], ["Afinação", TUNING_LABELS[track.tuning] || track.tuning],
       ["Som", INSTRUMENT_LABELS[track.instrument] || track.instrument], ["Ritmo", rhythm],
+      ["Formato", track.sources.map((s) => (s === "ascii" ? "texto" : "gravada")).join(", ")],
     ]));
     const table = document.createElement("table");
     table.className = "systems";

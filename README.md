@@ -6,12 +6,13 @@ Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (
 
 | Tipo de PDF | Exemplo | Suporte |
 |---|---|---|
-| Tab gravada por editor | Exportação PDF do Songsterr, Guitar Pro, MuseScore, TuxGuitar | ✅ |
-| Tab em texto (`e|--0--3h5--|`) | Tab de um `.txt` / site impressa em PDF | ❌ não suportada |
+| Tab em texto (monoespaçado) | `e|--0--3h5--|` impresso de um `.txt` / site | ✅ |
+| Tab gravada por editor | Exportação PDF do Guitar Pro, MuseScore, TuxGuitar | ⚠️ experimental |
 | PDF digitalizado (imagem) | Scan / fotografia | ❌ requer OCR |
 
 - 4–8 cordas (baixo, guitarra 6/7/8 cordas); afinação lida das etiquetas (`e B G D A D` → Drop D) ou escolhida manualmente.
-- Técnicas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
+- Técnicas: hammer-on/pull-off (`h`/`p`), slides (`/`, `\`, `s`), bend (`b`, `7b9`, `7b9r7`), vibrato (`~`), nota abafada (`x`), ghost note (`(5)`).
+- Tabs gravadas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
 - Vários sistemas e páginas são concatenados numa única pista.
 
 O estado detalhado de cada nota e técnica (implementado, parcial, por implementar, sem suporte em GP5) está em [`docs/NOTACAO.md`](docs/NOTACAO.md).
@@ -166,9 +167,10 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 
 ## Limitações conhecidas
 
+- Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
 - Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
-- Acordes por extenso, ritardando/accelerando ("rit.", "accel.") não são convertidos. Repetições, voltas, D.C./D.S./Coda/Fine e marcas de tempo só são lidos por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos). O GP5 guarda cada sinal de navegação (Segno, Coda, D.S. al Coda…) uma só vez por música.
+- Acordes por extenso, ritardando/accelerando ("rit.", "accel.") e, nas tabs em texto, mudanças de compasso não são convertidos. Repetições, voltas, D.C./D.S./Coda/Fine e marcas de tempo só são lidos por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos). O GP5 guarda cada sinal de navegação (Segno, Coda, D.S. al Coda…) uma só vez por música.
 
 ## Versões
 
@@ -191,7 +193,7 @@ Estrutura:
 
 ```
 app/
-  extract/        pdf_reader (chars + linhas), engraved_tab
+  extract/        pdf_reader (chars + linhas), ascii_tab, engraved_tab
   rhythm.py       colunas → compassos com durações
   gp5_writer.py   Score → .gp5 (PyGuitarPro)
   converter.py    pipeline

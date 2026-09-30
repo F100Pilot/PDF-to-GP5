@@ -403,7 +403,12 @@ def _segment_measures(
             f"Página {system.page}: compasso com {len(cols)} notas excede a métrica; notas em fusas (1/32)."
         )
         return _sequence([(_to_notes(c.events), 1) for c in cols], units)
-    onsets = _quantize([c.x for c in cols], cols[0].x, end, units)
+    content_start = start + unit_width  # skip the bar-line glyph
+    if system.source == "engraved" or cols[0].x - content_start <= 1.5 * unit_width:
+        origin = cols[0].x
+    else:
+        origin = content_start + unit_width  # leading rest: assume one spacer before the grid
+    onsets = _quantize([c.x for c in cols], origin, end, units)
     items: list[tuple[list[ScoreNote], int]] = []
     if onsets[0] > 0:
         items.append(([], onsets[0]))
