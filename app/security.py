@@ -67,23 +67,29 @@ class SecurityHeadersMiddleware:
 
 
 class BodySizeLimitMiddleware:
-    """Reject request bodies above ``max_bytes`` without buffering them first."""
+    """Reject request bodies above ``max_bytes`` without buffering them first.
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    ``path_limits``: (path prefix, limit) pairs for paths that take other sizes (library audio).
+    """
+
+    def __init__(self, app: ASGIApp, max_bytes: int, path_limits: tuple[tuple[str, int], ...] = ()) -> None:
         self.app = app
         self.max_bytes = max_bytes
+        self.path_limits = path_limits
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
+        path = scope.get("path", "")
+        max_bytes = next((limit for prefix, limit in self.path_limits if path.startswith(prefix)), self.max_bytes)
         for name, value in scope.get("headers", []):
             if name == b"content-length":
                 try:
                     declared = int(value)
                 except ValueError:
-                    declared = self.max_bytes + 1
-                if declared > self.max_bytes:
+                    declared = max_bytes + 1
+                if declared > max_bytes:
                     await _send_413(send)
                     return
         received = 0
@@ -93,7 +99,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > max_bytes:
                     raise HTTPException(status_code=413, detail="Pedido demasiado grande.")
             return message
 

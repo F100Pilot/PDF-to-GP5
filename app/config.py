@@ -98,6 +98,9 @@ class Settings:
     audio_download_hosts: tuple[str, ...] = tuple(
         h.strip().lower() for h in os.environ.get("AUDIO_DOWNLOAD_HOSTS", "").split(",") if h.strip()
     )
+    # The song library, when the app is used on the computer it runs on; LIBRARY_DIR changes it.
+    library_dir: Path = Path(os.environ.get("LIBRARY_DIR") or Path.home() / "PDF-to-GP5" / "Biblioteca")
+    library_max_audio_bytes: int = _int("LIBRARY_MAX_AUDIO_MB", 200) * 1024 * 1024
     enable_docs: bool = _bool("ENABLE_DOCS")
     enable_hsts: bool = _bool("ENABLE_HSTS")
 

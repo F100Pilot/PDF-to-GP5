@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
@@ -27,6 +28,7 @@ from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .cover import CoverError, find_cover
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
+from .library_store import LibraryError, LibraryStore
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
 from .security import (
@@ -62,6 +64,7 @@ cover_limiter = RateLimiter(settings.cover_search_per_minute)
 audio_limiter = RateLimiter(settings.audio_jobs_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
 presence = Presence()  # enabled by the local launcher (python -m app)
+library = LibraryStore(settings.library_dir)
 _JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
 
 
@@ -98,7 +101,11 @@ class AdmissionMiddleware:
 
 # Order matters: the last middleware added runs first.
 # Multipart framing adds a little overhead on top of the files themselves.
-app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_total_upload_bytes + 256 * 1024)
+app.add_middleware(
+    BodySizeLimitMiddleware,
+    max_bytes=settings.max_total_upload_bytes + 256 * 1024,
+    path_limits=(("/api/library/", settings.library_max_audio_bytes + 64 * 1024),),
+)
 app.add_middleware(AdmissionMiddleware)
 app.add_middleware(SameOriginMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
@@ -469,6 +476,115 @@ async def audio_job_file(job_id: str) -> FileResponse:
 @app.delete("/api/audio/jobs/{job_id}", status_code=204)
 async def cancel_audio_job(job_id: str) -> Response:
     audio_download.jobs.remove(_audio_job(job_id).id)
+    return Response(status_code=204)
+
+
+# --- Library on disk ------------------------------------------------------------------------
+# Only when the app is used on the computer it runs on: a copy published on the internet does not
+# keep its visitors' songs (the page then keeps them in the browser, as before).
+LibraryFile = Literal["gp5", "audio", "cover"]
+
+
+def _library(request: Request) -> LibraryStore:
+    if not _used_on_this_computer(request):
+        raise HTTPException(
+            status_code=404, detail="A biblioteca no disco só existe com a aplicação aberta no próprio computador."
+        )
+    return library
+
+
+def _stored(found: bool) -> None:
+    if not found:
+        raise HTTPException(status_code=404, detail="Música não encontrada na biblioteca.")
+
+
+@app.get("/api/library")
+async def library_songs(request: Request) -> dict:
+    store = _library(request)
+    try:
+        songs = await run_in_threadpool(store.songs)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Não foi possível ler a pasta da biblioteca: {exc.strerror}."
+        ) from exc
+    return {"folder": str(store.root), "songs": songs}
+
+
+@app.post("/api/library")
+async def library_save(
+    request: Request, meta: Annotated[str, Form(max_length=4 * 1024 * 1024)], gp5: UploadFile
+) -> dict:
+    """Store a converted song: `meta` (JSON: key, title, artist, report…) and its GP5 file."""
+    store = _library(request)
+    try:
+        data = json.loads(meta)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Dados da música inválidos.") from None
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=422, detail="Dados da música inválidos.")
+    content = await gp5.read()
+    try:
+        return await run_in_threadpool(store.save, data, content)
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}."
+        ) from exc
+
+
+@app.get("/api/library/{song_id}")
+async def library_song(request: Request, song_id: str) -> dict:
+    song = await run_in_threadpool(_library(request).song, song_id)
+    _stored(song is not None)
+    return song
+
+
+@app.get("/api/library/{song_id}/{kind}")
+async def library_file(request: Request, song_id: str, kind: LibraryFile) -> FileResponse:
+    found = await run_in_threadpool(_library(request).file, song_id, kind)
+    _stored(found is not None)
+    path, media_type, name = found
+    return FileResponse(path, media_type=media_type, filename=name, content_disposition_type="inline")
+
+
+async def _library_change(request: Request, song_id: str, kind: str, data: bytes | None) -> Response:
+    store = _library(request)
+    try:
+        if kind == "audio":
+            name = unquote(request.headers.get("x-filename", "")) or "audio"
+            found = await run_in_threadpool(store.set_audio, song_id, name, data)
+        elif kind == "cover":
+            found = await run_in_threadpool(store.set_cover, song_id, data)
+        else:
+            raise HTTPException(status_code=405, detail="Só o áudio e a capa podem ser mudados.")
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}."
+        ) from exc
+    _stored(found)
+    return Response(status_code=204)
+
+
+@app.put("/api/library/{song_id}/{kind}", status_code=204)
+async def library_put_file(request: Request, song_id: str, kind: LibraryFile) -> Response:
+    """The song's audio or cover: the file itself as the request body (audio: name in X-Filename)."""
+    data = await request.body()
+    if not data:
+        raise HTTPException(status_code=422, detail="Ficheiro vazio.")
+    return await _library_change(request, song_id, kind, data)
+
+
+@app.delete("/api/library/{song_id}/{kind}", status_code=204)
+async def library_delete_file(request: Request, song_id: str, kind: LibraryFile) -> Response:
+    return await _library_change(request, song_id, kind, None)
+
+
+@app.delete("/api/library/{song_id}", status_code=204)
+async def library_delete(request: Request, song_id: str) -> Response:
+    _stored(await run_in_threadpool(_library(request).delete, song_id))
     return Response(status_code=204)
 
 

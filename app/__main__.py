@@ -53,7 +53,7 @@ def _stop_when_pages_closed(server: uvicorn.Server) -> None:
     # Still running (this thread is a daemon, so it is gone once the process ends normally).
     logger.warning("O servidor não terminou sozinho: a forçar a saída.")
     logging.shutdown()
-    os._exit(0)  # nothing is kept on disk, so a hard exit loses nothing
+    os._exit(0)  # library files are written whole and then renamed: a hard exit loses nothing
 
 
 def main(argv: list[str] | None = None) -> int:

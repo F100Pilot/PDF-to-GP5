@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Biblioteca numa pasta do computador (`~/PDF-to-GP5/Biblioteca`, ou `LIBRARY_DIR`), uma subpasta por música com o GP5, o áudio, a capa e `musica.json`: já não se perde ao mudar de porta ou de browser, nem ao limpar os dados do browser. Só com a aplicação aberta no próprio computador; numa cópia publicada continua no browser. As músicas guardadas no browser passam sozinhas para a pasta (as de outra porta: abrir a aplicação uma vez nessa porta).
 - Capas na biblioteca: a capa do álbum é procurada pelo artista e título (pesquisa pública do iTunes, através do servidor — `/api/cover`, com limite de pedidos `COVER_SEARCH_PER_MINUTE`) e guardada com a música; "Procurar capa" tenta de novo e "Escolher imagem" usa uma imagem própria.
 - MP3 obtido de um endereço guardado na pasta das partituras (Chrome/Edge): os PDFs escolhidos ou arrastados deixam a aplicação saber a pasta, e "Guardar o MP3 na pasta das partituras" abre o diálogo de gravação nessa pasta com o nome preenchido; a pasta fica lembrada na biblioteca.
 - Biblioteca: as músicas convertidas ficam guardadas no browser (IndexedDB) com o relatório e o áudio escolhido; "Tocar" reabre a música sem converter de novo, com o áudio e o acerto. Procura por título/artista, remoção em dois passos e espaço usado.
