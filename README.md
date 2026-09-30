@@ -44,7 +44,7 @@ Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Con
 
 ## Arranque rápido (Windows)
 
-Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8020 e iniciam o servidor (Ctrl+C para parar):
+Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8021 e iniciam o servidor (Ctrl+C para parar):
 
 | Script | Para | Python |
 |---|---|---|
@@ -60,11 +60,11 @@ Para parar, basta fechar a página da aplicação no browser: o servidor encerra
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --port 8020 --workers 1
-# http://localhost:8020
+.venv/bin/uvicorn app.main:app --port 8021 --workers 1
+# http://localhost:8021
 ```
 
-Uso pessoal no próprio PC: `python -m app --port 8020 --close-with-browser` arranca o mesmo servidor e encerra-o quando a última página da aplicação é fechada (é o que os scripts de arranque usam). Sem `--close-with-browser` (ou com `uvicorn` diretamente) o servidor só para com Ctrl+C e ignora os avisos de presença das páginas.
+Uso pessoal no próprio PC: `python -m app --port 8021 --close-with-browser` arranca o mesmo servidor e encerra-o quando a última página da aplicação é fechada (é o que os scripts de arranque usam). Sem `--close-with-browser` (ou com `uvicorn` diretamente) o servidor só para com Ctrl+C e ignora os avisos de presença das páginas.
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
@@ -72,7 +72,7 @@ Usar um único worker: o rate limiting e o limite de conversões simultâneas s�
 
 Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor obtém o áudio com o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e converte-o para MP3 (128–320 kbit/s) com o FFmpeg, mostra o progresso e entrega o MP3, que fica logo a tocar com a partitura (e pode ser guardado).
 
-- **YouTube, para uso pessoal**: o áudio de um vídeo, quando a aplicação está aberta no próprio computador onde corre (`http://127.0.0.1:8020` ou `localhost`, como abrem os scripts de arranque). "Neste computador" quer dizer as duas coisas: o pedido vem desta máquina e é feito a um endereço local — assim, uma cópia publicada na internet (mesmo atrás de um proxy na mesma máquina) não se torna um conversor do YouTube para quem a visita, e aí só aceita vídeos Creative Commons. Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito.
+- **YouTube, para uso pessoal**: o áudio de um vídeo, quando a aplicação está aberta no próprio computador onde corre (`http://127.0.0.1:8021` ou `localhost`, como abrem os scripts de arranque). "Neste computador" quer dizer as duas coisas: o pedido vem desta máquina e é feito a um endereço local — assim, uma cópia publicada na internet (mesmo atrás de um proxy na mesma máquina) não se torna um conversor do YouTube para quem a visita, e aí só aceita vídeos Creative Commons. Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito.
 - **Outros endereços**: um ficheiro de áudio/vídeo direto, conteúdo com licença Creative Commons ou de domínio público (conforme o site indica), ou um site seu declarado em `AUDIO_DOWNLOAD_HOSTS`. O resto é recusado com o motivo. Não são usados cookies, contas nem formatos com DRM.
 - **Quando falha, diz porquê**: os avisos do yt-dlp vão para o registo do servidor (nunca para a página) e a causa reconhecida aparece na página — falta o runtime JavaScript (instalar o Deno), o YouTube pediu para confirmar que não é um robô, restrição de idade, vídeo privado ou indisponível, nenhum formato de áudio (atualizar o yt-dlp). Sem o runtime ou o `yt-dlp-ejs`, um vídeo do YouTube é recusado logo ao pedir, com o que falta.
 - Segurança: só `http(s)`, sem credenciais no endereço, sem endereços da rede local (exceto sites declarados); o FFmpeg corre com argumentos em lista (sem shell); limite de tamanho e de duração, tempo máximo por tarefa; uma pasta temporária por tarefa, apagada depois do download, em caso de erro ou ao fim de 15 min.
@@ -126,9 +126,9 @@ Campos (multipart):
 Campos omitidos ou `auto` são detetados nos PDFs.
 
 ```bash
-curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8020/api/convert/gp5
+curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8021/api/convert/gp5
 curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_name=Baixo \
-     -o musica.gp5 http://localhost:8020/api/convert/gp5
+     -o musica.gp5 http://localhost:8021/api/convert/gp5
 ```
 
 ## Segurança

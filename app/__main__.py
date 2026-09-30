@@ -59,7 +59,7 @@ def _stop_when_pages_closed(server: uvicorn.Server) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app", description="Servidor local PDF -> GP5.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8020)
+    parser.add_argument("--port", type=int, default=8021)
     parser.add_argument(
         "--close-with-browser",
         action="store_true",

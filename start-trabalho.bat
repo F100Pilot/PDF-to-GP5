@@ -9,7 +9,7 @@ rem ===================================================================
 
 set "VENV=%USERPROFILE%\venvs\pdf-to-gp5"
 set "HOST=127.0.0.1"
-set "PORT=8020"
+set "PORT=8021"
 
 cd /d "%~dp0"
 

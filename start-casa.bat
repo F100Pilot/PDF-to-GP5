@@ -7,7 +7,7 @@ rem  Passos: git pull, instalar dependencias, abrir o browser, iniciar o servido
 rem ===================================================================
 
 set "HOST=127.0.0.1"
-set "PORT=8020"
+set "PORT=8021"
 
 cd /d "%~dp0"
 
