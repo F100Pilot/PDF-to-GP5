@@ -68,7 +68,7 @@ note differently from what alphaTab plays, before it gets to the game.
 | `<technique>: in alphaTab, not in RockForge` | The technique is lost in RockForge (e.g. let ring written as `<LetRing/>` in a `.gp`) |
 | `<technique>: in RockForge, not in alphaTab` | RockForge adds or misreads the technique (e.g. pinch read as a natural harmonic) |
 | `bend size` / `slide target` | Same note, a different bend size or slide target fret |
-| `bend curve` | Same bend size, a different shape: the first moment where the pitch differs (e.g. a flat pre-bend, which RockForge charts as a rise) |
+| `bend curve` | Same bend size, a different shape: the first moment where the pitch differs (e.g. a bend that rises by the middle of the note where alphaTab rises across it) |
 
 Sustain lengths are not compared: RockForge trims each one to leave a gap
 before the next note.
