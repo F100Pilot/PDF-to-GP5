@@ -14,7 +14,7 @@
   const timeSignature = document.getElementById("time_signature");
   const tracksBox = document.getElementById("tracks-box");
   const trackList = document.getElementById("tracks");
-  const DROP_HINT = "Arraste os PDFs da música (um por track) ou clique para escolher";
+  const DROP_HINT = T("Arraste os PDFs da música (um por track) ou clique para escolher");
   let objectUrl = null;
   let maxBytes = 10 * 1024 * 1024;
   let maxTotalBytes = 40 * 1024 * 1024;
@@ -31,14 +31,14 @@
   let songHandle = null;
 
   const TUNING_LABELS = {
-    auto: "Automática (do PDF)", standard: "Standard (EADGBE)", drop_d: "Drop D", eb_standard: "Mib (½ tom abaixo)",
-    d_standard: "Ré standard", drop_c: "Drop C", open_g: "Open G", open_d: "Open D",
-    dadgad: "DADGAD", standard_7: "7 cordas standard",
-    bass_4: "Baixo 4 cordas", bass_5: "Baixo 5 cordas", custom: "Personalizada",
+    auto: T("Automática (do PDF)"), standard: "Standard (EADGBE)", drop_d: "Drop D", eb_standard: T("Mib (½ tom abaixo)"),
+    d_standard: T("Ré standard"), drop_c: "Drop C", open_g: "Open G", open_d: "Open D",
+    dadgad: "DADGAD", standard_7: T("7 cordas standard"),
+    bass_4: T("Baixo 4 cordas"), bass_5: T("Baixo 5 cordas"), custom: T("Personalizada"),
   };
   const INSTRUMENT_LABELS = {
-    auto: "Automático", nylon: "Guitarra clássica", steel: "Guitarra acústica", clean: "Guitarra elétrica limpa",
-    overdrive: "Overdrive", distortion: "Distorção", bass: "Baixo",
+    auto: T("Automático"), nylon: T("Guitarra clássica"), steel: T("Guitarra acústica"), clean: T("Guitarra elétrica limpa"),
+    overdrive: "Overdrive", distortion: T("Distorção"), bass: T("Baixo"),
   };
 
   fetch("/api/options")
@@ -52,7 +52,7 @@
       maxTotalBytes = (opts.max_total_upload_mb || 40) * 1024 * 1024;
       renderTracks();
     })
-    .catch(() => showStatus("Não foi possível carregar as opções do servidor.", true));
+    .catch(() => showStatus(T("Não foi possível carregar as opções do servidor."), true));
 
   function showStatus(message, isError) {
     status.hidden = false;
@@ -154,7 +154,7 @@
       const grip = document.createElement("span");
       grip.className = "track-grip";
       grip.textContent = "⠿";
-      grip.title = "Arrastar para mudar a ordem";
+      grip.title = T("Arrastar para mudar a ordem");
       grip.setAttribute("aria-hidden", "true"); // from the keyboard: the ↑/↓ buttons
       if (tracks.length > 1) makeDraggable(li, index, grip);
       else grip.hidden = true;
@@ -167,40 +167,40 @@
       const info = document.createElement("span");
       info.className = "hint";
       if (track.error) info.textContent = track.error;
-      else if (track.info) info.textContent = `${track.info.strings} cordas · ${TUNING_LABELS[track.info.tuning] || track.info.tuning}`;
-      else info.textContent = "A analisar…";
+      else if (track.info) info.textContent = T("{n} cordas · {tuning}", { n: track.info.strings, tuning: TUNING_LABELS[track.info.tuning] || track.info.tuning });
+      else info.textContent = T("A analisar…");
       const actions = document.createElement("span");
       actions.className = "track-actions";
       actions.append(
-        button("↑", "Mover para cima", () => move(index, -1), index === 0),
-        button("↓", "Mover para baixo", () => move(index, 1), index === tracks.length - 1),
-        button("✕", "Remover", () => { tracks.splice(index, 1); renderTracks(); }),
+        button("↑", T("Mover para cima"), () => move(index, -1), index === 0),
+        button("↓", T("Mover para baixo"), () => move(index, 1), index === tracks.length - 1),
+        button("✕", T("Remover"), () => { tracks.splice(index, 1); renderTracks(); }),
       );
       head.append(grip, badge, file, info, actions);
 
       const fields = document.createElement("div");
       fields.className = "grid";
       const nameLabel = document.createElement("label");
-      nameLabel.textContent = "Nome";
+      nameLabel.textContent = T("Nome");
       const name = document.createElement("input");
       name.maxLength = 40;
       name.value = track.name;
-      name.placeholder = `Track ${index + 1}`;
+      name.placeholder = T("Track {n}", { n: index + 1 });
       name.addEventListener("input", () => { track.name = name.value; });
       nameLabel.appendChild(name);
       const tuningLabel = document.createElement("label");
-      tuningLabel.textContent = "Afinação";
-      tuningLabel.appendChild(makeSelect(tunings, TUNING_LABELS, track.tuning, (v) => { track.tuning = v; }, "Afinação"));
+      tuningLabel.textContent = T("Afinação");
+      tuningLabel.appendChild(makeSelect(tunings, TUNING_LABELS, track.tuning, (v) => { track.tuning = v; }, T("Afinação")));
       const instrumentLabel = document.createElement("label");
-      instrumentLabel.textContent = "Som";
+      instrumentLabel.textContent = T("Som");
       instrumentLabel.appendChild(
-        makeSelect(instruments, INSTRUMENT_LABELS, track.instrument, (v) => { track.instrument = v; }, "Som"));
+        makeSelect(instruments, INSTRUMENT_LABELS, track.instrument, (v) => { track.instrument = v; }, T("Som")));
       fields.append(nameLabel, tuningLabel, instrumentLabel);
       li.append(head, fields);
       trackList.appendChild(li);
     });
     dropText.textContent = tracks.length
-      ? `${tracks.length} PDF(s) selecionado(s) — clique ou arraste para substituir`
+      ? T("{n} PDF(s) selecionado(s) — clique ou arraste para substituir", { n: tracks.length })
       : DROP_HINT;
   }
 
@@ -232,7 +232,7 @@
     body.append("file", file);
     const response = await fetch("/api/inspect", { method: "POST", body });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : "Não foi possível analisar.");
+    if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : T("Não foi possível analisar."));
     return payload;
   }
 
@@ -256,13 +256,13 @@
     renderTracks();
     if (!files.length) return;
     if (files.length > maxTracks) {
-      showStatus(`Máximo de ${maxTracks} PDFs (tracks) por música.`, true);
+      showStatus(T("Máximo de {n} PDFs (tracks) por música.", { n: maxTracks }), true);
       return;
     }
     const tooBig = files.find((f) => f.size > maxBytes);
-    if (tooBig) { showStatus(`${tooBig.name} excede ${maxBytes / 1024 / 1024} MB.`, true); return; }
+    if (tooBig) { showStatus(T("{name} excede {mb} MB.", { name: tooBig.name, mb: maxBytes / 1024 / 1024 }), true); return; }
     if (files.reduce((sum, f) => sum + f.size, 0) > maxTotalBytes) {
-      showStatus(`Os PDFs juntos excedem ${maxTotalBytes / 1024 / 1024} MB.`, true);
+      showStatus(T("Os PDFs juntos excedem {mb} MB.", { mb: maxTotalBytes / 1024 / 1024 }), true);
       return;
     }
     setInspecting(true);
@@ -270,7 +270,7 @@
     renderTracks();
     meta.hidden = true;
     inspectStatus.hidden = false;
-    inspectStatus.textContent = "A analisar os PDFs…";
+    inspectStatus.textContent = T("A analisar os PDFs…");
     const detected = {};
     for (const track of [...tracks]) { // one at a time: the server limits concurrent jobs
       try {
@@ -283,7 +283,7 @@
         }
       } catch (error) {
         if (token !== inspection) return;
-        track.error = error instanceof Error ? error.message : "Não foi possível analisar.";
+        track.error = error instanceof Error ? error.message : T("Não foi possível analisar.");
       }
       renderTracks();
     }
@@ -363,18 +363,18 @@
     const summary = document.createElement("summary");
     summary.append(paintTrack(details, index), ` ${track.name}`);
     const rhythm = track.rhythm_from_notation
-      ? `lido em ${track.rhythm_from_notation}/${track.rhythm_from_notation + track.rhythm_estimated} compassos`
-      : "estimado";
+      ? T("lido em {n}/{m} compassos", { n: track.rhythm_from_notation, m: track.rhythm_from_notation + track.rhythm_estimated })
+      : T("estimado");
     details.append(summary, summaryList([
-      ["Ficheiro", track.filename || "—"], ["Compassos", track.measures], ["Notas", track.notes],
-      ["Cordas", track.strings], ["Afinação", TUNING_LABELS[track.tuning] || track.tuning],
-      ["Som", INSTRUMENT_LABELS[track.instrument] || track.instrument], ["Ritmo", rhythm],
-      ["Formato", track.sources.map((s) => (s === "ascii" ? "texto" : "gravada")).join(", ")],
+      [T("Ficheiro"), track.filename || "—"], [T("Compassos"), track.measures], [T("Notas"), track.notes],
+      [T("Cordas"), track.strings], [T("Afinação"), TUNING_LABELS[track.tuning] || track.tuning],
+      [T("Som"), INSTRUMENT_LABELS[track.instrument] || track.instrument], [T("Ritmo"), rhythm],
+      [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : T("gravada"))).join(", ")],
     ]));
     const table = document.createElement("table");
     table.className = "systems";
     const head = document.createElement("tr");
-    for (const title of ["#", "Página", "Notas", "Compassos"]) {
+    for (const title of ["#", T("Página"), T("Notas"), T("Compassos")]) {
       const th = document.createElement("th");
       th.textContent = title;
       head.appendChild(th);
@@ -394,7 +394,7 @@
     table.append(thead, tbody);
     const systems = document.createElement("details");
     const systemsTitle = document.createElement("summary");
-    systemsTitle.textContent = "Linhas de tab detetadas";
+    systemsTitle.textContent = T("Linhas de tab detetadas");
     systems.append(systemsTitle, table);
     details.append(systems);
     // The plain-text preview is for proofreading a tab read from text; an engraved tab has the score.
@@ -406,35 +406,38 @@
     return details;
   }
 
-  const LYRICS_TRACK = "Letra (voz)"; // the silent track carrying the lyrics (app/converter.py)
+  const LYRICS_TRACK = "Letra (voz)"; // i18n-skip: the silent track carrying the lyrics (app/converter.py)
 
   // Guitar Pro names of the navigation marks, as printed in scores.
   const NAVIGATION = {
-    "Da Capo": "D.C.", "Da Capo al Coda": "D.C. al Coda", "Da Capo al Fine": "D.C. al Fine",
-    "Da Segno": "D.S.", "Da Segno al Coda": "D.S. al Coda", "Da Segno al Fine": "D.S. al Fine",
-    "Da Coda": "To Coda",
+    "Da Capo": "D.C.", "Da Capo al Coda": "D.C. al Coda", "Da Capo al Fine": "D.C. al Fine", // i18n-skip: data keys
+    "Da Segno": "D.S.", "Da Segno al Coda": "D.S. al Coda", "Da Segno al Fine": "D.S. al Fine", // i18n-skip
+    "Da Coda": "To Coda", // i18n-skip
   };
 
   function renderResult(report) {
-    const auto = (key) => (report.auto && report.auto[key] ? " (auto)" : "");
+    const auto = (key, value) => (report.auto && report.auto[key] ? T("{value} (auto)", { value }) : String(value));
+    const expanded = (value) => (report.repeats_expanded ? T("{value} (por extenso)", { value }) : String(value));
     document.getElementById("summary").replaceWith(Object.assign(summaryList([
-      ["Título", (report.title || "—") + auto("title")], ["Artista", (report.artist || "—") + auto("artist")],
-      ["BPM", report.tempo + auto("tempo")], ["Compasso", report.time_signature + auto("time_signature")],
+      [T("Título"), auto("title", report.title || "—")], [T("Artista"), auto("artist", report.artist || "—")],
+      ["BPM", auto("tempo", report.tempo)], [T("Compasso"), auto("time_signature", report.time_signature)],
       // Later time signatures ("3/4 no c. 17") and repeats, when the PDF has them.
       ...((report.time_signature_changes || []).length
-        ? [["Mudanças de compasso", report.time_signature_changes.map((c) => `${c.time_signature} no c. ${c.bar}`).join(", ")]]
+        ? [[T("Mudanças de compasso"),
+          report.time_signature_changes.map((c) => T("{value} no c. {bar}", { value: c.time_signature, bar: c.bar })).join(", ")]]
         : []),
       ...((report.tempo_changes || []).length
-        ? [["Mudanças de tempo", report.tempo_changes.map((c) => `${c.tempo} no c. ${c.bar}`).join(", ")]]
+        ? [[T("Mudanças de tempo"),
+          report.tempo_changes.map((c) => T("{value} no c. {bar}", { value: c.tempo, bar: c.bar })).join(", ")]]
         : []),
       ...((report.navigation || []).length
-        ? [["Navegação", report.navigation.map((n) => `${NAVIGATION[n.name] || n.name} (c. ${n.bar})`).join(", ")
-          + (report.repeats_expanded ? " (por extenso)" : "")]]
+        ? [[T("Navegação"), expanded(report.navigation.map((n) => T("{name} (c. {bar})", { name: NAVIGATION[n.name] || n.name, bar: n.bar })).join(", "))]]
         : []),
-      ...(report.repeats ? [["Repetições", `${report.repeats}${report.repeats_expanded ? " (por extenso)" : ""}`]] : []),
-      ["Tracks", report.tracks.length], ["Compassos", report.measures], ["Notas", report.notes],
-      ["Secções", report.sections && report.sections.length ? report.sections.length : "—"],
-      ["Letra", report.lyrics ? `${report.lyrics.track}` : "—"],
+      ...(report.repeats ? [[T("Repetições"), expanded(report.repeats)]] : []),
+      [T("Tracks"), report.tracks.length], [T("Compassos"), report.measures], [T("Notas"), report.notes],
+      [T("Secções"), report.sections && report.sections.length ? report.sections.length : "—"],
+      // The lyrics go to the silent "Letra (voz)" track (a name inside the GP5) or to a played track.
+      [T("Letra"), report.lyrics ? (report.lyrics.track === LYRICS_TRACK ? T("Letra (voz)") : `${report.lyrics.track}`) : "—"],
     ]), { id: "summary" }));
     const list = document.getElementById("warnings");
     list.replaceChildren();
@@ -490,8 +493,8 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (inspecting) return showStatus("Aguarde o fim da análise dos PDFs.", false);
-    if (!tracks.length) return showStatus("Escolha pelo menos um ficheiro PDF.", true);
+    if (inspecting) return showStatus(T("Aguarde o fim da análise dos PDFs."), false);
+    if (!tracks.length) return showStatus(T("Escolha pelo menos um ficheiro PDF."), true);
     if (!form.reportValidity()) return undefined;
 
     const body = new FormData(form);
@@ -507,16 +510,16 @@
     submit.disabled = true;
     result.hidden = true;
     if (window.ScoreView) window.ScoreView.hide();
-    showStatus(tracks.length > 1 ? `A converter ${tracks.length} tracks…` : "A converter…", false);
+    showStatus(tracks.length > 1 ? T("A converter {n} tracks…", { n: tracks.length }) : T("A converter…"), false);
     try {
       const response = await fetch("/api/convert", { method: "POST", body });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(typeof payload.detail === "string" ? payload.detail : "Pedido inválido.");
+        throw new Error(typeof payload.detail === "string" ? payload.detail : T("Pedido inválido."));
       }
       openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report, false, selectionHandle);
     } catch (error) {
-      showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);
+      showStatus(error instanceof Error ? error.message : T("Erro inesperado."), true);
     } finally {
       submit.disabled = false;
     }
@@ -565,7 +568,9 @@
     body.replaceChildren();
     for (const release of releases) {
       const heading = document.createElement("h3");
-      heading.textContent = `Versão ${release.version}${release.date ? ` · ${release.date}` : ""}`;
+      heading.textContent = release.date
+        ? T("Versão {version} · {date}", { version: release.version, date: release.date })
+        : T("Versão {version}", { version: release.version });
       body.appendChild(heading);
       for (const section of release.sections) {
         const name = document.createElement("h4");
@@ -632,8 +637,9 @@
   fetch("/api/health")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((health) => {
-      const revision = health.revision ? ` (${health.revision})` : "";
-      document.getElementById("version").textContent = `Versão ${health.version}${revision}`;
+      document.getElementById("version").textContent = health.revision
+        ? T("Versão {version} ({revision})", { version: health.version, revision: health.revision })
+        : T("Versão {version}", { version: health.version });
       if (health.close_with_browser) watchPresence();
     })
     .catch(() => {});

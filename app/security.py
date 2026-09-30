@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import threading
 import time
@@ -10,6 +11,8 @@ from collections import OrderedDict, deque
 
 from fastapi import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from .i18n import tr
 
 # The score viewer (vendored alphaTab) injects two fixed <style> blocks (its shared rules and
 # the @font-face for its music font); they are allowed by hash, not with 'unsafe-inline'.
@@ -100,14 +103,14 @@ class BodySizeLimitMiddleware:
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > max_bytes:
-                    raise HTTPException(status_code=413, detail="Pedido demasiado grande.")
+                    raise HTTPException(status_code=413, detail=tr("Pedido demasiado grande.", "Request too large."))
             return message
 
         await self.app(scope, limited_receive, send)
 
 
 async def _send_413(send: Send) -> None:
-    body = b'{"detail":"Pedido demasiado grande."}'
+    body = json.dumps({"detail": tr("Pedido demasiado grande.", "Request too large.")}).encode("utf-8")
     await send(
         {
             "type": "http.response.start",
@@ -135,7 +138,8 @@ class SameOriginMiddleware:
             origin = headers.get(b"origin", b"").decode("latin-1")
             host = headers.get(b"host", b"").decode("latin-1")
             if origin and (origin == "null" or origin.split("://", 1)[-1].rstrip("/") != host):
-                body = b'{"detail":"Pedido de outra origem recusado."}'
+                detail = tr("Pedido de outra origem recusado.", "Request from another origin refused.")
+                body = json.dumps({"detail": detail}).encode("utf-8")
                 await send(
                     {
                         "type": "http.response.start",

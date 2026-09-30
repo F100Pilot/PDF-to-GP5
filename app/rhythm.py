@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Literal
 
+from .i18n import tr
 from .model import Link, RhythmMark, ScoreBeat, ScoreMeasure, ScoreNote, TabEvent, TabSystem
 
 # Durations Guitar Pro can express on a single beat (plain or dotted), in 32nds.
@@ -77,7 +78,12 @@ def _columns(system: TabSystem, warnings: list[str]) -> list[_Column]:
         else:
             columns.append(_Column(event.x, [event]))
     if dropped:
-        warnings.append(f"Página {system.page}: {dropped} nota(s) sobreposta(s) na mesma corda foram ignoradas.")
+        warnings.append(
+            tr(
+                f"Página {system.page}: {dropped} nota(s) sobreposta(s) na mesma corda foram ignoradas.",
+                f"Page {system.page}: {dropped} overlapping note(s) on the same string were ignored.",
+            )
+        )
     return columns
 
 
@@ -400,7 +406,11 @@ def _segment_measures(
         return _sequence(notated, units)
     if len(cols) > units:
         warnings.append(
-            f"Página {system.page}: compasso com {len(cols)} notas excede a métrica; notas em fusas (1/32)."
+            tr(
+                f"Página {system.page}: compasso com {len(cols)} notas excede a métrica; notas em fusas (1/32).",
+                f"Page {system.page}: bar with {len(cols)} notes exceeds the time signature; "
+                "notes written as 32nd notes.",
+            )
         )
         return _sequence([(_to_notes(c.events), 1) for c in cols], units)
     content_start = start + unit_width  # skip the bar-line glyph
@@ -485,7 +495,12 @@ def build_measures(
     per_system = [(s, _columns(s, warnings)) for s in systems]
     use_spacing = options.mode == "spacing" or (options.mode == "auto" and all(len(s.bars) >= 2 for s in systems))
     if options.mode == "auto" and not use_spacing:
-        warnings.append("Tablatura sem barras de compasso em todas as linhas: usadas durações fixas.")
+        warnings.append(
+            tr(
+                "Tablatura sem barras de compasso em todas as linhas: usadas durações fixas.",
+                "Tablature without bar lines on every line: fixed durations used.",
+            )
+        )
     measures: list[ScoreMeasure] = []
     track_has_rhythm = any(s.rhythm for s in systems)
     if use_spacing:

@@ -27,7 +27,7 @@
   const SEEK_STEPS = Number(seekInput.max);
   const sectionsBar = document.getElementById("score-sections");
   const loopButton = document.getElementById("score-loop");
-  const LOOP_LABEL = "Loop A–B";
+  const LOOP_LABEL = T("Loop A–B");
 
   let loading = null;
   let api = null;
@@ -116,7 +116,7 @@
     sections = [];
     for (const bar of bars) {
       const last = sections[sections.length - 1];
-      if (!last || bar.name) sections.push({ start: bar.start, end: bar.end, name: bar.name || "Início" });
+      if (!last || bar.name) sections.push({ start: bar.start, end: bar.end, name: bar.name || T("Início") });
       else last.end = bar.end;
     }
     const total = bars.length ? bars[bars.length - 1].end - bars[0].start : 0;
@@ -124,7 +124,7 @@
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = section.name;
-      button.title = `${section.name}: tocar a partir daqui`;
+      button.title = T("{name}: tocar a partir daqui", { name: section.name });
       button.style.flexGrow = String(section.end - section.start);
       button.addEventListener("click", () => { api.tickPosition = section.start; });
       section.button = button;
@@ -175,8 +175,8 @@
       setStatus("");
     } else if (loopStart === null) {
       loopStart = timeline.tick;
-      setLoopState("mixed", "Marcar fim (B)");
-      setStatus(`Início do trecho (A) em ${formatTime(timeline.time)}: carregue outra vez no fim (B).`);
+      setLoopState("mixed", T("Marcar fim (B)"));
+      setStatus(T("Início do trecho (A) em {time}: carregue outra vez no fim (B).", { time: formatTime(timeline.time) }));
     } else {
       const [start, end] = [loopStart, timeline.tick].sort((a, b) => a - b);
       if (end - start < 480) return; // under a beat: wait for a real end
@@ -186,8 +186,8 @@
       api.playbackRange = range;
       api.isLooping = true;
       loopStart = null;
-      setLoopState("true", "Loop ligado ✓");
-      setStatus("A repetir o trecho A–B. Carregue em Loop para desligar.");
+      setLoopState("true", T("Loop ligado ✓"));
+      setStatus(T("A repetir o trecho A–B. Carregue em Loop para desligar."));
       if (timeline.tick >= end || timeline.tick < start) api.tickPosition = start;
     }
   }
@@ -221,7 +221,7 @@
         script.onload = () => resolve();
         script.onerror = () => {
           loading = null;
-          reject(new Error("Não foi possível carregar o visualizador de partitura."));
+          reject(new Error(T("Não foi possível carregar o visualizador de partitura.")));
         };
         document.head.appendChild(script);
       });
@@ -242,9 +242,9 @@
       },
     });
     api.error.on((error) => {
-      setStatus(`Erro na partitura: ${error && error.message ? error.message : error}`);
+      setStatus(T("Erro na partitura: {error}", { error: error && error.message ? error.message : error }));
     });
-    api.renderStarted.on(() => setStatus("A desenhar a partitura…"));
+    api.renderStarted.on(() => setStatus(T("A desenhar a partitura…")));
     api.renderFinished.on(() => setStatus(notice));
     // midiLoad fires once the playing order (tickCache) is built. Not midiLoaded: subscribing to it
     // recurses forever inside alphaTab 1.8.4 (loadedMidiInfo) and the score never loads.
@@ -268,7 +268,7 @@
       window.AudioSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
     });
     api.soundFontLoad.on((e) => {
-      if (e.total) setStatus(`A carregar os sons… ${Math.round((100 * e.loaded) / e.total)}%`);
+      if (e.total) setStatus(T("A carregar os sons… {percent}%", { percent: Math.round((100 * e.loaded) / e.total) }));
     });
     api.playerReady.on(() => {
       playButton.disabled = false;
@@ -279,7 +279,7 @@
     });
     api.playerStateChanged.on((e) => {
       const playing = e.state === alphaTab.synth.PlayerState.Playing;
-      playButton.textContent = playing ? "❚❚ Pausa" : "▶ Tocar";
+      playButton.textContent = playing ? T("❚❚ Pausa") : T("▶ Tocar");
       window.Highway3D.setPlaying(playing);
       window.VideoSync.playing(playing);
       window.AudioSync.playing(playing);
@@ -291,7 +291,7 @@
     api.renderTracks(tracks);
   }
 
-  const LYRICS_TRACK = "Letra (voz)"; // the silent track carrying the lyrics (app/converter.py)
+  const LYRICS_TRACK = "Letra (voz)"; // i18n-skip: track name inside the GP5 (data), shown through T() below; the silent track carrying the lyrics (app/converter.py)
   const isLyrics = (track) => track.name === LYRICS_TRACK;
   let lyricsIndex = -1; // index of the lyrics track, if the file has one
 
@@ -320,7 +320,7 @@
       check.checked = shown.has(track.index);
       if (isLyrics(track)) {
         check.type = "checkbox"; // the lyrics go with whichever track is shown
-        check.title = "Mostrar a letra com a track escolhida";
+        check.title = T("Mostrar a letra com a track escolhida");
         check.addEventListener("change", () => {
           if (check.checked) shown.add(track.index);
           else shown.delete(track.index);
@@ -330,26 +330,26 @@
         check.type = "radio";
         check.name = "score-track";
         check.value = String(track.index);
-        check.title = "Mostrar esta track";
+        check.title = T("Mostrar esta track");
         check.addEventListener("change", () => check.checked && showTrack(track.index));
       }
       const badge = document.createElement("span");
       badge.className = "track-num";
       badge.textContent = String(track.index + 1);
-      label.append(check, badge, ` ${track.name}`);
+      label.append(check, badge, ` ${isLyrics(track) ? T("Letra (voz)") : track.name}`);
 
       const mute = document.createElement("button");
       mute.type = "button";
       mute.className = "icon";
       mute.textContent = "🔊";
-      mute.title = "Silenciar esta track";
+      mute.title = T("Silenciar esta track");
       mute.setAttribute("aria-pressed", "false");
       mute.addEventListener("click", () => {
         const muted = mute.getAttribute("aria-pressed") !== "true";
         api.changeTrackMute([track], muted);
         mute.setAttribute("aria-pressed", String(muted));
         mute.textContent = muted ? "🔇" : "🔊";
-        mute.title = muted ? "Voltar a ouvir esta track" : "Silenciar esta track";
+        mute.title = muted ? T("Voltar a ouvir esta track") : T("Silenciar esta track");
       });
       item.append(label, mute);
       trackBar.appendChild(item);
@@ -389,7 +389,7 @@
       console.error(error);
       notice = error instanceof Error && error.message.includes("WebGL")
         ? error.message
-        : "Não foi possível mostrar a pista 3D.";
+        : T("Não foi possível mostrar a pista 3D.");
       viewSelect.value = notationView;
       showNotation();
     }
@@ -470,8 +470,8 @@
     seekInput.value = "0";
     timeline = { tick: 0, endTick: 0, time: 0, endTime: 0 };
     showTime(0);
-    playButton.textContent = "▶ Tocar";
-    setStatus("A carregar o visualizador…");
+    playButton.textContent = T("▶ Tocar");
+    setStatus(T("A carregar o visualizador…"));
     try {
       await loadAlphaTab();
       if (!api) createApi();
@@ -480,7 +480,7 @@
       shown = new Set(lyricsTrack ? [0, trackCount] : [0]);
       api.load(bytes, [...shown]);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Erro ao mostrar a partitura.");
+      setStatus(error instanceof Error ? error.message : T("Erro ao mostrar a partitura."));
     }
   }
 
@@ -494,7 +494,7 @@
   // track, bar 1 starting `offsetMs` into the audio (one sync point; Guitar Pro follows the tempo,
   // which is the one set for the recording).
   async function exportGp(audio, offsetMs) {
-    if (!lastBytes) throw new Error("Converta primeiro uma música.");
+    if (!lastBytes) throw new Error(T("Converta primeiro uma música."));
     await loadAlphaTab();
     const settings = new alphaTab.Settings();
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(lastBytes, settings);

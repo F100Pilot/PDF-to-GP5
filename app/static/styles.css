@@ -126,6 +126,9 @@ a { color: var(--accent); }
 .rail-song strong { font-family: var(--font-display); font-weight: 600; overflow-wrap: anywhere; }
 .rail-status { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 0 8px; font-size: 0.75rem; color: var(--muted); }
 .rail-song[hidden] + .rail-status { margin-top: auto; }
+.rail-lang { margin-left: auto; flex: none; width: auto; min-width: 4.2em; padding: 2px 4px; font-size: 0.75rem; }
+.lang-field { display: grid; gap: 6px; margin-top: 16px; font-size: 0.875rem; color: var(--muted); }
+.lang-field select { color: var(--text); }
 .dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--border); }
 .dot.ok { background: var(--ok); }
 .dot.warn { background: var(--warn); }

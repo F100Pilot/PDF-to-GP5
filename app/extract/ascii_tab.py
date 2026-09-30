@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from statistics import median
 
+from ..i18n import tr
 from ..model import Link, TabEvent, TabSystem
 from .bar_signs import navigation
 from .common import repeat_count, shared_bars, split_fret_number
@@ -342,7 +343,10 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
             systems.extend(_build_system(page.number, chunk) for chunk in chunks)
             if not chunks:
                 warnings.append(
-                    f"Página {page.number}: bloco com {len(group)} linhas de tab ignorado (máx. {MAX_STRINGS})."
+                    tr(
+                        f"Página {page.number}: bloco com {len(group)} linhas de tab ignorado (máx. {MAX_STRINGS}).",
+                        f"Page {page.number}: block of {len(group)} tab lines ignored (max. {MAX_STRINGS}).",
+                    )
                 )
         elif len(group) >= 2:
             ignored += len(group)
@@ -393,7 +397,11 @@ def extract_ascii_systems(page: Page) -> tuple[list[TabSystem], list[str]]:
     flush()
     if ignored:
         warnings.append(
-            f"Página {page.number}: {ignored} linha(s) com aspeto de tablatura ignoradas "
-            "(símbolos não reconhecidos ou linhas de tab incompletas)."
+            tr(
+                f"Página {page.number}: {ignored} linha(s) com aspeto de tablatura ignoradas "
+                "(símbolos não reconhecidos ou linhas de tab incompletas).",
+                f"Page {page.number}: {ignored} line(s) that look like tablature ignored "
+                "(unrecognized symbols or incomplete tab lines).",
+            )
         )
     return systems, warnings

@@ -101,14 +101,14 @@
   function startAudio() {
     if (waiting) return; // position() starts it when the score reaches the audio's start
     player.playbackRate = song.speed;
-    player.play().catch(() => setStatus("O browser não deixou tocar o áudio: carregue outra vez em Tocar."));
+    player.play().catch(() => setStatus(T("O browser não deixou tocar o áudio: carregue outra vez em Tocar.")));
   }
 
   function showState() {
     const playing = following() ? song.playing : !player.paused && !waiting;
     playButton.querySelector(".audio-play-icon").textContent = playing ? "❚❚" : "▶";
-    playButton.querySelector(".audio-play-label").textContent = playing ? "Pausa" : "Tocar";
-    playButton.setAttribute("aria-label", playing ? "Pausa" : "Tocar");
+    playButton.querySelector(".audio-play-label").textContent = playing ? T("Pausa") : T("Tocar");
+    playButton.setAttribute("aria-label", playing ? T("Pausa") : T("Tocar"));
     timeLabel.textContent = `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;
   }
 
@@ -133,7 +133,7 @@
     const open = loaded && !panelHidden;
     toggleButton.hidden = !loaded;
     toggleButton.setAttribute("aria-pressed", String(open));
-    toggleButton.textContent = open ? "Esconder áudio" : "Mostrar áudio";
+    toggleButton.textContent = open ? T("Esconder áudio") : T("Mostrar áudio");
     // Closed with ✕: a tab at the score's right edge brings the panel back.
     reopenButton.hidden = !loaded || open;
     if (panel.hidden === !open) return;
@@ -148,8 +148,8 @@
     panel.classList.toggle("collapsed", collapsed);
     collapseButton.textContent = collapsed ? "◂" : "▸";
     collapseButton.setAttribute("aria-expanded", String(!collapsed));
-    collapseButton.title = collapsed ? "Expandir o painel do áudio" : "Recolher o painel para o lado (a partitura fica mais larga)";
-    collapseButton.setAttribute("aria-label", collapsed ? "Expandir o painel do áudio" : "Recolher o painel do áudio");
+    collapseButton.title = collapsed ? T("Expandir o painel do áudio") : T("Recolher o painel para o lado (a partitura fica mais larga)");
+    collapseButton.setAttribute("aria-label", collapsed ? T("Expandir o painel do áudio") : T("Recolher o painel do áudio"));
     layoutStage();
     try {
       localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
@@ -211,7 +211,7 @@
   applyVolumes();
 
   function updateLink() {
-    download.textContent = audio ? "Descarregar .gp (com áudio)" : "Descarregar .gp5";
+    download.textContent = audio ? T("Descarregar .gp (com áudio)") : T("Descarregar .gp5");
   }
 
   // Loudness of the audio every WAVE_STEP seconds (0…1), drawn on the 3D highway's floor.
@@ -248,7 +248,7 @@
     playerUrl = null;
     showPanel(false);
     removeButton.hidden = true;
-    nameLabel.textContent = "Nenhum ficheiro";
+    nameLabel.textContent = T("Nenhum ficheiro");
     showLastFile();
     applyVolumes();
     setStatus("");
@@ -270,13 +270,13 @@
   async function useAudioFile(file) {
     if (file.size > MAX_AUDIO_BYTES) {
       clearAudio();
-      setStatus(`O áudio tem ${Math.round(file.size / 1048576)} MB; o máximo é ${MAX_AUDIO_BYTES / 1048576} MB.`);
+      setStatus(T("O áudio tem {size} MB; o máximo é {max} MB.", { size: Math.round(file.size / 1048576), max: MAX_AUDIO_BYTES / 1048576 }));
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!isAudio(bytes)) {
       clearAudio();
-      setStatus("O ficheiro não parece ser áudio mp3, ogg ou wav.");
+      setStatus(T("O ficheiro não parece ser áudio mp3, ogg ou wav."));
       return;
     }
     player.pause();
@@ -302,7 +302,7 @@
       .then((data) => {
         if (audio === bytes) window.Highway3D.setWaveform(data);
       })
-      .catch(() => setSyncStatus("Não foi possível desenhar o áudio na pista 3D (formato não suportado pelo browser)."));
+      .catch(() => setSyncStatus(T("Não foi possível desenhar o áudio na pista 3D (formato não suportado pelo browser).")));
     if (following() && song.playing) {
       seekAudio();
       startAudio();
@@ -372,7 +372,7 @@
   function showLastFile() {
     const saved = remembered();
     lastLabel.hidden = Boolean(audio) || !saved || typeof saved.file !== "string";
-    lastLabel.textContent = lastLabel.hidden ? "" : `(da última vez: ${saved.file})`;
+    lastLabel.textContent = lastLabel.hidden ? "" : T("(da última vez: {file})", { file: saved.file });
   }
 
   // The start is shown and kept to the hundredth of a second.
@@ -395,12 +395,20 @@
     const before = offset();
     setOffset(before + seconds);
     const moved = offset() - before;
-    const where = offset() < 0 ? `${decimal(-offset())} s antes do início do áudio` : `aos ${decimal(offset())} s do áudio`;
-    setSyncStatus(
-      moved === 0
-        ? "Limite do acerto atingido."
-        : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${decimal(Math.abs(moved))} s (compasso 1 ${where}).`,
-    );
+    const vars = { amount: decimal(Math.abs(moved)), at: decimal(Math.abs(offset())) };
+    const beforeAudio = offset() < 0;
+    let text;
+    if (moved === 0) text = T("Limite do acerto atingido.");
+    else if (moved > 0) {
+      text = beforeAudio
+        ? T("Partitura atrasada {amount} s (compasso 1 {at} s antes do início do áudio).", vars)
+        : T("Partitura atrasada {amount} s (compasso 1 aos {at} s do áudio).", vars);
+    } else {
+      text = beforeAudio
+        ? T("Partitura adiantada {amount} s (compasso 1 {at} s antes do início do áudio).", vars)
+        : T("Partitura adiantada {amount} s (compasso 1 aos {at} s do áudio).", vars);
+    }
+    setSyncStatus(text);
   }
 
   // Tempo the score plays at, to follow a recording that is not exactly at the printed tempo.
@@ -413,8 +421,8 @@
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
     setSyncStatus(
       value === baseTempo
-        ? `Tempo do PDF (${String(baseTempo).replace(".", ",")} BPM).`
-        : `Partitura a ${String(value).replace(".", ",")} BPM (no PDF: ${String(baseTempo).replace(".", ",")}).`,
+        ? T("Tempo do PDF ({bpm} BPM).", { bpm: String(baseTempo).replace(".", ",") })
+        : T("Partitura a {bpm} BPM (no PDF: {base}).", { bpm: String(value).replace(".", ","), base: String(baseTempo).replace(".", ",") }),
     );
   }
 
@@ -432,7 +440,7 @@
     remember({ offset: offset() });
     if (following()) window.ScoreView.restart();
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
-    setSyncStatus(`Início marcado aos ${offset().toFixed(2).replace(".", ",")} s do áudio.`);
+    setSyncStatus(T("Início marcado aos {s} s do áudio.", { s: offset().toFixed(2).replace(".", ",") }));
   });
   for (const button of document.querySelectorAll("[data-audio-nudge]")) {
     button.addEventListener("click", () => nudgeScore(Number(button.dataset.audioNudge)));
@@ -464,10 +472,10 @@
       if (tempoToUse !== baseTempo) window.ScoreView.setTempo(tempoToUse);
       window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
       const notes = [];
-      if (offset() > 0) notes.push(`início aos ${decimal(offset())} s do áudio`);
-      if (offset() < 0) notes.push(`início ${decimal(-offset())} s antes do áudio`);
-      if (tempoToUse !== baseTempo) notes.push(`tempo ${String(tempoToUse).replace(".", ",")} BPM`);
-      setSyncStatus(notes.length ? `Acerto guardado desta música: ${notes.join(", ")}.` : "");
+      if (offset() > 0) notes.push(T("início aos {s} s do áudio", { s: decimal(offset()) }));
+      if (offset() < 0) notes.push(T("início {s} s antes do áudio", { s: decimal(-offset()) }));
+      if (tempoToUse !== baseTempo) notes.push(T("tempo {bpm} BPM", { bpm: String(tempoToUse).replace(".", ",") }));
+      setSyncStatus(notes.length ? T("Acerto guardado desta música: {notes}.", { notes: notes.join(", ") }) : "");
       showLastFile();
     },
     // Score position: `realMs` as reported by alphaTab (scaled by the speed), `scoreSpeed` the
@@ -558,12 +566,12 @@
     .then((health) => {
       if (!health.audio_download) {
         const note = document.getElementById("audio-url-unavailable");
-        note.textContent = `Indisponível neste servidor: ${health.audio_download_problem || "falta o yt-dlp ou o FFmpeg"}.`;
+        note.textContent = T("Indisponível neste servidor: {problem}.", { problem: health.audio_download_problem || T("falta o yt-dlp ou o FFmpeg") });
         note.hidden = false;
         urlForm.hidden = true;
       } else if (!health.audio_youtube) {
         const note = document.getElementById("audio-url-youtube");
-        note.textContent = `Vídeos do YouTube: ${health.audio_youtube_problem || "indisponíveis"}. Os outros endereços funcionam.`;
+        note.textContent = T("Vídeos do YouTube: {problem}. Os outros endereços funcionam.", { problem: health.audio_youtube_problem || T("indisponíveis") });
         note.hidden = false;
       }
     })
@@ -576,11 +584,11 @@
     // YouTube: only the video id is sent (the server checks it again and builds the address).
     const video = window.VideoSync && window.VideoSync.parseVideo(url);
     if (!video && !/^https?:\/\/\S+$/i.test(url)) {
-      setUrlStatus("Indique um endereço que comece por http:// ou https://, ou o ID de um vídeo do YouTube.", true);
+      setUrlStatus(T("Indique um endereço que comece por http:// ou https://, ou o ID de um vídeo do YouTube."), true);
       return;
     }
     if (!authorizedInput.checked) {
-      setUrlStatus("Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo.", true);
+      setUrlStatus(T("Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo."), true);
       return;
     }
     saveLink.hidden = true;
@@ -589,19 +597,19 @@
     busy(true);
     urlCancelled = false;
     setProgress(0);
-    setUrlStatus("A pedir ao servidor…");
+    setUrlStatus(T("A pedir ao servidor…"));
     try {
       const response = await fetch("/api/audio/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: video ? video.id : url, bitrate: Number(bitrateSelect.value), authorized: true }),
       });
-      if (!response.ok) throw new Error(await detail(response, "O pedido foi recusado."));
+      if (!response.ok) throw new Error(await detail(response, T("O pedido foi recusado.")));
       urlJob = (await response.json()).id;
       await followJob(urlJob);
     } catch (error) {
-      if (urlCancelled) setUrlStatus("Cancelado.");
-      else setUrlStatus(error instanceof Error ? error.message : "Não foi possível obter o áudio.", true);
+      if (urlCancelled) setUrlStatus(T("Cancelado."));
+      else setUrlStatus(error instanceof Error ? error.message : T("Não foi possível obter o áudio."), true);
       setProgress(null);
     } finally {
       urlJob = null;
@@ -612,13 +620,13 @@
   async function followJob(id) {
     for (;;) {
       const response = await fetch(`/api/audio/jobs/${encodeURIComponent(id)}`);
-      if (!response.ok) throw new Error(await detail(response, "A tarefa terminou sem resultado."));
+      if (!response.ok) throw new Error(await detail(response, T("A tarefa terminou sem resultado.")));
       const job = await response.json();
       setProgress(job.progress);
       if (job.status === "done") {
-        setUrlStatus("A receber o MP3…");
+        setUrlStatus(T("A receber o MP3…"));
         const file = await fetch(`/api/audio/jobs/${encodeURIComponent(id)}/file`);
-        if (!file.ok) throw new Error(await detail(file, "Não foi possível receber o MP3."));
+        if (!file.ok) throw new Error(await detail(file, T("Não foi possível receber o MP3.")));
         const blob = await file.blob();
         const name = job.filename || "audio.mp3";
         savedUrl = URL.createObjectURL(blob);
@@ -626,9 +634,9 @@
         saveLink.download = name;
         savedMp3 = { blob, name };
         const folder = window.App && window.App.pdfFolder();
-        saveLink.textContent = folder && window.showSaveFilePicker ? "Guardar o MP3 na pasta das partituras" : "Guardar o MP3";
+        saveLink.textContent = folder && window.showSaveFilePicker ? T("Guardar o MP3 na pasta das partituras") : T("Guardar o MP3");
         saveLink.hidden = false;
-        setUrlStatus(`Pronto: ${name}. Já está a ser usado com a partitura.`);
+        setUrlStatus(T("Pronto: {name}. Já está a ser usado com a partitura.", { name }));
         await useAudioFile(new File([blob], name, { type: "audio/mpeg" }));
         return;
       }
@@ -649,16 +657,16 @@
       const target = await window.showSaveFilePicker({
         suggestedName: savedMp3.name,
         startIn: folder,
-        types: [{ description: "Áudio MP3", accept: { "audio/mpeg": [".mp3"] } }],
+        types: [{ description: T("Áudio MP3"), accept: { "audio/mpeg": [".mp3"] } }],
       });
       const writable = await target.createWritable();
       await writable.write(savedMp3.blob);
       await writable.close();
-      setUrlStatus(`MP3 guardado: ${target.name}.`);
+      setUrlStatus(T("MP3 guardado: {name}.", { name: target.name }));
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      saveLink.textContent = "Guardar o MP3";
-      setUrlStatus("Não foi possível guardar na pasta das partituras; carregue outra vez para descarregar.", true);
+      saveLink.textContent = T("Guardar o MP3");
+      setUrlStatus(T("Não foi possível guardar na pasta das partituras; carregue outra vez para descarregar."), true);
       savedMp3 = null;
     }
   });
@@ -678,7 +686,7 @@
     event.preventDefault();
     if (building) return;
     building = true;
-    setStatus("A preparar o ficheiro .gp…");
+    setStatus(T("A preparar o ficheiro .gp…"));
     try {
       const bytes = await window.ScoreView.exportGp(audio, offset() * 1000);
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
@@ -691,7 +699,7 @@
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       setStatus("");
     } catch (error) {
-      setStatus(error instanceof Error ? `Não foi possível criar o .gp: ${error.message}` : "Não foi possível criar o .gp.");
+      setStatus(error instanceof Error ? T("Não foi possível criar o .gp: {error}", { error: error.message }) : T("Não foi possível criar o .gp."));
     } finally {
       building = false;
     }

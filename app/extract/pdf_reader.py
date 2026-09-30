@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 
 import pdfplumber
 
+from ..i18n import tr
+
 # Typographic dashes some PDF generators substitute for ASCII hyphens.
 _DASHES = {"‐", "‑", "‒", "–", "—", "―", "−", "─"}
 
@@ -147,12 +149,19 @@ def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, st
     try:
         pdf = pdfplumber.open(io.BytesIO(data))
     except Exception as exc:  # pdfminer raises many unrelated exception types
-        raise PdfReadError("O ficheiro não é um PDF válido ou está corrompido.") from exc
+        raise PdfReadError(
+            tr("O ficheiro não é um PDF válido ou está corrompido.", "The file is not a valid PDF or is corrupted.")
+        ) from exc
     pages: list[Page] = []
     with pdf:
         info = _document_info(pdf.metadata or {})
         if len(pdf.pages) > max_pages:
-            raise PdfReadError(f"O PDF tem {len(pdf.pages)} páginas; o máximo é {max_pages}.")
+            raise PdfReadError(
+                tr(
+                    f"O PDF tem {len(pdf.pages)} páginas; o máximo é {max_pages}.",
+                    f"The PDF has {len(pdf.pages)} pages; the maximum is {max_pages}.",
+                )
+            )
         for index, page in enumerate(pdf.pages, start=1):
             chars = [
                 Char(

@@ -22,6 +22,8 @@ import threading
 import time
 from pathlib import Path
 
+from .i18n import tr
+
 META = "musica.json"
 MAX_GP5_BYTES = 5 * 1024 * 1024
 MAX_COVER_BYTES = 5 * 1024 * 1024
@@ -181,12 +183,12 @@ class LibraryStore:
         """Store a converted song (a new one, or the same key again: its audio and cover stay)."""
         key = _text(meta.get("key"), 500)
         if not key:
-            raise LibraryError("Música sem identificação.")
+            raise LibraryError(tr("Música sem identificação.", "Song without an identifier."))
         if not gp5.startswith(GP5_SIGNATURE) or len(gp5) > MAX_GP5_BYTES:
-            raise LibraryError("O ficheiro não é um GP5 válido.")
+            raise LibraryError(tr("O ficheiro não é um GP5 válido.", "The file is not a valid GP5."))
         report = meta.get("report")
         if not isinstance(report, dict) or len(json.dumps(report)) > MAX_META_BYTES:
-            raise LibraryError("Relatório da conversão inválido.")
+            raise LibraryError(tr("Relatório da conversão inválido.", "Invalid conversion report."))
         title, artist = _text(meta.get("title"), 200), _text(meta.get("artist"), 200)
         filename = _text(meta.get("filename"), 200)
         names = meta.get("trackNames")
@@ -243,7 +245,9 @@ class LibraryStore:
         if data is not None:
             media_type = audio_type(data)
             if media_type is None:
-                raise LibraryError("O áudio tem de ser um ficheiro MP3, Ogg ou WAV.")
+                raise LibraryError(
+                    tr("O áudio tem de ser um ficheiro MP3, Ogg ou WAV.", "The audio must be an MP3, Ogg or WAV file.")
+                )
         extension = AUDIO_TYPES.get(media_type or "", "")
         stem = safe_name(name.rsplit(".", 1)[0] if "." in name else name, "audio")
 
@@ -264,7 +268,12 @@ class LibraryStore:
         if data is not None:
             media_type = image_type(data)
             if media_type is None or len(data) > MAX_COVER_BYTES:
-                raise LibraryError("A capa tem de ser uma imagem JPEG, PNG ou WebP até 5 MB.")
+                raise LibraryError(
+                    tr(
+                        "A capa tem de ser uma imagem JPEG, PNG ou WebP até 5 MB.",
+                        "The cover must be a JPEG, PNG or WebP image up to 5 MB.",
+                    )
+                )
 
         def change(folder: Path, meta: dict, files: dict) -> None:
             file_name = f"capa{COVER_TYPES[media_type]}" if media_type else None

@@ -13,6 +13,7 @@ from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
 from .extract.pdf_reader import PdfReadError, read_document
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
+from .i18n import tr
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
 from .repeats import playback_order
@@ -90,8 +91,12 @@ def _read(pdf: bytes, options: ConversionOptions):
         raise ConversionError(str(exc)) from exc
     if not any(page.chars for page in pages):
         raise ConversionError(
-            "O PDF não contém texto extraível (provavelmente é uma digitalização/imagem). "
-            "PDFs digitalizados exigem OCR, que não é suportado."
+            tr(
+                "O PDF não contém texto extraível (provavelmente é uma digitalização/imagem). "
+                "PDFs digitalizados exigem OCR, que não é suportado.",
+                "The PDF has no extractable text (it is probably a scan/image). "
+                "Scanned PDFs need OCR, which is not supported.",
+            )
         )
     return pages, info
 
@@ -106,8 +111,12 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
         systems.extend(ascii_systems or extract_engraved_systems(page))
     if not systems:
         raise ConversionError(
-            "Não foi encontrada tablatura no PDF. São suportadas tablaturas em texto (ex.: e|--0--2--|) "
-            "e tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar)."
+            tr(
+                "Não foi encontrada tablatura no PDF. São suportadas tablaturas em texto (ex.: e|--0--2--|) "
+                "e tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar).",
+                "No tablature was found in the PDF. Text tablatures (e.g. e|--0--2--|) and tablatures "
+                "engraved by editors (Guitar Pro, MuseScore, TuxGuitar) are supported.",
+            )
         )
     metadata = detect_metadata(pages, info)
     return _ParsedPdf(systems, metadata, detect_part_name(pages, metadata), warnings)
@@ -127,11 +136,18 @@ def _main_staves(systems: list[TabSystem], warnings: list[str]) -> tuple[int, li
     # Only staves with notes vote: empty engraved staves may be standard-notation staves.
     with_notes = [s for s in systems if s.events]
     if not with_notes:
-        raise ConversionError("A tablatura foi encontrada mas não contém notas.")
+        raise ConversionError(
+            tr("A tablatura foi encontrada mas não contém notas.", "The tablature was found but has no notes.")
+        )
     string_count, _ = Counter(s.string_count for s in with_notes).most_common(1)[0]
     dropped = sum(1 for s in with_notes if s.string_count != string_count)
     if dropped:
-        warnings.append(f"{dropped} linha(s) de tab com número de cordas diferente de {string_count} foram ignoradas.")
+        warnings.append(
+            tr(
+                f"{dropped} linha(s) de tab com número de cordas diferente de {string_count} foram ignoradas.",
+                f"{dropped} tab line(s) with a number of strings other than {string_count} were ignored.",
+            )
+        )
     return string_count, [s for s in systems if s.string_count == string_count]
 
 
@@ -380,12 +396,17 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     warnings = list(parsed.warnings)
     string_count, kept = _main_staves(parsed.systems, warnings)
     if string_count > MAX_STRINGS:
-        raise ConversionError(f"A tablatura tem {string_count} cordas; o formato GP5 suporta no máximo {MAX_STRINGS}.")
+        raise ConversionError(
+            tr(
+                f"A tablatura tem {string_count} cordas; o formato GP5 suporta no máximo {MAX_STRINGS}.",
+                f"The tablature has {string_count} strings; the GP5 format supports at most {MAX_STRINGS}.",
+            )
+        )
     labels = next((s.labels for s in kept if s.labels), []) or list(parsed.metadata.tuning_labels)
     try:
         tuning, tuning_warnings = resolve_tuning(track.tuning, string_count, labels)
     except (KeyError, ValueError) as exc:
-        raise ConversionError("Afinação inválida.") from exc
+        raise ConversionError(tr("Afinação inválida.", "Invalid tuning.")) from exc
     warnings.extend(tuning_warnings)
 
     _apply_dynamics(kept)
@@ -394,12 +415,18 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     measures = build_measures(kept, rhythm, warnings, system_measures, stats)
     if stats.notated and stats.estimated:
         warnings.append(
-            f"Ritmo lido da partitura em {stats.notated} compasso(s); "
-            f"{stats.estimated} compasso(s) estimados pelo espaçamento."
+            tr(
+                f"Ritmo lido da partitura em {stats.notated} compasso(s); "
+                f"{stats.estimated} compasso(s) estimados pelo espaçamento.",
+                f"Rhythm read from the score in {stats.notated} bar(s); "
+                f"{stats.estimated} bar(s) estimated from the spacing.",
+            )
         )
     note_count = sum(len(b.notes) for m in measures for b in m.beats if not all(n.tie for n in b.notes))
     if note_count == 0:
-        raise ConversionError("A tablatura foi encontrada mas não contém notas.")
+        raise ConversionError(
+            tr("A tablatura foi encontrada mas não contém notas.", "The tablature was found but has no notes.")
+        )
     instrument = track.instrument
     if instrument == "auto":
         instrument = "bass" if string_count <= 5 else "steel"
@@ -558,7 +585,7 @@ def _tidy_navigation(scores: list[Score], tempo: int) -> list[str]:
         marks = []
         for name in (first.sign, first.jump):
             if name and name in seen:
-                dropped.append(f"{name} (compasso {index + 1})")
+                dropped.append(tr(f"{name} (compasso {index + 1})", f"{name} (bar {index + 1})"))
             marks.append(name if name and name not in seen else None)
             if name:
                 seen.add(name)
@@ -567,7 +594,12 @@ def _tidy_navigation(scores: list[Score], tempo: int) -> list[str]:
             measure.sign, measure.jump = marks
     if not dropped:
         return []
-    return ["Sinais de navegação repetidos ignorados (o GP5 guarda cada um uma só vez): " + ", ".join(dropped) + "."]
+    return [
+        tr(
+            "Sinais de navegação repetidos ignorados (o GP5 guarda cada um uma só vez): " + ", ".join(dropped) + ".",
+            "Repeated navigation marks ignored (the GP5 stores each one only once): " + ", ".join(dropped) + ".",
+        )
+    ]
 
 
 def _drop_opening(systems: list[TabSystem], attribute: str) -> None:
@@ -623,9 +655,11 @@ def convert(pdf: bytes, options: ConversionOptions) -> ConversionResult:
 def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionResult:
     """Convert one PDF per track into a single GP5 file."""
     if not pdfs:
-        raise ConversionError("Nenhum PDF enviado.")
+        raise ConversionError(tr("Nenhum PDF enviado.", "No PDF uploaded."))
     if len(pdfs) > MAX_TRACKS:
-        raise ConversionError(f"Máximo de {MAX_TRACKS} PDFs (tracks) por música.")
+        raise ConversionError(
+            tr(f"Máximo de {MAX_TRACKS} PDFs (tracks) por música.", f"Maximum of {MAX_TRACKS} PDFs (tracks) per song.")
+        )
     multi = len(pdfs) > 1
 
     def labelled(index: int, message: str) -> str:
@@ -641,7 +675,12 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
 
     event_count = sum(len(s.events) for p in parsed for s in p.systems)
     if event_count > options.max_events:
-        raise ConversionError(f"Tablatura demasiado grande ({event_count} notas; máximo {options.max_events}).")
+        raise ConversionError(
+            tr(
+                f"Tablatura demasiado grande ({event_count} notas; máximo {options.max_events}).",
+                f"Tablature too large ({event_count} notes; maximum {options.max_events}).",
+            )
+        )
 
     detected = _merge_metadata([p.metadata for p in parsed])
     title = options.title.strip() or detected.title or ""
@@ -682,25 +721,49 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         aligned.append(missing is not None)
         report["missing_bars"] = missing or []
         if missing:
-            report["warnings"].append(f"Compassos não encontrados no PDF, preenchidos com pausa: {_ranges(missing)}.")
+            report["warnings"].append(
+                tr(
+                    f"Compassos não encontrados no PDF, preenchidos com pausa: {_ranges(missing)}.",
+                    f"Bars not found in the PDF, filled with rests: {_ranges(missing)}.",
+                )
+            )
     total_measures = max(len(s.measures) for s in scores)
     if total_measures > options.max_measures:
-        raise ConversionError(f"A música tem {total_measures} compassos; o máximo é {options.max_measures}.")
+        raise ConversionError(
+            tr(
+                f"A música tem {total_measures} compassos; o máximo é {options.max_measures}.",
+                f"The song has {total_measures} bars; the maximum is {options.max_measures}.",
+            )
+        )
     for score, report, by_number in zip(scores, track_reports, aligned, strict=True):
         first_added = len(score.measures) + 1
         added = _pad(score, total_measures)
         if added:
             report["missing_bars"].extend(range(first_added, total_measures + 1))
-            where = "" if by_number else " (sem numeração de compassos no PDF: pode estar desalinhada)"
+            where = (
+                ""
+                if by_number
+                else tr(
+                    " (sem numeração de compassos no PDF: pode estar desalinhada)",
+                    " (no bar numbers in the PDF: it may be misaligned)",
+                )
+            )
             report["warnings"].append(
-                f"Tem {first_added - 1} compassos e a música tem {total_measures}: "
-                f"acrescentados {added} compasso(s) de pausa no fim{where}."
+                tr(
+                    f"Tem {first_added - 1} compassos e a música tem {total_measures}: "
+                    f"acrescentados {added} compasso(s) de pausa no fim{where}.",
+                    f"It has {first_added - 1} bar(s) and the song has {total_measures}: "
+                    f"added {added} rest bar(s) at the end{where}.",
+                )
             )
 
     cut = _unify_bars(scores, (numerator, denominator))
     for track, bar in cut:
         track_reports[track]["warnings"].append(
-            f"Compasso {bar}: as notas não cabem na métrica do compasso; o excesso foi cortado."
+            tr(
+                f"Compasso {bar}: as notas não cabem na métrica do compasso; o excesso foi cortado.",
+                f"Bar {bar}: the notes do not fit the bar's time signature; the excess was cut.",
+            )
         )
     song_warnings: list[str] = _tidy_navigation(scores, tempo)
     repeats = sum(1 for measure in scores[0].measures if measure.repeat_times)
@@ -713,7 +776,12 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         order = playback_order(scores[0].measures, options.max_measures + 1)
         if len(order) > options.max_measures:
             song_warnings.append(
-                f"Repetições por extenso: a música teria mais de {options.max_measures} compassos; ficam as repetições."
+                tr(
+                    f"Repetições por extenso: a música teria mais de {options.max_measures} compassos; "
+                    "ficam as repetições.",
+                    f"Repeats written out: the song would have more than {options.max_measures} bars; "
+                    "the repeats are kept.",
+                )
             )
         else:
             _expand_repeats(scores, track_reports, order, tempo)
@@ -752,9 +820,14 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             lyrics = LyricsInfo(track=chosen + 1, lines=(line,))
         if dropped:
             lyric_warnings.append(
-                f"Letra: no GP5 fica na track {lyrics_track_name}, que não toca nos compassos "
-                f"{_ranges(dropped)}; a letra desses compassos não pode ficar no GP5 (o Guitar Pro só mostra "
-                "uma sílaba numa nota tocada). A pista 3D da aplicação mostra a letra completa."
+                tr(
+                    f"Letra: no GP5 fica na track {lyrics_track_name}, que não toca nos compassos "
+                    f"{_ranges(dropped)}; a letra desses compassos não pode ficar no GP5 (o Guitar Pro só mostra "
+                    "uma sílaba numa nota tocada). A pista 3D da aplicação mostra a letra completa.",
+                    f"Lyrics: in the GP5 they go on the {lyrics_track_name} track, which does not play in bars "
+                    f"{_ranges(dropped)}; the lyrics of those bars cannot go in the GP5 (Guitar Pro only shows "
+                    "a syllable on a played note). The app's 3D highway shows the full lyrics.",
+                )
             )
         # Every syllable with its place in the music, for the page (lyrics line on the 3D highway).
         timed_lyrics = [[bar, round(position, 4), text, joins] for bar, position, text, joins in syllables]

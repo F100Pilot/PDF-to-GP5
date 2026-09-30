@@ -4,18 +4,18 @@
 (() => {
   const THEME_KEY = "pdf-to-gp5.theme";
   const VIEWS = [
-    ["Default", "Pauta e tab"],
-    ["Tab", "Só tab"],
-    ["Score", "Só pauta"],
-    ["3D", "Pista 3D"],
+    ["Default", T("Pauta e tab")],
+    ["Tab", T("Só tab")],
+    ["Score", T("Só pauta")],
+    ["3D", T("Pista 3D")],
   ];
   const PAGES = [
-    ["converter", "Converter"],
-    ["resultado", "Resultado"],
-    ["tocar", "Tocar"],
-    ["audio", "Áudio"],
-    ["biblioteca", "Biblioteca"],
-    ["definicoes", "Definições"],
+    ["converter", T("Converter")],
+    ["resultado", T("Resultado")],
+    ["tocar", T("Tocar")],
+    ["audio", T("Áudio")],
+    ["biblioteca", T("Biblioteca")],
+    ["definicoes", T("Definições")],
   ];
 
   // --- Theme --------------------------------------------------------------------------------
@@ -46,20 +46,20 @@
 
   function commands() {
     const list = PAGES.map(([page, name]) => ({
-      label: `Ir para ${name}`,
-      group: "Página",
+      label: T("Ir para {name}", { name }),
+      group: T("Página"),
       run: () => { window.location.hash = `#/${page}`; },
     }));
     if (playerReady()) {
       list.push(
-        { label: "Tocar / pausa", group: "Leitor", keys: "Espaço", run: () => score().playPause() },
-        { label: "Parar", group: "Leitor", run: () => score().stop() },
-        { label: "Loop A–B", group: "Leitor", keys: "L", run: () => score().toggleLoop() },
-        { label: "Compasso seguinte", group: "Leitor", keys: "→", run: () => score().stepBar(1) },
-        { label: "Compasso anterior", group: "Leitor", keys: "←", run: () => score().stepBar(-1) },
+        { label: T("Tocar / pausa"), group: T("Leitor"), keys: T("Espaço"), run: () => score().playPause() },
+        { label: T("Parar"), group: T("Leitor"), run: () => score().stop() },
+        { label: T("Loop A–B"), group: T("Leitor"), keys: "L", run: () => score().toggleLoop() },
+        { label: T("Compasso seguinte"), group: T("Leitor"), keys: "→", run: () => score().stepBar(1) },
+        { label: T("Compasso anterior"), group: T("Leitor"), keys: "←", run: () => score().stepBar(-1) },
         ...VIEWS.map(([view, name], index) => ({
-          label: `Vista: ${name}`,
-          group: "Leitor",
+          label: T("Vista: {name}", { name }),
+          group: T("Leitor"),
           keys: String(index + 1),
           run: () => {
             score().setView(view);
@@ -70,8 +70,8 @@
     }
     if (window.AudioSync && window.AudioSync.hasAudio()) {
       list.push({
-        label: "Mostrar o painel do áudio",
-        group: "Leitor",
+        label: T("Mostrar o painel do áudio"),
+        group: T("Leitor"),
         run: () => {
           window.AudioSync.showPanel();
           window.location.hash = "#/tocar";
@@ -79,15 +79,15 @@
       });
     }
     list.push(
-      { label: "Tema: do sistema", group: "Aparência", run: () => setTheme("system") },
-      { label: "Tema: claro", group: "Aparência", run: () => setTheme("light") },
-      { label: "Tema: escuro", group: "Aparência", run: () => setTheme("dark") },
+      { label: T("Tema: do sistema"), group: T("Aparência"), run: () => setTheme("system") },
+      { label: T("Tema: claro"), group: T("Aparência"), run: () => setTheme("light") },
+      { label: T("Tema: escuro"), group: T("Aparência"), run: () => setTheme("dark") },
     );
     const songs = window.Library ? window.Library.songs() : [];
     for (const song of songs) {
       list.push({
-        label: `Abrir ${[song.title || "Sem título", song.artist].filter(Boolean).join(" — ")}`,
-        group: "Biblioteca",
+        label: T("Abrir {name}", { name: [song.title || T("Sem título"), song.artist].filter(Boolean).join(" — ") }),
+        group: T("Biblioteca"),
         run: () => window.Library.open(song.key),
       });
     }
@@ -118,7 +118,7 @@
     if (!shown.length) {
       const none = document.createElement("li");
       none.className = "none";
-      none.textContent = "Nada encontrado.";
+      none.textContent = T("Nada encontrado.");
       listbox.replaceChildren(none);
       input.removeAttribute("aria-activedescendant");
       return;

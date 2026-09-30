@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .i18n import tr
+
 
 def _int(name: str, default: int) -> int:
     raw = os.environ.get(name)
@@ -35,19 +37,31 @@ def _read_key_file() -> tuple[str, str]:
     try:
         raw = YOUTUBE_KEY_FILE.read_bytes()
     except FileNotFoundError:
-        return "", f"não existe o ficheiro {YOUTUBE_KEY_FILE.name} na pasta do projeto"
+        return "", tr(
+            f"não existe o ficheiro {YOUTUBE_KEY_FILE.name} na pasta do projeto",
+            f"the file {YOUTUBE_KEY_FILE.name} does not exist in the project folder",
+        )
     except OSError:
-        return "", f"não foi possível ler o ficheiro {YOUTUBE_KEY_FILE.name}"
+        return "", tr(
+            f"não foi possível ler o ficheiro {YOUTUBE_KEY_FILE.name}",
+            f"could not read the file {YOUTUBE_KEY_FILE.name}",
+        )
     encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
     try:
         text = raw.decode(encoding)
     except UnicodeDecodeError:
-        return "", f"o ficheiro {YOUTUBE_KEY_FILE.name} não é texto simples"
+        return "", tr(
+            f"o ficheiro {YOUTUBE_KEY_FILE.name} não é texto simples",
+            f"the file {YOUTUBE_KEY_FILE.name} is not plain text",
+        )
     lines = [line.strip().strip("\"'") for line in text.splitlines() if line.strip()]
     if not lines:
-        return "", f"o ficheiro {YOUTUBE_KEY_FILE.name} está vazio"
+        return "", tr(f"o ficheiro {YOUTUBE_KEY_FILE.name} está vazio", f"the file {YOUTUBE_KEY_FILE.name} is empty")
     if not _KEY_FORMAT.fullmatch(lines[0]):
-        return "", f"a primeira linha de {YOUTUBE_KEY_FILE.name} não parece uma chave (deve ser só a chave, AIza…)"
+        return "", tr(
+            f"a primeira linha de {YOUTUBE_KEY_FILE.name} não parece uma chave (deve ser só a chave, AIza…)",
+            f"the first line of {YOUTUBE_KEY_FILE.name} does not look like a key (it must be just the key, AIza…)",
+        )
     return lines[0], ""
 
 
@@ -57,7 +71,9 @@ def youtube_key_status() -> tuple[str, str]:
     if value:
         if _KEY_FORMAT.fullmatch(value):
             return value, ""
-        return "", "a variável YOUTUBE_API_KEY não parece uma chave"
+        return "", tr(
+            "a variável YOUTUBE_API_KEY não parece uma chave", "the YOUTUBE_API_KEY variable does not look like a key"
+        )
     return _read_key_file()
 
 

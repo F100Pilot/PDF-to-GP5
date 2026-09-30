@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .i18n import tr
+
 TUNINGS: dict[str, tuple[int, ...]] = {
     "standard": (64, 59, 55, 50, 45, 40),
     "drop_d": (64, 59, 55, 50, 45, 38),
@@ -94,8 +96,12 @@ def resolve_tuning(requested: str, string_count: int, labels: list[str]) -> tupl
         if len(midi) == string_count:
             return list(midi), warnings
         warnings.append(
-            f"Afinação '{requested}' tem {len(midi)} cordas mas a tablatura tem {string_count}; "
-            "usada a afinação padrão para esse número de cordas."
+            tr(
+                f"Afinação '{requested}' tem {len(midi)} cordas mas a tablatura tem {string_count}; "
+                "usada a afinação padrão para esse número de cordas.",
+                f"Tuning '{requested}' has {len(midi)} strings but the tablature has {string_count}; "
+                "using the standard tuning for that number of strings.",
+            )
         )
     elif labels and len(labels) == string_count:
         matched = match_labels(labels)
@@ -104,13 +110,24 @@ def resolve_tuning(requested: str, string_count: int, labels: list[str]) -> tupl
         custom = labels_to_midi(labels)
         if custom is not None:
             return custom, warnings
-        warnings.append(f"Afinação indicada no PDF ({' '.join(labels)}) não reconhecida; usada a padrão.")
+        warnings.append(
+            tr(
+                f"Afinação indicada no PDF ({' '.join(labels)}) não reconhecida; usada a padrão.",
+                f"Tuning given in the PDF ({' '.join(labels)}) not recognized; using the standard one.",
+            )
+        )
     elif labels:
         warnings.append(
-            f"A afinação indicada no PDF tem {len(labels)} notas mas a tablatura tem {string_count} cordas; "
-            "usada a padrão."
+            tr(
+                f"A afinação indicada no PDF tem {len(labels)} notas mas a tablatura tem {string_count} cordas; "
+                "usada a padrão.",
+                f"The tuning given in the PDF has {len(labels)} notes but the tablature has {string_count} strings; "
+                "using the standard one.",
+            )
         )
     default = DEFAULT_BY_STRING_COUNT.get(string_count)
     if default is None:
-        raise ValueError(f"Número de cordas não suportado: {string_count}")
+        raise ValueError(
+            tr(f"Número de cordas não suportado: {string_count}", f"Unsupported number of strings: {string_count}")
+        )
     return list(TUNINGS[default]), warnings

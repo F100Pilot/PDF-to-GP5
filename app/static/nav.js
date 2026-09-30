@@ -6,12 +6,12 @@
 // video) keeps going while another page is open.
 (() => {
   const PAGES = {
-    converter: "Converter",
-    resultado: "Resultado",
-    tocar: "Tocar",
-    audio: "Áudio",
-    biblioteca: "Biblioteca",
-    definicoes: "Definições",
+    converter: T("Converter"),
+    resultado: T("Resultado"),
+    tocar: T("Tocar"),
+    audio: T("Áudio"),
+    biblioteca: T("Biblioteca"),
+    definicoes: T("Definições"),
   };
   const DEFAULT_PAGE = "converter";
   const result = document.getElementById("result");
@@ -32,7 +32,7 @@
       if (link.dataset.nav === page) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
-    document.title = `${PAGES[page]} · PDF → GP5`;
+    document.title = T("{page} · PDF → GP5", { page: PAGES[page] });
     if (moveFocus) {
       // Screen readers announce the new page; keyboard users continue from its title.
       const heading = document.getElementById(`h-${page}`);
@@ -61,10 +61,10 @@
   // app.js announces each converted song: name it everywhere and open its result.
   document.addEventListener("song-converted", (event) => {
     const { title, artist, tracks, tempo } = event.detail;
-    const name = [title || "Sem título", artist].filter(Boolean).join(" — ");
+    const name = [title || T("Sem título"), artist].filter(Boolean).join(" — ");
     for (const line of document.querySelectorAll("[data-song-line]")) line.textContent = name;
-    document.getElementById("rail-song-title").textContent = title || "Sem título";
-    const details = [artist, `${tracks} ${tracks === 1 ? "track" : "tracks"}`, tempo ? `${tempo} BPM` : ""];
+    document.getElementById("rail-song-title").textContent = title || T("Sem título");
+    const details = [artist, tracks === 1 ? T("{n} track", { n: tracks }) : T("{n} tracks", { n: tracks }), tempo ? `${tempo} BPM` : ""];
     document.getElementById("rail-song-meta").textContent = details.filter(Boolean).join(" · ");
     railSong.hidden = false;
     if (current === "converter") window.location.hash = "#/resultado";
@@ -85,7 +85,7 @@
     label.textContent = name;
     const state = document.createElement("span");
     state.className = "muted";
-    state.textContent = ok ? "disponível" : problem || "indisponível";
+    state.textContent = ok ? T("disponível") : problem || T("indisponível");
     item.append(mark, label, state);
     return item;
   }
@@ -94,17 +94,17 @@
     .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
     .then((health) => {
       dot.className = "dot ok";
-      dotText.textContent = `Servidor ligado · ${window.location.host}`;
+      dotText.textContent = T("Servidor ligado · {host}", { host: window.location.host });
       list.replaceChildren(
-        row("Conversão de PDF", true),
-        row("Áudio de um endereço (URL → MP3)", health.audio_download, health.audio_download_problem),
-        row("Vídeos do YouTube no URL → MP3", health.audio_youtube, health.audio_youtube_problem),
-        row("Pesquisa automática do vídeo", health.video_search, health.video_search_problem),
+        row(T("Conversão de PDF"), true),
+        row(T("Áudio de um endereço (URL → MP3)"), health.audio_download, health.audio_download_problem),
+        row(T("Vídeos do YouTube no URL → MP3"), health.audio_youtube, health.audio_youtube_problem),
+        row(T("Pesquisa automática do vídeo"), health.video_search, health.video_search_problem),
       );
     })
     .catch(() => {
       dot.className = "dot warn";
-      dotText.textContent = "Sem ligação ao servidor";
-      list.replaceChildren(row("Servidor", false, "sem resposta"));
+      dotText.textContent = T("Sem ligação ao servidor");
+      list.replaceChildren(row(T("Servidor"), false, T("sem resposta")));
     });
 })();

@@ -55,13 +55,13 @@
 
   // Why the embed player refused the video (YouTube IFrame player error codes).
   const PLAYER_ERRORS = {
-    2: "Endereço de vídeo inválido.",
-    5: "O leitor do YouTube não conseguiu reproduzir este vídeo.",
-    100: "O vídeo não existe ou é privado.",
-    101: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
-    150: "O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio).",
-    152: "O YouTube recusou o leitor nesta página.",
-    153: "O YouTube recusou o leitor nesta página (configuração do leitor). Tente outro browser ou abra o vídeo no YouTube.",
+    2: T("Endereço de vídeo inválido."),
+    5: T("O leitor do YouTube não conseguiu reproduzir este vídeo."),
+    100: T("O vídeo não existe ou é privado."),
+    101: T("O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio)."),
+    150: T("O dono do vídeo não permite vê-lo fora do YouTube. Escolha outro vídeo (por exemplo um lyric video ou só áudio)."),
+    152: T("O YouTube recusou o leitor nesta página."),
+    153: T("O YouTube recusou o leitor nesta página (configuração do leitor). Tente outro browser ou abra o vídeo no YouTube."),
   };
 
   // Current video time, extrapolated from the player's last report; null when never reported.
@@ -128,7 +128,7 @@
 
   // Link to watch the video on youtube.com (from the start of the song) when it cannot play here.
   // Brave's Shields stop the embedded YouTube player on this page (it plays in Chrome / Edge).
-  const BRAVE_HINT = navigator.brave ? " No Brave: desligue os Shields nesta página (ícone do leão) ou use o Chrome / Edge." : "";
+  const BRAVE_HINT = navigator.brave ? " " + T("No Brave: desligue os Shields nesta página (ícone do leão) ou use o Chrome / Edge.") : "";
 
   function offerOpenOnYouTube(show) {
     openLink.hidden = !show || !current;
@@ -157,7 +157,7 @@
     video = null;
     offerOpenOnYouTube(false);
     frame = document.createElement("iframe");
-    frame.title = "Vídeo do YouTube";
+    frame.title = T("Vídeo do YouTube");
     frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
     frame.referrerPolicy = "strict-origin-when-cross-origin"; // the embed needs to know the page origin
     const params = new URLSearchParams({ enablejsapi: "1", origin: window.location.origin, rel: "0", playsinline: "1" });
@@ -168,16 +168,16 @@
       thisFrame.contentWindow.postMessage(JSON.stringify({ event: "listening", id, channel: "widget" }), PLAYER_HOSTS[host]);
     });
     frameBox.replaceChildren(frame);
-    setStatus("A carregar o vídeo… (precisa de ligação à internet)");
+    setStatus(T("A carregar o vídeo… (precisa de ligação à internet)"));
     readyTimer = setTimeout(() => {
-      if (!ready && frame === thisFrame) playerFailed("O leitor do YouTube não respondeu nesta página (bloqueio do browser ou da rede?).");
+      if (!ready && frame === thisFrame) playerFailed(T("O leitor do YouTube não respondeu nesta página (bloqueio do browser ou da rede?)."));
     }, READY_TIMEOUT_MS);
   }
 
   function loadVideo() {
     const parsed = parseVideo(urlInput.value);
     if (!parsed) {
-      setStatus("Endereço do YouTube não reconhecido. Exemplo: https://www.youtube.com/watch?v=…");
+      setStatus(T("Endereço do YouTube não reconhecido. Exemplo: https://www.youtube.com/watch?v=…"));
       return;
     }
     if (parsed.start !== null && !Number(offsetInput.value)) offsetInput.value = String(parsed.start);
@@ -196,7 +196,7 @@
     if (!data || typeof data !== "object") return;
     if (data.event === "onError") {
       const code = Number(data.info);
-      const message = PLAYER_ERRORS[code] || `O leitor do YouTube indicou um erro (${code}).`;
+      const message = PLAYER_ERRORS[code] || T("O leitor do YouTube indicou um erro ({code}).", { code });
       if (RETRY_CODES.has(code)) {
         playerFailed(message);
       } else if (OWNER_BLOCKED.has(code) && current.host + 1 < PLAYER_HOSTS.length) {
@@ -206,7 +206,7 @@
       } else {
         clearTimeout(readyTimer);
         const count = resultsSelect.options.length;
-        setStatus(OWNER_BLOCKED.has(code) && count > 1 ? `Nenhum dos ${count} vídeos encontrados pode ser visto fora do YouTube. Cole o endereço de outro vídeo.` + BRAVE_HINT : message);
+        setStatus(OWNER_BLOCKED.has(code) && count > 1 ? T("Nenhum dos {count} vídeos encontrados pode ser visto fora do YouTube. Cole o endereço de outro vídeo.", { count }) + BRAVE_HINT : message);
         offerOpenOnYouTube(true);
       }
       return;
@@ -311,7 +311,7 @@
     if (!next) return false;
     resultsSelect.value = next.value;
     urlInput.value = watchUrl(next.value);
-    setStatus("O dono deste vídeo não permite vê-lo fora do YouTube: a tentar o resultado seguinte…");
+    setStatus(T("O dono deste vídeo não permite vê-lo fora do YouTube: a tentar o resultado seguinte…"));
     showPlayer(next.value, 0);
     saveSettings();
     return true;
@@ -322,14 +322,14 @@
     resultsLabel.hidden = true;
     tried.clear();
     if (!canSearch || !query) return false;
-    setStatus("A procurar o vídeo no YouTube…");
+    setStatus(T("A procurar o vídeo no YouTube…"));
     try {
       const response = await fetch(`/api/video-search?${new URLSearchParams({ q: query })}`);
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : "Pesquisa falhou.");
+      if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : T("Pesquisa falhou."));
       const results = Array.isArray(payload.results) ? payload.results.filter((r) => ID_RE.test(r.id)) : [];
       if (!results.length) {
-        setStatus("Nenhum vídeo encontrado. Pode colar o endereço de um vídeo.");
+        setStatus(T("Nenhum vídeo encontrado. Pode colar o endereço de um vídeo."));
         return false;
       }
       resultsSelect.replaceChildren(...results.map((result) => {
@@ -343,7 +343,7 @@
       loadVideo();
       return true;
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Pesquisa falhou.");
+      setStatus(error instanceof Error ? error.message : T("Pesquisa falhou."));
       return false;
     }
   }
@@ -375,11 +375,11 @@
   document.getElementById("video-mark").addEventListener("click", () => {
     const now = videoTime();
     if (now === null) {
-      setStatus("O leitor ainda não indicou o tempo do vídeo: ponha o vídeo a tocar e volte a carregar.");
+      setStatus(T("O leitor ainda não indicou o tempo do vídeo: ponha o vídeo a tocar e volte a carregar."));
       return;
     }
     setOffset(now);
-    setStatus(`Início marcado aos ${Number(offsetInput.value).toFixed(2)} s.`);
+    setStatus(T("Início marcado aos {s} s.", { s: Number(offsetInput.value).toFixed(2) }));
   });
   for (const button of document.querySelectorAll("[data-nudge]")) {
     button.addEventListener("click", () => {
@@ -388,11 +388,12 @@
       setOffset(before + Number(button.dataset.nudge));
       const moved = offset() - before;
       const amount = Math.abs(moved).toFixed(2).replace(".", ",");
-      setStatus(
-        moved === 0
-          ? "A partitura já começa com o vídeo: não pode ser adiantada mais."
-          : `Partitura ${moved > 0 ? "atrasada" : "adiantada"} ${amount} s (compasso 1 aos ${offset().toFixed(2).replace(".", ",")} s do vídeo).`,
-      );
+      const vars = { amount, at: offset().toFixed(2).replace(".", ",") };
+      let text;
+      if (moved === 0) text = T("A partitura já começa com o vídeo: não pode ser adiantada mais.");
+      else if (moved > 0) text = T("Partitura atrasada {amount} s (compasso 1 aos {at} s do vídeo).", vars);
+      else text = T("Partitura adiantada {amount} s (compasso 1 aos {at} s do vídeo).", vars);
+      setStatus(text);
     });
   }
   muteInput.addEventListener("change", () => onMuteScore(muteInput.checked && !panel.hidden));

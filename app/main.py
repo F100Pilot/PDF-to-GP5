@@ -28,6 +28,7 @@ from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .cover import CoverError, find_cover
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
+from .i18n import LanguageMiddleware, tr
 from .library_store import LibraryError, LibraryStore
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
@@ -91,10 +92,21 @@ class AdmissionMiddleware:
             limiter = inspect_limiter if scope["path"] == "/api/inspect" else rate_limiter
             client = scope.get("client")
             if not limiter.allow(client_key(client[0] if client else None)):
-                await _reject(send, 429, "Demasiados pedidos. Tente novamente dentro de um minuto.")
+                await _reject(
+                    send,
+                    429,
+                    tr(
+                        "Demasiados pedidos. Tente novamente dentro de um minuto.",
+                        "Too many requests. Try again in a minute.",
+                    ),
+                )
                 return
             if _slots.locked():
-                await _reject(send, 503, "Servidor ocupado. Tente novamente em instantes.")
+                await _reject(
+                    send,
+                    503,
+                    tr("Servidor ocupado. Tente novamente em instantes.", "Server busy. Try again in a moment."),
+                )
                 return
         await self.app(scope, receive, send)
 
@@ -110,6 +122,7 @@ app.add_middleware(AdmissionMiddleware)
 app.add_middleware(SameOriginMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
 app.add_middleware(SecurityHeadersMiddleware, hsts=settings.enable_hsts)
+app.add_middleware(LanguageMiddleware)  # outermost: every message below is written in the user's language
 
 
 @app.get("/api/changelog")
@@ -143,16 +156,28 @@ async def video_search(request: Request, q: Annotated[str, Query(min_length=2, m
     """The song's video on YouTube ("artist title"), when a YouTube Data API key is configured."""
     if not settings.youtube_api_key:
         raise HTTPException(
-            status_code=404, detail="Pesquisa de vídeos não configurada (falta a chave da API do YouTube)."
+            status_code=404,
+            detail=tr(
+                "Pesquisa de vídeos não configurada (falta a chave da API do YouTube).",
+                "Video search is not configured (the YouTube API key is missing).",
+            ),
         )
     client = request.client
     if not video_limiter.allow(client_key(client.host if client else None)):
-        raise HTTPException(status_code=429, detail="Demasiadas pesquisas. Tente novamente dentro de um minuto.")
+        raise HTTPException(
+            status_code=429,
+            detail=tr(
+                "Demasiadas pesquisas. Tente novamente dentro de um minuto.",
+                "Too many searches. Try again in a minute.",
+            ),
+        )
     try:
         results = await run_in_threadpool(search_youtube, q, settings.youtube_api_key)
     except VideoSearchError as exc:
         logger.warning("YouTube search failed: %s", exc)
-        raise HTTPException(status_code=502, detail="Não foi possível pesquisar no YouTube.") from None
+        raise HTTPException(
+            status_code=502, detail=tr("Não foi possível pesquisar no YouTube.", "Could not search YouTube.")
+        ) from None
     return {"results": results}
 
 
@@ -165,16 +190,26 @@ async def song_cover(
     """The song's album cover (iTunes Search API), for the library; 404 when there is none."""
     client = request.client
     if not cover_limiter.allow(client_key(client.host if client else None)):
-        raise HTTPException(status_code=429, detail="Demasiadas pesquisas de capas. Tente dentro de um minuto.")
+        raise HTTPException(
+            status_code=429,
+            detail=tr(
+                "Demasiadas pesquisas de capas. Tente dentro de um minuto.",
+                "Too many cover searches. Try again in a minute.",
+            ),
+        )
     try:
         found = await run_in_threadpool(find_cover, artist, title)
     except CoverError as exc:
         logger.warning("Cover search failed: %s", exc)
         raise HTTPException(
-            status_code=502, detail="Não foi possível procurar a capa (sem ligação à internet?)."
+            status_code=502,
+            detail=tr(
+                "Não foi possível procurar a capa (sem ligação à internet?).",
+                "Could not look up the cover (no internet connection?).",
+            ),
         ) from None
     if found is None:
-        raise HTTPException(status_code=404, detail="Capa não encontrada.")
+        raise HTTPException(status_code=404, detail=tr("Capa não encontrada.", "Cover not found."))
     image, media_type = found
     return Response(content=image, media_type=media_type)
 
@@ -207,7 +242,6 @@ async def options() -> dict:
 
 
 _TIME_SIGNATURE = re.compile(r"^(\d{1,2})/(2|4|8|16)$")
-_PER_TRACK_HINT = "Envie um valor por PDF (ou um só valor para todos)."
 
 
 @dataclass(frozen=True)
@@ -256,13 +290,21 @@ def convert_form(
     )
 
 
+def _per_track_hint() -> str:
+    return tr(
+        "Envie um valor por PDF (ou um só valor para todos).", "Send one value per PDF (or a single value for all)."
+    )
+
+
 def _per_track(values: list[str], count: int, default: str, field: str) -> list[str]:
     if not values:
         return [default] * count
     if len(values) == 1:
         return values * count
     if len(values) != count:
-        raise HTTPException(status_code=422, detail=f"Campo '{field}': {_PER_TRACK_HINT}")
+        raise HTTPException(
+            status_code=422, detail=tr(f"Campo '{field}': {_per_track_hint()}", f"Field '{field}': {_per_track_hint()}")
+        )
     return values
 
 
@@ -272,18 +314,20 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
     tunings = _per_track(form.tunings, count, "auto", "tuning")
     instruments = _per_track(form.instruments, count, "auto", "instrument")
     if any(len(name) > 40 for name in names):
-        raise HTTPException(status_code=422, detail="Nome de track demasiado longo (máx. 40).")
+        raise HTTPException(
+            status_code=422, detail=tr("Nome de track demasiado longo (máx. 40).", "Track name too long (max. 40).")
+        )
     if any(t != "auto" and t not in TUNINGS for t in tunings):
-        raise HTTPException(status_code=422, detail="Afinação inválida.")
+        raise HTTPException(status_code=422, detail=tr("Afinação inválida.", "Invalid tuning."))
     if any(i != "auto" and i not in INSTRUMENTS for i in instruments):
-        raise HTTPException(status_code=422, detail="Instrumento inválido.")
+        raise HTTPException(status_code=422, detail=tr("Instrumento inválido.", "Invalid instrument."))
     if form.fixed_value not in (4, 8, 16):
-        raise HTTPException(status_code=422, detail="Duração fixa inválida.")
+        raise HTTPException(status_code=422, detail=tr("Duração fixa inválida.", "Invalid fixed duration."))
     numerator = denominator = None
     if form.time_signature != "auto":
         match = _TIME_SIGNATURE.match(form.time_signature)
         if not match or not 1 <= int(match.group(1)) <= 16:
-            raise HTTPException(status_code=422, detail="Compasso inválido.")
+            raise HTTPException(status_code=422, detail=tr("Compasso inválido.", "Invalid time signature."))
         numerator, denominator = int(match.group(1)), int(match.group(2))
     return ConversionOptions(
         title=form.title,
@@ -306,25 +350,45 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
 
 async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
     if not files:
-        raise HTTPException(status_code=422, detail="Nenhum PDF enviado.")
+        raise HTTPException(status_code=422, detail=tr("Nenhum PDF enviado.", "No PDF uploaded."))
     if len(files) > MAX_TRACKS:
-        raise HTTPException(status_code=422, detail=f"Máximo de {MAX_TRACKS} PDFs (tracks) por música.")
+        raise HTTPException(
+            status_code=422,
+            detail=tr(
+                f"Máximo de {MAX_TRACKS} PDFs (tracks) por música.", f"Maximum of {MAX_TRACKS} PDFs (tracks) per song."
+            ),
+        )
     pdfs: list[bytes] = []
     for upload in files:
         data = await upload.read(settings.max_upload_bytes + 1)
         if len(data) > settings.max_upload_bytes:
-            raise HTTPException(status_code=413, detail=f"Ficheiro demasiado grande: {upload.filename}.")
+            raise HTTPException(
+                status_code=413,
+                detail=tr(f"Ficheiro demasiado grande: {upload.filename}.", f"File too large: {upload.filename}."),
+            )
         if not data or not looks_like_pdf(data):
-            raise HTTPException(status_code=415, detail=f"O ficheiro enviado não é um PDF: {upload.filename}.")
+            raise HTTPException(
+                status_code=415,
+                detail=tr(
+                    f"O ficheiro enviado não é um PDF: {upload.filename}.",
+                    f"The uploaded file is not a PDF: {upload.filename}.",
+                ),
+            )
         pdfs.append(data)
     if sum(len(d) for d in pdfs) > settings.max_total_upload_bytes:
-        raise HTTPException(status_code=413, detail="Os PDFs excedem o tamanho total permitido.")
+        raise HTTPException(
+            status_code=413,
+            detail=tr("Os PDFs excedem o tamanho total permitido.", "The PDFs exceed the total size allowed."),
+        )
     return pdfs
 
 
 async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> ConversionResult:
     if _slots.locked():
-        raise HTTPException(status_code=503, detail="Servidor ocupado. Tente novamente em instantes.")
+        raise HTTPException(
+            status_code=503,
+            detail=tr("Servidor ocupado. Tente novamente em instantes.", "Server busy. Try again in a moment."),
+        )
     # One budget per request, however many PDFs it carries, so a slow upload
     # cannot hold a worker slot for minutes.
     timeout = min(settings.conversion_timeout_s * len(pdfs), settings.max_job_timeout_s)
@@ -332,9 +396,17 @@ async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> C
         try:
             return await run_in_threadpool(run_isolated, pdfs, options, timeout, settings.worker_memory_mb, job)
         except ConversionUnavailable:
-            raise HTTPException(status_code=503, detail="Servidor ocupado. Tente novamente em instantes.") from None
+            raise HTTPException(
+                status_code=503,
+                detail=tr("Servidor ocupado. Tente novamente em instantes.", "Server busy. Try again in a moment."),
+            ) from None
         except ConversionTimeout:
-            raise HTTPException(status_code=422, detail="O processamento do PDF excedeu o tempo limite.") from None
+            raise HTTPException(
+                status_code=422,
+                detail=tr(
+                    "O processamento do PDF excedeu o tempo limite.", "Processing the PDF exceeded the time limit."
+                ),
+            ) from None
         except ConversionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
 
@@ -420,16 +492,35 @@ async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
     audio_download.jobs.sweep()
     usable, problem = audio_download.available()
     if not usable:
-        raise HTTPException(status_code=503, detail=f"Obter áudio de um URL não está disponível: {problem}.")
+        raise HTTPException(
+            status_code=503,
+            detail=tr(
+                f"Obter áudio de um URL não está disponível: {problem}.",
+                f"Getting audio from a URL is not available: {problem}.",
+            ),
+        )
     if not body.authorized:
         raise HTTPException(
             status_code=422,
-            detail="Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo.",
+            detail=tr(
+                "Confirme que é para uso pessoal ou que tem autorização para descarregar este conteúdo.",
+                "Confirm that it is for personal use or that you are authorized to download this content.",
+            ),
         )
     if body.bitrate not in audio_download.BITRATES:
-        raise HTTPException(status_code=422, detail="Qualidade inválida (128, 192, 256 ou 320 kbit/s).")
+        raise HTTPException(
+            status_code=422,
+            detail=tr(
+                "Qualidade inválida (128, 192, 256 ou 320 kbit/s).", "Invalid quality (128, 192, 256 or 320 kbit/s)."
+            ),
+        )
     if not audio_limiter.allow(client_key(request.client.host if request.client else None)):
-        raise HTTPException(status_code=429, detail="Demasiados pedidos. Tente novamente dentro de um minuto.")
+        raise HTTPException(
+            status_code=429,
+            detail=tr(
+                "Demasiados pedidos. Tente novamente dentro de um minuto.", "Too many requests. Try again in a minute."
+            ),
+        )
     try:
         # YouTube: only the checked video id is kept (the server builds the address); anything else
         # is validated as a URL (resolves the host name).
@@ -440,16 +531,28 @@ async def start_audio_job(request: Request, body: AudioJobRequest) -> dict:
         # Say what is missing now, not after a download that YouTube would refuse.
         ready, problem = audio_download.youtube_ready()
         if not ready:
-            raise HTTPException(status_code=503, detail=f"Vídeos do YouTube indisponíveis: {problem}.")
+            raise HTTPException(
+                status_code=503,
+                detail=tr(f"Vídeos do YouTube indisponíveis: {problem}.", f"YouTube videos unavailable: {problem}."),
+            )
     if audio_download.jobs.active() >= settings.audio_concurrent_jobs:
-        raise HTTPException(status_code=503, detail="Já está a ser obtido um áudio. Aguarde que termine.")
+        raise HTTPException(
+            status_code=503,
+            detail=tr(
+                "Já está a ser obtido um áudio. Aguarde que termine.",
+                "Audio is already being fetched. Wait for it to finish.",
+            ),
+        )
     return audio_download.jobs.create(url, body.bitrate, _used_on_this_computer(request)).public()
 
 
 def _audio_job(job_id: str) -> audio_download.Job:
     job = audio_download.jobs.get(job_id)  # the id is checked (32 hex digits) and only looked up
     if job is None:
-        raise HTTPException(status_code=404, detail="Tarefa não encontrada (terminou ou expirou).")
+        raise HTTPException(
+            status_code=404,
+            detail=tr("Tarefa não encontrada (terminou ou expirou).", "Task not found (it finished or expired)."),
+        )
     return job
 
 
@@ -464,7 +567,7 @@ async def audio_job_file(job_id: str) -> FileResponse:
     """The MP3, once; its temporary folder is removed after it is sent."""
     job = _audio_job(job_id)
     if job.status != "done" or job.file is None or not job.file.is_file():
-        raise HTTPException(status_code=409, detail="O MP3 ainda não está pronto.")
+        raise HTTPException(status_code=409, detail=tr("O MP3 ainda não está pronto.", "The MP3 is not ready yet."))
     return FileResponse(
         job.file,
         media_type="audio/mpeg",
@@ -488,14 +591,20 @@ LibraryFile = Literal["gp5", "audio", "cover"]
 def _library(request: Request) -> LibraryStore:
     if not _used_on_this_computer(request):
         raise HTTPException(
-            status_code=404, detail="A biblioteca no disco só existe com a aplicação aberta no próprio computador."
+            status_code=404,
+            detail=tr(
+                "A biblioteca no disco só existe com a aplicação aberta no próprio computador.",
+                "The on-disk library only exists when the app is open on the computer itself.",
+            ),
         )
     return library
 
 
 def _stored(found: bool) -> None:
     if not found:
-        raise HTTPException(status_code=404, detail="Música não encontrada na biblioteca.")
+        raise HTTPException(
+            status_code=404, detail=tr("Música não encontrada na biblioteca.", "Song not found in the library.")
+        )
 
 
 @app.get("/api/library")
@@ -505,7 +614,11 @@ async def library_songs(request: Request) -> dict:
         songs = await run_in_threadpool(store.songs)
     except OSError as exc:
         raise HTTPException(
-            status_code=500, detail=f"Não foi possível ler a pasta da biblioteca: {exc.strerror}."
+            status_code=500,
+            detail=tr(
+                f"Não foi possível ler a pasta da biblioteca: {exc.strerror}.",
+                f"Could not read the library folder: {exc.strerror}.",
+            ),
         ) from exc
     return {"folder": str(store.root), "songs": songs}
 
@@ -519,9 +632,9 @@ async def library_save(
     try:
         data = json.loads(meta)
     except ValueError:
-        raise HTTPException(status_code=422, detail="Dados da música inválidos.") from None
+        raise HTTPException(status_code=422, detail=tr("Dados da música inválidos.", "Invalid song data.")) from None
     if not isinstance(data, dict):
-        raise HTTPException(status_code=422, detail="Dados da música inválidos.")
+        raise HTTPException(status_code=422, detail=tr("Dados da música inválidos.", "Invalid song data."))
     content = await gp5.read()
     try:
         return await run_in_threadpool(store.save, data, content)
@@ -529,7 +642,11 @@ async def library_save(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(
-            status_code=500, detail=f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}."
+            status_code=500,
+            detail=tr(
+                f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
+                f"Could not write to the library folder: {exc.strerror}.",
+            ),
         ) from exc
 
 
@@ -557,12 +674,19 @@ async def _library_change(request: Request, song_id: str, kind: str, data: bytes
         elif kind == "cover":
             found = await run_in_threadpool(store.set_cover, song_id, data)
         else:
-            raise HTTPException(status_code=405, detail="Só o áudio e a capa podem ser mudados.")
+            raise HTTPException(
+                status_code=405,
+                detail=tr("Só o áudio e a capa podem ser mudados.", "Only the audio and the cover can be changed."),
+            )
     except LibraryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(
-            status_code=500, detail=f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}."
+            status_code=500,
+            detail=tr(
+                f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
+                f"Could not write to the library folder: {exc.strerror}.",
+            ),
         ) from exc
     _stored(found)
     return Response(status_code=204)
@@ -573,7 +697,7 @@ async def library_put_file(request: Request, song_id: str, kind: LibraryFile) ->
     """The song's audio or cover: the file itself as the request body (audio: name in X-Filename)."""
     data = await request.body()
     if not data:
-        raise HTTPException(status_code=422, detail="Ficheiro vazio.")
+        raise HTTPException(status_code=422, detail=tr("Ficheiro vazio.", "Empty file."))
     return await _library_change(request, song_id, kind, data)
 
 

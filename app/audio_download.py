@@ -22,6 +22,7 @@ limit and a deadline; FFmpeg runs as a separate process with its arguments passe
 
 from __future__ import annotations
 
+import contextvars
 import ipaddress
 import logging
 import re
@@ -40,6 +41,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from .config import settings
+from .i18n import tr
 
 logger = logging.getLogger(__name__)
 
@@ -84,36 +86,54 @@ def validate_url(url: str) -> str:
     declared own site."""
     url = (url or "").strip()
     if not url:
-        raise AudioDownloadError("Indique o endereço (URL) do áudio ou vídeo.")
+        raise AudioDownloadError(
+            tr("Indique o endereço (URL) do áudio ou vídeo.", "Enter the address (URL) of the audio or video.")
+        )
     if len(url) > MAX_URL_LENGTH:
-        raise AudioDownloadError("O endereço é demasiado longo.")
+        raise AudioDownloadError(tr("O endereço é demasiado longo.", "The address is too long."))
     if _CONTROL.search(url) or any(ch.isspace() for ch in url):
-        raise AudioDownloadError("O endereço tem espaços ou caracteres inválidos.")
+        raise AudioDownloadError(
+            tr("O endereço tem espaços ou caracteres inválidos.", "The address has spaces or invalid characters.")
+        )
     try:
         parts = urlsplit(url)
         port = parts.port
     except ValueError as exc:
-        raise AudioDownloadError("Endereço inválido.") from exc
+        raise AudioDownloadError(tr("Endereço inválido.", "Invalid address.")) from exc
     if parts.scheme not in ("http", "https") or not parts.hostname:
-        raise AudioDownloadError("O endereço tem de começar por http:// ou https://.")
+        raise AudioDownloadError(
+            tr("O endereço tem de começar por http:// ou https://.", "The address must start with http:// or https://.")
+        )
     if parts.username or parts.password:
-        raise AudioDownloadError("O endereço não pode ter nome de utilizador nem palavra-passe.")
+        raise AudioDownloadError(
+            tr(
+                "O endereço não pode ter nome de utilizador nem palavra-passe.",
+                "The address cannot contain a username or password.",
+            )
+        )
     if port is not None and not 1 <= port <= 65535:
-        raise AudioDownloadError("Endereço inválido.")
+        raise AudioDownloadError(tr("Endereço inválido.", "Invalid address."))
     host = parts.hostname.lower()
     if not _declared(host):
         try:
             addresses = _resolve(host)
         except OSError as exc:
             raise AudioDownloadError(
-                "Não foi possível encontrar esse endereço (verifique o URL e a internet)."
+                tr(
+                    "Não foi possível encontrar esse endereço (verifique o URL e a internet).",
+                    "Could not find that address (check the URL and the internet connection).",
+                )
             ) from exc
         for address in addresses:
             ip = ipaddress.ip_address(address.split("%")[0])
             if not ip.is_global:
                 raise AudioDownloadError(
-                    "O endereço aponta para a rede local; só são aceites endereços da internet "
-                    "(ou sites declarados em AUDIO_DOWNLOAD_HOSTS)."
+                    tr(
+                        "O endereço aponta para a rede local; só são aceites endereços da internet "
+                        "(ou sites declarados em AUDIO_DOWNLOAD_HOSTS).",
+                        "The address points to the local network; only internet addresses are accepted "
+                        "(or sites declared in AUDIO_DOWNLOAD_HOSTS).",
+                    )
                 )
     return url
 
@@ -146,7 +166,7 @@ def youtube_id(text: str) -> str | None:
 def youtube_url(video_id: str) -> str:
     """The server-built address of a YouTube video (only the id comes from the user)."""
     if not _YOUTUBE_ID.fullmatch(video_id):
-        raise AudioDownloadError("Identificador de vídeo do YouTube inválido.")
+        raise AudioDownloadError(tr("Identificador de vídeo do YouTube inválido.", "Invalid YouTube video ID."))
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
@@ -161,7 +181,12 @@ def resolve_source(text: str) -> str:
     except ValueError:
         host = ""
     if _is_youtube(host):
-        raise AudioDownloadError("Indique um vídeo do YouTube (não uma lista de reprodução nem um canal).")
+        raise AudioDownloadError(
+            tr(
+                "Indique um vídeo do YouTube (não uma lista de reprodução nem um canal).",
+                "Enter a YouTube video (not a playlist or a channel).",
+            )
+        )
     return validate_url(text)
 
 
@@ -171,13 +196,21 @@ def resolve_source(text: str) -> str:
 def check_limits(info: dict) -> None:
     """Refuse playlists, live streams and media longer than the limit (before any download)."""
     if info.get("_type") in ("playlist", "multi_video") or info.get("entries") is not None:
-        raise AudioDownloadError("Listas de reprodução não são suportadas: indique um único ficheiro ou vídeo.")
+        raise AudioDownloadError(
+            tr(
+                "Listas de reprodução não são suportadas: indique um único ficheiro ou vídeo.",
+                "Playlists are not supported: enter a single file or video.",
+            )
+        )
     if info.get("is_live") or info.get("live_status") in ("is_live", "is_upcoming", "post_live"):
-        raise AudioDownloadError("Emissões em direto não são suportadas.")
+        raise AudioDownloadError(tr("Emissões em direto não são suportadas.", "Live streams are not supported."))
     duration = info.get("duration")
     if isinstance(duration, (int, float)) and duration > settings.audio_max_duration_s:
         raise AudioDownloadError(
-            f"O áudio tem {round(duration / 60)} min; o máximo é {settings.audio_max_duration_s // 60} min."
+            tr(
+                f"O áudio tem {round(duration / 60)} min; o máximo é {settings.audio_max_duration_s // 60} min.",
+                f"The audio is {round(duration / 60)} min long; the maximum is {settings.audio_max_duration_s // 60} min.",
+            )
         )
 
 
@@ -200,17 +233,25 @@ def authorize(info: dict, url: str, personal: bool = False) -> str:
         return "direct"
     if _declared(host):
         return "declared"
-    detail = f" (licença indicada: {licence[:80]})" if licence else ""
+    detail = tr(f" (licença indicada: {licence[:80]})", f" (license given: {licence[:80]})") if licence else ""
     youtube = (
-        " Vídeos do YouTube só são processados para uso pessoal, com a aplicação aberta no próprio "
-        "computador onde corre."
+        tr(
+            " Vídeos do YouTube só são processados para uso pessoal, com a aplicação aberta no próprio "
+            "computador onde corre.",
+            " YouTube videos are only processed for personal use, with the app open on the computer it runs on.",
+        )
         if _is_youtube(host)
         else ""
     )
     raise AudioDownloadError(
-        "Este conteúdo não está disponível para download: não é um ficheiro direto nem tem licença "
-        f"Creative Commons ou de domínio público{detail}. Só é processado conteúdo que pode ser "
-        f"descarregado (ficheiros seus, Creative Commons, domínio público).{youtube}"
+        tr(
+            "Este conteúdo não está disponível para download: não é um ficheiro direto nem tem licença "
+            f"Creative Commons ou de domínio público{detail}. Só é processado conteúdo que pode ser "
+            f"descarregado (ficheiros seus, Creative Commons, domínio público).{youtube}",
+            "This content is not available for download: it is not a direct file and has no "
+            f"Creative Commons or public-domain license{detail}. Only content that may be downloaded "
+            f"is processed (your own files, Creative Commons, public domain).{youtube}",
+        )
     )
 
 
@@ -232,9 +273,14 @@ def available() -> tuple[bool, str]:
     try:
         import yt_dlp  # noqa: F401
     except ImportError:
-        return False, "falta o yt-dlp (pip install -r requirements.txt)"
+        return False, tr(
+            "falta o yt-dlp (pip install -r requirements.txt)", "yt-dlp is missing (pip install -r requirements.txt)"
+        )
     if not ffmpeg_path():
-        return False, "falta o FFmpeg (pip install -r requirements.txt instala o imageio-ffmpeg)"
+        return False, tr(
+            "falta o FFmpeg (pip install -r requirements.txt instala o imageio-ffmpeg)",
+            "FFmpeg is missing (pip install -r requirements.txt installs imageio-ffmpeg)",
+        )
     return True, ""
 
 
@@ -257,9 +303,15 @@ def youtube_ready() -> tuple[bool, str]:
     try:
         import yt_dlp_ejs  # noqa: F401
     except ImportError:
-        return False, "falta o yt-dlp-ejs (pip install -r requirements.txt instala o yt-dlp[default])"
+        return False, tr(
+            "falta o yt-dlp-ejs (pip install -r requirements.txt instala o yt-dlp[default])",
+            "yt-dlp-ejs is missing (pip install -r requirements.txt installs yt-dlp[default])",
+        )
     if not js_runtimes():
-        return False, "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)"
+        return False, tr(
+            "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)",
+            "a JavaScript runtime for YouTube is missing (install Deno or Node.js)",
+        )
     return True, ""
 
 
@@ -290,68 +342,87 @@ class _QuietLogger:
         self.messages.append(message)
 
 
-# What yt-dlp says, lower case → the cause shown to the user, first match wins. A missing
-# JavaScript runtime comes first: without one YouTube refuses in a way that also reads like
-# "sign in", and signing in would not help.
-_FAILURE_CAUSES = (
-    (
-        ("no supported javascript runtime", "challenge solving failed", "signature solving failed"),
+def _failure_causes() -> tuple[tuple[tuple[str, ...], str], ...]:
+    """What yt-dlp says, lower case → the cause shown to the user, first match wins. A missing
+    JavaScript runtime comes first: without one YouTube refuses in a way that also reads like
+    "sign in", and signing in would not help. A function, so the texts follow the request's language."""
+    return (
         (
-            "O YouTube exige resolver um desafio em JavaScript e falta o runtime: instale o Deno "
-            "(winget install DenoLand.Deno) ou o Node.js, confirme que o yt-dlp[default] está "
-            "instalado (pip install -r requirements.txt) e reinicie a aplicação."
+            ("no supported javascript runtime", "challenge solving failed", "signature solving failed"),
+            tr(
+                "O YouTube exige resolver um desafio em JavaScript e falta o runtime: instale o Deno "
+                "(winget install DenoLand.Deno) ou o Node.js, confirme que o yt-dlp[default] está "
+                "instalado (pip install -r requirements.txt) e reinicie a aplicação.",
+                "YouTube requires solving a JavaScript challenge and the runtime is missing: install Deno "
+                "(winget install DenoLand.Deno) or Node.js, make sure yt-dlp[default] is installed "
+                "(pip install -r requirements.txt) and restart the app.",
+            ),
         ),
-    ),
-    (
-        ("confirm your age", "age-restricted", "inappropriate for some users"),
-        "O vídeo tem restrição de idade: o YouTube só o mostra com sessão iniciada.",
-    ),
-    (
-        ("not a bot",),
         (
-            "O YouTube pediu para confirmar que não é um robô (acontece a pedidos sem sessão "
-            "iniciada, que esta aplicação não usa). Tente mais tarde ou noutra rede."
+            ("confirm your age", "age-restricted", "inappropriate for some users"),
+            tr(
+                "O vídeo tem restrição de idade: o YouTube só o mostra com sessão iniciada.",
+                "The video is age-restricted: YouTube only shows it to signed-in users.",
+            ),
         ),
-    ),
-    (("private video",), "O vídeo é privado."),
-    (
-        ("requested format is not available", "only images are available"),
         (
-            "O YouTube não entregou nenhum formato de áudio. Atualize o yt-dlp (pip install -U "
-            '"yt-dlp[default]") e confirme que tem o Deno ou o Node.js instalado.'
+            ("not a bot",),
+            tr(
+                "O YouTube pediu para confirmar que não é um robô (acontece a pedidos sem sessão "
+                "iniciada, que esta aplicação não usa). Tente mais tarde ou noutra rede.",
+                "YouTube asked to confirm you are not a robot (it happens to requests without a "
+                "signed-in session, which this app does not use). Try later or on another network.",
+            ),
         ),
-    ),
-    (
-        ("video unavailable", "not available in your country", "has been removed"),
-        "O vídeo não está disponível (removido, privado ou bloqueado neste país).",
-    ),
-    (
-        ("certificate verify failed",),
+        (("private video",), tr("O vídeo é privado.", "The video is private.")),
         (
-            "A ligação segura ao site foi recusada (certificado inválido): confirme a data e a hora "
-            "do computador e se um antivírus ou proxy está a inspecionar as ligações HTTPS."
+            ("requested format is not available", "only images are available"),
+            tr(
+                "O YouTube não entregou nenhum formato de áudio. Atualize o yt-dlp (pip install -U "
+                '"yt-dlp[default]") e confirme que tem o Deno ou o Node.js instalado.',
+                "YouTube did not deliver any audio format. Update yt-dlp (pip install -U "
+                '"yt-dlp[default]") and make sure Deno or Node.js is installed.',
+            ),
         ),
-    ),
-    (
         (
-            "unable to connect to proxy",
-            "getaddrinfo failed",
-            "name or service not known",
-            "temporary failure in name resolution",
-            "failed to resolve",
-            "connection refused",
-            "network is unreachable",
-            "timed out",
+            ("video unavailable", "not available in your country", "has been removed"),
+            tr(
+                "O vídeo não está disponível (removido, privado ou bloqueado neste país).",
+                "The video is not available (removed, private or blocked in this country).",
+            ),
         ),
-        "Não foi possível ligar ao site: confirme a ligação à internet (ou a firewall/proxy).",
-    ),
-)
+        (
+            ("certificate verify failed",),
+            tr(
+                "A ligação segura ao site foi recusada (certificado inválido): confirme a data e a hora "
+                "do computador e se um antivírus ou proxy está a inspecionar as ligações HTTPS.",
+                "The secure connection to the site was refused (invalid certificate): check the "
+                "computer's date and time and whether an antivirus or proxy is inspecting HTTPS connections.",
+            ),
+        ),
+        (
+            (
+                "unable to connect to proxy",
+                "getaddrinfo failed",
+                "name or service not known",
+                "temporary failure in name resolution",
+                "failed to resolve",
+                "connection refused",
+                "network is unreachable",
+                "timed out",
+            ),
+            tr(
+                "Não foi possível ligar ao site: confirme a ligação à internet (ou a firewall/proxy).",
+                "Could not connect to the site: check the internet connection (or the firewall/proxy).",
+            ),
+        ),
+    )
 
 
 def explain_failure(messages: list[str]) -> str | None:
     """The cause of a failed yt-dlp run, from what it printed; None when it is not recognised."""
     text = " ".join(messages).lower()
-    for hints, cause in _FAILURE_CAUSES:
+    for hints, cause in _failure_causes():
         if any(hint in text for hint in hints):
             return cause
     return None
@@ -400,7 +471,10 @@ def _probe(url: str, directory: Path, hook: Callable[[dict], None]) -> tuple[obj
         ydl.close()
         raise AudioDownloadError(
             explain_failure(_messages(ydl, exc))
-            or "Não foi possível ler esse endereço (página não suportada, conteúdo protegido ou sem áudio)."
+            or tr(
+                "Não foi possível ler esse endereço (página não suportada, conteúdo protegido ou sem áudio).",
+                "Could not read that address (unsupported page, protected content or no audio).",
+            )
         ) from exc
     return ydl, info or {}
 
@@ -412,7 +486,9 @@ def _download(ydl: object, info: dict, directory: Path) -> Path:
     try:
         ydl.process_info(info)
     except yt_dlp.utils.DownloadError as exc:
-        raise AudioDownloadError(explain_failure(_messages(ydl, exc)) or "O download falhou.") from exc
+        raise AudioDownloadError(
+            explain_failure(_messages(ydl, exc)) or tr("O download falhou.", "The download failed.")
+        ) from exc
     finally:
         ydl.close()
     root = directory.resolve()
@@ -422,7 +498,12 @@ def _download(ydl: object, info: dict, directory: Path) -> Path:
         if p.is_file() and not p.is_symlink() and not p.name.endswith(".part") and p.resolve().parent == root
     ]
     if not files:
-        raise AudioDownloadError("O download não produziu nenhum ficheiro (talvez tenha excedido o tamanho máximo).")
+        raise AudioDownloadError(
+            tr(
+                "O download não produziu nenhum ficheiro (talvez tenha excedido o tamanho máximo).",
+                "The download produced no file (it may have exceeded the maximum size).",
+            )
+        )
     return files[0]
 
 
@@ -442,9 +523,9 @@ def convert_to_mp3(
     """
     ffmpeg = ffmpeg_path()
     if not ffmpeg:
-        raise AudioDownloadError("O FFmpeg não está disponível.")
+        raise AudioDownloadError(tr("O FFmpeg não está disponível.", "FFmpeg is not available."))
     if bitrate not in BITRATES:
-        raise AudioDownloadError("Qualidade inválida.")
+        raise AudioDownloadError(tr("Qualidade inválida.", "Invalid quality."))
     args = [ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-sn", "-dn"]
     args += ["-map", "0:a:0", "-map_metadata", "-1", "-codec:a", "libmp3lame", "-b:a", f"{bitrate}k"]
     if title:
@@ -466,13 +547,20 @@ def convert_to_mp3(
     finally:
         watchdog.cancel()
     if cancelled():
-        raise AudioDownloadError("Cancelado.")
+        raise AudioDownloadError(tr("Cancelado.", "Cancelled."))
     if time.monotonic() >= deadline:
-        raise AudioDownloadError("A conversão demorou demasiado e foi interrompida.")
+        raise AudioDownloadError(
+            tr("A conversão demorou demasiado e foi interrompida.", "The conversion took too long and was stopped.")
+        )
     if process.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
-        raise AudioDownloadError("O FFmpeg não conseguiu converter o áudio (o ficheiro não tem áudio legível).")
+        raise AudioDownloadError(
+            tr(
+                "O FFmpeg não conseguiu converter o áudio (o ficheiro não tem áudio legível).",
+                "FFmpeg could not convert the audio (the file has no readable audio).",
+            )
+        )
     if target.stat().st_size > settings.audio_max_bytes:
-        raise AudioDownloadError("O MP3 excede o tamanho máximo.")
+        raise AudioDownloadError(tr("O MP3 excede o tamanho máximo.", "The MP3 exceeds the maximum size."))
 
 
 def download_name(title: str) -> str:
@@ -505,13 +593,16 @@ class Job:
 
     def public(self) -> dict:
         messages = {
-            "queued": "Na fila…",
-            "checking": "A verificar o endereço e se o conteúdo pode ser descarregado…",
-            "downloading": "A descarregar…",
-            "converting": "A converter para MP3…",
-            "done": "Pronto.",
+            "queued": tr("Na fila…", "Queued…"),
+            "checking": tr(
+                "A verificar o endereço e se o conteúdo pode ser descarregado…",
+                "Checking the address and whether the content may be downloaded…",
+            ),
+            "downloading": tr("A descarregar…", "Downloading…"),
+            "converting": tr("A converter para MP3…", "Converting to MP3…"),
+            "done": tr("Pronto.", "Done."),
             "error": self.error,
-            "cancelled": "Cancelado.",
+            "cancelled": tr("Cancelado.", "Cancelled."),
         }
         return {
             "id": self.id,
@@ -554,7 +645,8 @@ class JobStore:
             self._jobs[job.id] = job
         if self._executor is None:
             self._executor = ThreadPoolExecutor(max_workers=settings.audio_concurrent_jobs, thread_name_prefix="audio")
-        self._executor.submit(run_job, job)
+        # In a copy of this request's context, so the job's errors are written in the user's language.
+        self._executor.submit(contextvars.copy_context().run, run_job, job)
         return job
 
     def get(self, job_id: str) -> Job | None:
@@ -616,7 +708,7 @@ def run_job(job: Job) -> None:
         job.progress = 0.05
         source = _download(ydl, info, job.directory)
         if source.stat().st_size > settings.audio_max_bytes:
-            raise AudioDownloadError("O ficheiro excede o tamanho máximo.")
+            raise AudioDownloadError(tr("O ficheiro excede o tamanho máximo.", "The file exceeds the maximum size."))
         job.status = "converting"
         job.progress = 0.65
         target = job.directory / "audio.mp3"
@@ -638,21 +730,28 @@ def run_job(job: Job) -> None:
     except AudioDownloadError as exc:
         _fail(job, str(exc))
     except _Stop as exc:
-        _fail(job, _STOP_MESSAGES.get(str(exc), "Interrompido."))
+        _fail(job, _stop_message(str(exc)))
     except Exception as exc:  # yt-dlp wraps hook exceptions, and pages can break it in many ways
         stop = next((str(e) for e in _chain(exc) if isinstance(e, _Stop)), None)
         if stop:
-            _fail(job, _STOP_MESSAGES.get(stop, "Interrompido."))
+            _fail(job, _stop_message(stop))
         else:
             logger.warning("Audio job failed", exc_info=True)
-            _fail(job, "Não foi possível obter o áudio desse endereço.")
+            _fail(
+                job, tr("Não foi possível obter o áudio desse endereço.", "Could not get the audio from that address.")
+            )
 
 
-_STOP_MESSAGES = {
-    "cancelled": "Cancelado.",
-    "timeout": "O download demorou demasiado e foi interrompido.",
-    "size": "O ficheiro excede o tamanho máximo.",
-}
+def _stop_message(reason: str) -> str:
+    """The message for a download stopped from the progress hook (see _Stop)."""
+    messages = {
+        "cancelled": tr("Cancelado.", "Cancelled."),
+        "timeout": tr(
+            "O download demorou demasiado e foi interrompido.", "The download took too long and was stopped."
+        ),
+        "size": tr("O ficheiro excede o tamanho máximo.", "The file exceeds the maximum size."),
+    }
+    return messages.get(reason) or tr("Interrompido.", "Interrupted.")
 
 
 def _chain(exc: BaseException):

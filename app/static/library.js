@@ -25,9 +25,12 @@
   let folder = null; // the library folder on disk, or null: kept in the browser
   let ready = null; // resolves once the storage is known (and browser songs moved to disk)
 
-  function setStatus(text) {
+  let noMatchShown = false; // the status line shows the "no song matches" message
+
+  function setStatus(text, noMatch = false) {
     statusLine.textContent = text;
     statusLine.hidden = !text;
+    noMatchShown = Boolean(text) && noMatch;
   }
 
   function songKey(title, artist) {
@@ -36,7 +39,7 @@
 
   // --- Browser storage (IndexedDB) ----------------------------------------------------------
   function openDatabase() {
-    if (!window.indexedDB) return Promise.reject(new Error("IndexedDB indisponível"));
+    if (!window.indexedDB) return Promise.reject(new Error("IndexedDB indisponível")); // i18n-skip: technical error, never shown
     if (!database) {
       database = new Promise((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, 2);
@@ -234,7 +237,9 @@
       if (response.ok) {
         ({ folder, songs } = await response.json());
         const moved = await moveBrowserSongs();
-        if (moved) setStatus(`${moved} ${moved === 1 ? "música passou" : "músicas passaram"} do browser para a pasta da biblioteca.`);
+        if (moved) setStatus(moved === 1
+          ? T("{n} música passou do browser para a pasta da biblioteca.", { n: moved })
+          : T("{n} músicas passaram do browser para a pasta da biblioteca.", { n: moved }));
       }
     } catch {
       folder = null; // no server answer: the browser keeps the songs
@@ -252,20 +257,20 @@
       songs = [];
       render();
       setStatus(folder !== null
-        ? `Não foi possível ler a pasta da biblioteca (${error.message}).`
-        : "A biblioteca não está disponível neste browser (por exemplo, numa janela privada).");
+        ? T("Não foi possível ler a pasta da biblioteca ({error}).", { error: error.message })
+        : T("A biblioteca não está disponível neste browser (por exemplo, numa janela privada)."));
     }
   }
 
   function showUsage() {
     if (folder !== null) {
-      usage.textContent = `Pasta da biblioteca: ${folder}`;
+      usage.textContent = T("Pasta da biblioteca: {folder}", { folder });
       return;
     }
-    usage.textContent = "Guardada neste browser (a aplicação não está aberta no computador onde corre o servidor).";
+    usage.textContent = T("Guardada neste browser (a aplicação não está aberta no computador onde corre o servidor).");
     if (!navigator.storage || !navigator.storage.estimate) return;
     navigator.storage.estimate().then(({ usage: used }) => {
-      if (used) usage.textContent += ` Espaço usado: ${(used / 1048576).toFixed(1).replace(".", ",")} MB.`;
+      if (used) usage.textContent += " " + T("Espaço usado: {size} MB.", { size: (used / 1048576).toFixed(1).replace(".", ",") });
     }).catch(() => {});
   }
 
@@ -284,7 +289,7 @@
   // Look the cover up by artist and title; `quiet`: after a conversion, no message when not found.
   async function findCover(key, artist, title, quiet) {
     if (!artist || !title) {
-      if (!quiet) setStatus("Sem artista e título não é possível procurar a capa: escolha uma imagem.");
+      if (!quiet) setStatus(T("Sem artista e título não é possível procurar a capa: escolha uma imagem."));
       return;
     }
     try {
@@ -298,11 +303,12 @@
         }
       }
       if (!quiet) {
-        const reason = response.status === 404 ? "Capa não encontrada" : "Não foi possível procurar a capa (sem ligação à internet?)";
-        setStatus(`${reason}: pode escolher uma imagem.`);
+        setStatus(response.status === 404
+          ? T("Capa não encontrada: pode escolher uma imagem.")
+          : T("Não foi possível procurar a capa (sem ligação à internet?): pode escolher uma imagem."));
       }
     } catch {
-      if (!quiet) setStatus("Não foi possível procurar a capa (sem ligação ao servidor).");
+      if (!quiet) setStatus(T("Não foi possível procurar a capa (sem ligação ao servidor)."));
     }
   }
 
@@ -317,7 +323,7 @@
         coverUrls.push(url);
       }
       image.src = url;
-      image.alt = `Capa de ${song.title || "a música"}`;
+      image.alt = song.title ? T("Capa de {title}", { title: song.title }) : T("Capa da música");
       figure.appendChild(image);
     } else {
       const initials = document.createElement("span");
@@ -334,7 +340,7 @@
     const find = document.createElement("button");
     find.type = "button";
     find.className = "link-button";
-    find.textContent = song.coverSrc ? "Procurar outra vez" : "Procurar capa";
+    find.textContent = song.coverSrc ? T("Procurar outra vez") : T("Procurar capa");
     find.addEventListener("click", () => findCover(song.key, song.artist, song.title, false));
     const input = document.createElement("input");
     input.type = "file";
@@ -344,15 +350,15 @@
       const file = input.files && input.files[0];
       if (!file) return;
       if (!COVER_TYPES.includes(file.type) || file.size > MAX_COVER_BYTES) {
-        setStatus("A capa tem de ser uma imagem JPEG, PNG ou WebP até 5 MB.");
+        setStatus(T("A capa tem de ser uma imagem JPEG, PNG ou WebP até 5 MB."));
         return;
       }
-      setCover(song.key, file).then(() => setStatus("")).catch(() => setStatus("Não foi possível guardar a capa."));
+      setCover(song.key, file).then(() => setStatus("")).catch(() => setStatus(T("Não foi possível guardar a capa.")));
     });
     const choose = document.createElement("button");
     choose.type = "button";
     choose.className = "link-button";
-    choose.textContent = "Escolher imagem";
+    choose.textContent = T("Escolher imagem");
     choose.addEventListener("click", () => input.click());
     row.append(find, choose, input);
     return row;
@@ -363,18 +369,18 @@
     const article = document.createElement("article");
     article.className = "card song-card";
     const title = document.createElement("h2");
-    title.textContent = song.title || "Sem título";
+    title.textContent = song.title || T("Sem título");
     const artist = document.createElement("span");
     artist.className = "muted";
-    artist.textContent = song.artist || "Artista desconhecido";
+    artist.textContent = song.artist || T("Artista desconhecido");
     const tags = document.createElement("div");
     tags.className = "song-tags";
     const labels = [
-      `${song.trackNames.length} ${song.trackNames.length === 1 ? "track" : "tracks"}`,
-      `${song.measures} compassos`,
+      song.trackNames.length === 1 ? T("{n} track", { n: 1 }) : T("{n} tracks", { n: song.trackNames.length }),
+      T("{n} compassos", { n: song.measures }),
       song.tempo ? `${song.tempo} BPM` : "",
-      song.audioName ? "com áudio" : "",
-      song.key === currentKey ? "aberta" : "",
+      song.audioName ? T("com áudio") : "",
+      song.key === currentKey ? T("aberta") : "",
     ];
     for (const label of labels.filter(Boolean)) {
       const tag = document.createElement("span");
@@ -383,31 +389,31 @@
     }
     const when = document.createElement("span");
     when.className = "hint";
-    when.textContent = `Guardada em ${new Date(song.savedAt).toLocaleDateString("pt-PT")} · ${song.trackNames.join(", ")}`;
+    when.textContent = T("Guardada em {date} · {tracks}", { date: new Date(song.savedAt).toLocaleDateString(LANG === "pt" ? "pt-PT" : LANG), tracks: song.trackNames.join(", ") });
     const actions = document.createElement("div");
     actions.className = "song-actions";
     const play = document.createElement("button");
     play.type = "button";
-    play.textContent = "Tocar";
+    play.textContent = T("Tocar");
     play.addEventListener("click", () => openSong(song.key));
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "danger";
-    remove.textContent = "Remover";
-    remove.setAttribute("aria-label", `Remover ${song.title || "a música"} da biblioteca`);
+    remove.textContent = T("Remover");
+    remove.setAttribute("aria-label", song.title ? T("Remover {title} da biblioteca", { title: song.title }) : T("Remover a música da biblioteca"));
     let confirmTimer = null;
     remove.addEventListener("click", async () => {
       if (!remove.classList.contains("confirm")) { // two steps: nothing is removed by a stray click
         remove.classList.add("confirm");
-        remove.textContent = "Confirmar";
+        remove.textContent = T("Confirmar");
         confirmTimer = setTimeout(() => {
           remove.classList.remove("confirm");
-          remove.textContent = "Remover";
+          remove.textContent = T("Remover");
         }, 4000);
         return;
       }
       clearTimeout(confirmTimer);
-      await removeSong(song.key).catch(() => setStatus("Não foi possível remover a música."));
+      await removeSong(song.key).catch(() => setStatus(T("Não foi possível remover a música.")));
       refresh();
     });
     actions.append(play, remove);
@@ -423,8 +429,8 @@
     coverUrls = [];
     list.replaceChildren(...shown.map(card));
     empty.hidden = songs.length > 0;
-    if (songs.length && !shown.length) setStatus("Nenhuma música corresponde à procura.");
-    else if (statusLine.textContent === "Nenhuma música corresponde à procura.") setStatus("");
+    if (songs.length && !shown.length) setStatus(T("Nenhuma música corresponde à procura."), true);
+    else if (noMatchShown) setStatus("");
   }
 
   // Open a stored song: its result and score, then its audio once the score is loaded (the audio
@@ -433,7 +439,7 @@
     await ready;
     const song = await loadSong(key).catch(() => null);
     if (!song) {
-      setStatus("Não foi possível abrir a música.");
+      setStatus(T("Não foi possível abrir a música."));
       return;
     }
     restoring = true;
@@ -449,7 +455,7 @@
         await window.AudioSync.useFile(song.audio);
       }
     } catch {
-      setStatus("Não foi possível abrir a música.");
+      setStatus(T("Não foi possível abrir a música."));
     } finally {
       restoring = false;
     }
@@ -483,8 +489,8 @@
       if (!hadCover) findCover(currentKey, artist, title, true);
     } catch {
       setStatus(folder !== null
-        ? "Não foi possível guardar a música na pasta da biblioteca."
-        : "Não foi possível guardar a música na biblioteca.");
+        ? T("Não foi possível guardar a música na pasta da biblioteca.")
+        : T("Não foi possível guardar a música na biblioteca."));
     }
   });
 
@@ -496,8 +502,8 @@
       refresh();
     } catch {
       setStatus(folder !== null
-        ? "Não foi possível guardar o áudio na pasta da biblioteca."
-        : "Não foi possível guardar o áudio na biblioteca (espaço do browser?).");
+        ? T("Não foi possível guardar o áudio na pasta da biblioteca.")
+        : T("Não foi possível guardar o áudio na biblioteca (espaço do browser?)."));
     }
   });
 

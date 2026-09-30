@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import guitarpro as gp
 
+from .i18n import tr
 from .model import Score, ScoreBeat, ScoreNote
 
 _UNITS_TO_DURATION = {
@@ -205,13 +206,20 @@ def _build_track(song: gp.Song, number: int, score: Score) -> gp.Track:
 def build_song(scores: Sequence[Score], info: SongInfo) -> gp.Song:
     """Build a song with one track per score; all scores must have the same number of measures."""
     if not scores or not scores[0].measures:
-        raise ValueError("A partitura não tem compassos.")
+        raise ValueError(tr("A partitura não tem compassos.", "The score has no bars."))
     if len(scores) > MAX_TRACKS:
-        raise ValueError(f"Máximo de {MAX_TRACKS} tracks.")
+        raise ValueError(tr(f"Máximo de {MAX_TRACKS} tracks.", f"Maximum of {MAX_TRACKS} tracks."))
     if any(s.string_count > MAX_STRINGS for s in scores):
-        raise ValueError(f"O formato GP5 suporta no máximo {MAX_STRINGS} cordas.")
+        raise ValueError(
+            tr(
+                f"O formato GP5 suporta no máximo {MAX_STRINGS} cordas.",
+                f"The GP5 format supports at most {MAX_STRINGS} strings.",
+            )
+        )
     if len({len(s.measures) for s in scores}) != 1:
-        raise ValueError("As tracks têm números de compassos diferentes.")
+        raise ValueError(
+            tr("As tracks têm números de compassos diferentes.", "The tracks have different numbers of bars.")
+        )
     song = gp.Song()
     song.title = sanitize_text(info.title)
     song.artist = sanitize_text(info.artist)

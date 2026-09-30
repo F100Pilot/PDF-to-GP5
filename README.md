@@ -40,6 +40,7 @@ Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Con
 - **MP3 na pasta das partituras** (Chrome/Edge): escolhendo os PDFs pela zona "Arraste os PDFs" (clique ou arrastar), a aplicação fica a saber em que pasta estão (sem ler mais nada); depois de obter o MP3 de um endereço, "Guardar o MP3 na pasta das partituras" abre o diálogo de gravação nessa pasta e com o nome já preenchido — basta confirmar. A pasta fica lembrada na biblioteca. O browser não deixa gravar numa pasta sem esta confirmação; noutros browsers o botão é um download normal.
 - **Atalhos**: Espaço tocar/pausa · ← → compasso anterior/seguinte · 1–4 vista · [ ] atrasar/adiantar a partitura 0,1 s (com áudio) · L loop A–B · **Ctrl K** (⌘K no Mac) procura páginas, músicas da biblioteca e comandos.
 - **Tema**: do sistema, claro ou escuro (Definições; fica guardado no browser).
+- **Idiomas** / **Languages**: português e inglês (English). A escolha fica no fundo do menu lateral e em Definições → Aparência; por defeito segue o idioma do browser. As mensagens do servidor (erros, avisos da conversão) vêm no mesmo idioma. As Novidades (CHANGELOG) continuam em português. Cada idioma é um dicionário `app/static/i18n-<código>.js`, com o português como chave; texto novo tem de ter tradução em todos (ver `.claude/skills/pdf-to-gp5-i18n/SKILL.md`; `tests/test_i18n.py` falha se faltar).
 - **Tracks**: a ordem muda com as setas ou arrastando pela pega ⠿.
 
 ## Arranque rápido (Windows)

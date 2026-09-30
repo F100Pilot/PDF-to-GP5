@@ -157,7 +157,7 @@
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true });
     } catch {
-      throw new Error("Este browser não tem WebGL (aceleração gráfica) ativo: a pista 3D não está disponível.");
+      throw new Error(T("Este browser não tem WebGL (aceleração gráfica) ativo: a pista 3D não está disponível."));
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.localClippingEnabled = true;
@@ -171,7 +171,7 @@
     const fill = document.createElement("div");
     fill.className = "hw-progress-fill";
     progress.appendChild(fill);
-    progress.title = "Clique para avançar ou recuar";
+    progress.title = T("Clique para avançar ou recuar");
     progress.addEventListener("pointerdown", (event) => {
       const box = progress.getBoundingClientRect();
       if (box.width > 0) onSeek(Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1));
@@ -1139,7 +1139,8 @@
       hud.bar = bar;
       let section = "";
       for (let i = bar; i >= 0 && !section; i -= 1) section = song.bars[i].section;
-      hud.position.textContent = `Compasso ${song.bars[bar].number} / ${song.barCount}${section ? ` · ${section}` : ""}`;
+      const position = T("Compasso {bar} / {total}", { bar: song.bars[bar].number, total: song.barCount });
+      hud.position.textContent = section ? `${position} · ${section}` : position;
     }
     updateLyrics(tick, bar);
     const percent = Math.round((1000 * Math.min(Math.max(tick, 0), song.endTick)) / song.endTick) / 10;

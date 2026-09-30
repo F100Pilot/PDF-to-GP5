@@ -8,6 +8,8 @@
   <link rel="preload" href="vendor/fonts/ibm-plex-sans.woff2" as="font" type="font/woff2" crossorigin>
   <script src="theme.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <script src="i18n-en.js" defer></script>
+  <script src="i18n.js" defer></script>
   <script src="highway3d.js" defer></script>
   <script src="video.js" defer></script>
   <script src="gpzip.js" defer></script>
@@ -53,7 +55,8 @@
         <strong id="rail-song-title"></strong>
         <span id="rail-song-meta" class="muted"></span>
       </div>
-      <p class="rail-status"><span id="server-dot" class="dot" aria-hidden="true"></span><span id="server-text">A ligar ao servidor…</span></p>
+      <p class="rail-status"><span id="server-dot" class="dot" aria-hidden="true"></span><span id="server-text">A ligar ao servidor…</span>
+        <select class="rail-lang" data-lang-select="short" translate="no" aria-label="Idioma · Language"></select></p>
     </nav>
 
     <div class="content">
@@ -430,6 +433,8 @@
                 <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
                 <button type="button" data-theme-choice="dark" aria-pressed="false">Escuro</button>
               </div>
+              <label class="lang-field"><span translate="no">Idioma · Language</span>
+                <select data-lang-select="long" translate="no"></select></label>
             </section>
             <section class="card" aria-labelledby="h-keys">
               <h2 id="h-keys" class="card-title">Atalhos de teclado</h2>

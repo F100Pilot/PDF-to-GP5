@@ -15,15 +15,21 @@ import multiprocessing as mp
 import sys
 from multiprocessing.connection import Connection
 
+from . import i18n
 from .converter import ConversionError, ConversionOptions, ConversionResult, convert_many, inspect
 
 logger = logging.getLogger(__name__)
 
 _METHOD = "forkserver" if "forkserver" in mp.get_all_start_methods() else "spawn"
 _CTX = mp.get_context(_METHOD)
-GENERIC_ERROR = "Erro interno ao processar o PDF."
+GENERIC_ERROR = "Erro interno ao processar o PDF."  # Portuguese original; see generic_error()
 # Upper bound for the child's reply; a GP5 of a long song is a few hundred KB.
 MAX_REPLY_BYTES = 32 * 1024 * 1024
+
+
+def generic_error() -> str:
+    """The generic failure text, in the language of the current request."""
+    return i18n.tr(GENERIC_ERROR, "Internal error while processing the PDF.")
 
 
 class ConversionTimeout(Exception):
@@ -123,8 +129,15 @@ def _reply(conn: Connection, **payload: object) -> None:
 
 
 def _worker(
-    conn: Connection, pdfs: list[bytes], options: ConversionOptions, memory_mb: int, job: str, cpu_seconds: int
+    conn: Connection,
+    pdfs: list[bytes],
+    options: ConversionOptions,
+    memory_mb: int,
+    job: str,
+    cpu_seconds: int,
+    lang: str = i18n.DEFAULT,
 ) -> None:
+    i18n.use(lang)  # the child writes its warnings and errors in the user's language
     try:
         _limit_resources(memory_mb, cpu_seconds)
         if job == "inspect":
@@ -135,10 +148,16 @@ def _worker(
     except ConversionError as exc:
         _reply(conn, status="error", message=str(exc))
     except MemoryError:
-        _reply(conn, status="error", message="O PDF excede o limite de memória de processamento.")
+        _reply(
+            conn,
+            status="error",
+            message=i18n.tr(
+                "O PDF excede o limite de memória de processamento.", "The PDF exceeds the processing memory limit."
+            ),
+        )
     except Exception:  # never leak internals to the client
         logger.exception("conversion failed")
-        _reply(conn, status="error", message=GENERIC_ERROR)
+        _reply(conn, status="error", message=generic_error())
     finally:
         conn.close()
 
@@ -154,7 +173,7 @@ def _decode_reply(raw: bytes) -> ConversionResult:
     except ConversionError:
         raise
     except (ValueError, KeyError, TypeError) as exc:
-        raise ConversionError(GENERIC_ERROR) from exc
+        raise ConversionError(generic_error()) from exc
 
 
 def run_isolated(
@@ -170,7 +189,9 @@ def run_isolated(
         pdfs = [pdfs]
     receiver, sender = _CTX.Pipe(duplex=False)
     process = _CTX.Process(
-        target=_worker, args=(sender, pdfs, options, memory_mb, job, max(1, int(timeout_s)) + 5), daemon=True
+        target=_worker,
+        args=(sender, pdfs, options, memory_mb, job, max(1, int(timeout_s)) + 5, i18n.current()),
+        daemon=True,
     )
     try:
         process.start()
@@ -186,7 +207,7 @@ def run_isolated(
         try:
             raw = receiver.recv_bytes(MAX_REPLY_BYTES)
         except (EOFError, OSError) as exc:  # child died or reply too large
-            raise ConversionError(GENERIC_ERROR) from exc
+            raise ConversionError(generic_error()) from exc
     finally:
         receiver.close()
         process.join(timeout=1)
