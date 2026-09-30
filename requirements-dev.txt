@@ -4,3 +4,4 @@ httpx2==2.13.1
 reportlab==5.0.1
 ruff
 pip-audit
+playwright==1.63.0  # .claude/skills/gp-alphatab-check (alphaTab in headless Chromium)
