@@ -1,6 +1,6 @@
 ---
 name: pdf-to-gp5-i18n
-description: PDF → GP5 is a multilingual app (Portuguese original + English + any language added later). Use this skill WHENEVER a change adds or edits text a user can see — the page markup (app/static/index.html), script strings (app/static/*.js: labels, toasts, alert/confirm, titles, aria-labels, status lines, report rows, the 3D highway's labels), or messages the server writes (HTTPException details, conversion errors and report warnings, audio/library/cover errors) — and when adding a new language. Every new text ships translated into EVERY language the app has, in the same change.
+description: PDF → GP5 is a multilingual app (Portuguese original + English + any language added later). Use this skill WHENEVER a change adds or edits text a user can see — the page markup (app/static/index.html), script strings (app/static/*.js: labels, toasts, alert/confirm, titles, aria-labels, status lines, report rows, the 3D highway's labels), or messages the server writes (HTTPException details, conversion errors and report warnings, audio/library/cover errors) or a CHANGELOG entry (the in-app What's new) — and when adding a new language. Every new text ships translated into EVERY language the app has, in the same change.
 ---
 
 # PDF → GP5 i18n — every new text, in every language
@@ -56,8 +56,16 @@ the same as RockForge's (`.claude/skills/rockforge-i18n` there).
    - Not translated: logger messages, the CLI (`app/__main__.py`), the words
      used to DETECT text in PDFs (metadata/annotations/tunings keyword lists),
      and data written into the GP5 (track names).
-6. **Check:**
-   - `.venv/bin/python -m pytest -q tests/test_i18n.py tests/test_i18n_server.py`
+6. **What's new (CHANGELOG):** the banner shows `CHANGELOG.<code>.md` in the
+   user's language. A new entry in `CHANGELOG.md` goes, translated, into the same
+   release and section of EVERY `CHANGELOG.*.md` (today `CHANGELOG.en.md`:
+   Adicionado→Added, Alterado→Changed, Corrigido→Fixed, Removido→Removed,
+   Segurança→Security), in the same position; a release bump renames the heading
+   in all of them. `tests/test_changelog.py` fails when releases, sections or the
+   number of entries differ. UI names quoted in an entry use the English UI's
+   own words (look them up in `i18n-en.js`).
+7. **Check:**
+   - `.venv/bin/python -m pytest -q tests/test_i18n.py tests/test_i18n_server.py tests/test_changelog.py`
      fails on a missing entry in any language, a `${}` inside `T()`,
      placeholders that differ, Portuguese left outside `T()`, or a dictionary
      not loaded by the page.
@@ -91,4 +99,4 @@ language, follow the same concepts (and Guitar Pro's own terms in that language)
 4. Server messages read the English until a `<code>=` keyword is added to their
    `tr(...)`. Adding it everywhere is a separate, larger pass — say so rather
    than claiming the server is translated.
-5. Update the README's language note and the CHANGELOG.
+5. Create `CHANGELOG.<code>.md` (same releases, sections and entries, translated from the Portuguese), and update the README's language note and the CHANGELOG.

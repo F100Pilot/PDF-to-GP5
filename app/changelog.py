@@ -1,4 +1,8 @@
-"""Parse CHANGELOG.md (Keep a Changelog format) for the in-app "what's new" banner."""
+"""Parse CHANGELOG.md (Keep a Changelog format) for the in-app "what's new" banner.
+
+The Portuguese is CHANGELOG.md; every other language the app has is
+CHANGELOG.<code>.md with the same releases, sections and items (tests/test_changelog.py
+checks it). A language without its own file reads the Portuguese."""
 
 from __future__ import annotations
 
@@ -48,9 +52,15 @@ def parse_changelog(text: str) -> list[dict]:
     return sorted(releases, key=lambda r: version_key(r["version"]), reverse=True)
 
 
-@lru_cache(maxsize=1)
-def load_releases() -> tuple[dict, ...]:
+def changelog_path(lang: str = "pt") -> Path:
+    """CHANGELOG.<lang>.md when the language has one, else the Portuguese CHANGELOG.md."""
+    translated = CHANGELOG_PATH.with_name(f"CHANGELOG.{lang}.md")
+    return translated if lang != "pt" and translated.is_file() else CHANGELOG_PATH
+
+
+@lru_cache(maxsize=8)
+def load_releases(lang: str = "pt") -> tuple[dict, ...]:
     try:
-        return tuple(parse_changelog(CHANGELOG_PATH.read_text(encoding="utf-8")))
+        return tuple(parse_changelog(changelog_path(lang).read_text(encoding="utf-8")))
     except OSError:
         return ()

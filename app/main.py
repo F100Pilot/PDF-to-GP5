@@ -22,7 +22,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import __revision__, __version__, audio_download
+from . import __revision__, __version__, audio_download, i18n
 from .changelog import load_releases, version_key
 from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
@@ -129,7 +129,7 @@ app.add_middleware(LanguageMiddleware)  # outermost: every message below is writ
 async def changelog() -> dict:
     """Released changes up to the running version, newest first (for the "what's new" banner)."""
     current = version_key(__version__)
-    releases = [r for r in load_releases() if version_key(r["version"]) <= current]
+    releases = [r for r in load_releases(i18n.current()) if version_key(r["version"]) <= current]
     return {"version": __version__, "releases": releases}
 
 
