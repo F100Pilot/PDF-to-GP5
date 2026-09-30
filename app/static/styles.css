@@ -404,7 +404,23 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 }
 .hw-lyrics .sung { color: #8b95a7; }
 .hw-lyrics .now { color: #ffd54f; }
-.score-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.score-stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; position: relative; }
+/* Audio panel closed with ✕: a tab on the score's right edge opens it again. */
+.side-reopen {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 12px 6px;
+  writing-mode: vertical-rl;
+  border-radius: 10px 0 0 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.side-reopen span { writing-mode: horizontal-tb; }
 .score-stage.with-side { grid-template-columns: minmax(0, 1fr) minmax(300px, 32%); }
 @media (max-width: 900px) { .score-stage.with-side { grid-template-columns: minmax(0, 1fr); } }
 /* Audio and video panels beside the score: they stay on screen while the score scrolls. */

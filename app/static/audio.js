@@ -32,6 +32,7 @@
   const collapseButton = document.getElementById("audio-collapse");
   const hideButton = document.getElementById("audio-hide");
   const toggleButton = document.getElementById("audio-toggle");
+  const reopenButton = document.getElementById("audio-reopen");
   const COLLAPSED_KEY = "pdf-to-gp5.audio-panel-collapsed";
   const MUSIC_KEY = "pdf-to-gp5.music-volume";
   const NOTES_KEY = "pdf-to-gp5.notes-volume";
@@ -113,7 +114,7 @@
 
   // The panel sits in the column beside the score (with the video panel, when open). `loaded`:
   // there is audio; the user may still hide the panel (the audio keeps playing) and bring it
-  // back with the "Áudio" button by the score, or collapse it to the transport row.
+  // back with the tab on the score's edge or "Mostrar áudio", or collapse it to a strip.
   let panelHidden = false;
 
   const videoPanel = document.getElementById("video-panel");
@@ -132,6 +133,9 @@
     const open = loaded && !panelHidden;
     toggleButton.hidden = !loaded;
     toggleButton.setAttribute("aria-pressed", String(open));
+    toggleButton.textContent = open ? "Esconder áudio" : "Mostrar áudio";
+    // Closed with ✕: a tab at the score's right edge brings the panel back.
+    reopenButton.hidden = !loaded || open;
     if (panel.hidden === !open) return;
     panel.hidden = !open;
     stageBox.classList.toggle("with-side", open || !videoPanel.hidden);
@@ -160,11 +164,16 @@
   hideButton.addEventListener("click", () => {
     panelHidden = true;
     showPanel(Boolean(audio));
-    toggleButton.focus();
+    reopenButton.focus();
   });
   toggleButton.addEventListener("click", () => {
     panelHidden = !panelHidden;
     showPanel(Boolean(audio));
+  });
+  reopenButton.addEventListener("click", () => {
+    panelHidden = false;
+    showPanel(Boolean(audio));
+    hideButton.focus();
   });
   try {
     setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
@@ -426,7 +435,7 @@
 
   window.AudioSync = {
     useFile: (file) => useAudioFile(file),
-    // Show the panel again after it was closed with ✕ (the Áudio button does the same).
+    // Show the panel again after it was closed with ✕ (the tab by the score and "Mostrar áudio" do the same).
     showPanel() {
       panelHidden = false;
       showPanel(Boolean(audio));
