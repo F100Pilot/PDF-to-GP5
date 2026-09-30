@@ -508,7 +508,9 @@
     score.backingTrack = new alphaTab.model.BackingTrack();
     score.backingTrack.rawAudioFile = audio;
     score.applyFlatSyncPoints([{ barIndex: 0, barOccurence: 0, barPosition: 0, millisecondOffset: Math.round(offsetMs) }]);
-    return new alphaTab.exporter.Gp7Exporter().export(score, settings);
+    const gp = new alphaTab.exporter.Gp7Exporter().export(score, settings);
+    // The audio as "backing-track.mp3" (alphaTab writes it with no extension), as in Guitar Pro's files.
+    return window.GpZip.nameBackingTrack(gp, audio);
   }
 
   // For the song's audio controls: play / pause the score, restart it at bar 1 (keeps playing).
