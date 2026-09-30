@@ -13,7 +13,7 @@ Correm na sessão do Claude, sem ninguém a ver, e não precisam de rede.
 
 | O quê | Como | Última vez | Resultado |
 |---|---|---|---|
-| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-09-30 | 410 passam |
+| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-09-30 | 424 passam |
 | Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-09-30 | Sem erros |
 | GP5 igual ao alphaTab | Skill `gp-alphatab-check`, nos 12 PDFs e no `September.gp` | 2026-09-30 | Tudo igual, incluindo o `.gp` exportado pelo alphaTab |
 | RockForge igual ao alphaTab | Skill `rockforge-alphatab-check`, nos 12 PDFs | 2026-09-30 | Tudo igual, incluindo a forma dos bends |
@@ -32,6 +32,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 - Biblioteca na pasta do disco: as músicas guardadas no browser passam para a pasta, e outro browser (outro endereço) vê as mesmas músicas.
 - Exportar `.gp` com áudio: o áudio fica com o nome `backing-track.mp3` dentro do ficheiro.
 - Partitura desenhada pelo alphaTab, nas vistas normal e só tab.
+- Relatório da conversão: a pré-visualização em texto aparece numa tab em texto e não aparece numa tab gravada ("September").
 
 ## Por testar à mão
 

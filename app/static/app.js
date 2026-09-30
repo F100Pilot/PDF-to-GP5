@@ -396,9 +396,13 @@
     const systemsTitle = document.createElement("summary");
     systemsTitle.textContent = "Linhas de tab detetadas";
     systems.append(systemsTitle, table);
-    const preview = document.createElement("pre");
-    preview.textContent = track.preview;
-    details.append(systems, preview);
+    details.append(systems);
+    // The plain-text preview is for proofreading a tab read from text; an engraved tab has the score.
+    if (track.sources.every((source) => source === "ascii")) {
+      const preview = document.createElement("pre");
+      preview.textContent = track.preview;
+      details.append(preview);
+    }
     return details;
   }
 

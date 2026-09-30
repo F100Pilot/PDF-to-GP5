@@ -45,6 +45,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Alterado
+- Relatório da conversão: a pré-visualização da tab em texto só aparece nas tracks lidas de uma tab em texto; numa tab gravada por editor já não aparece (o resultado vê-se na partitura).
 - Bends no GP5 como o alphaTab os toca: o bend simples e o pre-bend com release passam a ter só dois pontos (uma linha ao longo da nota), por isso o Guitar Pro e o TuxGuitar mostram a mesma curva que o alphaTab. O bend + release continua com 4 pontos.
 - Skill `rockforge-alphatab-check`: compara também a forma do bend (linha `bend curve`), não só o tamanho.
 - Painel do áudio, início da música: o valor fica ao centro, sempre com centésimas de segundo, com −1 −0,1 −0,01 à esquerda (adiantar a partitura) e +0,01 +0,1 +1 à direita (atrasar); "Marcar início" passa para baixo. No painel estreito, o valor fica por cima dos botões.
