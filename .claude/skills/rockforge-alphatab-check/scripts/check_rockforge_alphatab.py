@@ -8,7 +8,9 @@ Rocksmith's terms first, the way RockForge charts a score:
 
 - a tie chain is ONE note (its bend and vibrato belong to the held note);
 - hammer-on / pull-off is on the destination note, from the origin's fret;
-- a bend is its peak in half-steps; harmonics are plain or pinch;
+- a bend is its peak in half-steps, and its curve over the tie chain (the pitch
+  at each point of either side, in seconds on RockForge's bar grid);
+- harmonics are plain or pinch;
 - grace notes are notes of their own.
 
 Notes RockForge adds on purpose (the lead-in of a slide into a note, the notes of
@@ -67,11 +69,20 @@ DUMP_JS = """
             while (chain[chain.length - 1].tieDestination) chain.push(chain[chain.length - 1].tieDestination);
             const last = chain[chain.length - 1];
             let peak = 0;
-            for (const n of chain) if (n.hasBend) for (const b of n.bendPoints) peak = Math.max(peak, b.value);
+            const curve = [];  // [tick, half-steps] over the chain
+            const start = pass.start + beat.playbackStart;
+            for (const n of chain) {
+              if (!n.hasBend) continue;
+              const at = start + n.beat.absolutePlaybackStart - beat.absolutePlaybackStart;
+              for (const b of n.bendPoints) {
+                peak = Math.max(peak, b.value);
+                curve.push([at + b.offset / 60 * n.beat.playbackDuration, b.value / 2]);
+              }
+            }
             notes.push({
               tick: pass.start + beat.playbackStart, string: note.string - 1, fret: note.fret,
               grace: beat.graceType !== 0,
-              bend: peak / 2,
+              bend: peak / 2, curve, bentFromStart: note.hasBend,
               vibrato: chain.some(n => n.vibrato > 0 || n.beat.vibrato > 0),
               palmMute: note.isPalmMute, letRing: note.isLetRing, dead: note.isDead,
               accent: note.accentuated > 0, harmonic: note.harmonicType,
@@ -127,6 +138,49 @@ def _where_time(downbeats: list[float], time: float) -> tuple[int, float]:
     else:
         span = downbeats[i] - downbeats[i - 1] if i > 0 else 1.0
     return i + 1, (time - downbeats[i]) / span if span > 0 else 0.0
+
+
+def _to_seconds(downbeats: list[float], bar: int, pos: float) -> float:
+    """RockForge time of a (played bar, position) — the inverse of _where_time."""
+    i = min(bar, len(downbeats)) - 1
+    if i + 1 < len(downbeats):
+        span = downbeats[i + 1] - downbeats[i]
+    else:
+        span = downbeats[i] - downbeats[i - 1] if i > 0 else 1.0
+    return downbeats[i] + pos * span
+
+
+def _pitch(curve: list[tuple[float, float]], t: float, before: float) -> float:
+    """A bend curve's value at time t: linear between points, held after the
+    last, ``before`` ahead of the first."""
+    if t < curve[0][0]:
+        return before
+    for (t0, v0), (t1, v1) in itertools.pairwise(curve):
+        if t0 <= t <= t1:
+            return v0 + (v1 - v0) * (t - t0) / (t1 - t0) if t1 > t0 else v1
+    return curve[-1][1]
+
+
+def _bend_curve_diff(e: dict, g: dict, passes: list, downbeats: list[float]) -> str | None:
+    """Where the two bend curves disagree, or None.
+
+    alphaTab's points are read on RockForge's curve, and RockForge's on
+    alphaTab's. RockForge ends a note a little early (a gap before the next
+    note), moving points past the new end onto it: those are not compared.
+    A RockForge note without a curve is its single-peak bend, a rise across the
+    note."""
+    at = [(_to_seconds(downbeats, *_where_tick(passes, tick)), v) for tick, v in e["curve"]]
+    end = g["time"] + g["sustain"]
+    rf = [tuple(p) for p in g["bend_points"]] or [(g["time"], 0.0), (end, g["bend"])]
+    at_before = at[0][1] if e["bentFromStart"] else 0.0
+    eps = 1e-3
+    for t, v in at:
+        if t <= end - eps and abs(_pitch(rf, t, rf[0][1]) - v) > 0.05:
+            return f"at {t:.3f} s alphaTab {v:g}, RockForge {_pitch(rf, t, rf[0][1]):.2f}"
+    for t, v in rf:
+        if t < end - eps and abs(_pitch(at, t, at_before) - v) > 0.05:
+            return f"at {t:.3f} s RockForge {v:g}, alphaTab {_pitch(at, t, at_before):.2f}"
+    return None
 
 
 def _expected(notes: list[dict]) -> list[dict]:
@@ -202,6 +256,8 @@ def _compare_track(at_track: dict, passes: list, rf_track: dict, max_examples: i
             diffs[f"{tech}: in RockForge, not in alphaTab"].append(where)
         if e["bend"] > 0 and abs(g["bend"] - e["bend"]) > 1e-6:
             diffs["bend size"].append(f"{where}: alphaTab {e['bend']} RockForge {g['bend']} half-steps")
+        elif e["bend"] > 0 and downbeats and (why := _bend_curve_diff(e, g, passes, downbeats)):
+            diffs["bend curve"].append(f"{where}: {why}")
         if "slide_to" in e and g.get("slide_to") != e["slide_to"]:
             diffs["slide target"].append(f"{where}: alphaTab {e['slide_to']} RockForge {g.get('slide_to')}")
 

@@ -53,11 +53,12 @@ def sanitize_text(value: str, max_length: int = 100) -> str:
 
 def _bend(note: ScoreNote) -> gp.BendEffect:
     # BendPoint values are quarter tones (PyGuitarPro scales them on write).
+    # A bend or a pre-bend release is written as alphaTab plays it (it drops the middle of a
+    # three-point bend): a straight line across the note, so Guitar Pro and TuxGuitar show the same.
     peak = note.bend_semitones * 2
     if note.bend_pre:
         if note.bend_release:
-            # Three points: readers such as alphaTab infer the shape from the points.
-            points = [gp.BendPoint(0, peak), gp.BendPoint(6, peak), gp.BendPoint(12, 0)]
+            points = [gp.BendPoint(0, peak), gp.BendPoint(12, 0)]
             bend_type = gp.BendType.prebendRelease
         else:
             points = [gp.BendPoint(0, peak), gp.BendPoint(12, peak)]
@@ -68,7 +69,7 @@ def _bend(note: ScoreNote) -> gp.BendEffect:
         points = [gp.BendPoint(0, 0), gp.BendPoint(3, peak), gp.BendPoint(6, peak), gp.BendPoint(9, 0)]
         bend_type = gp.BendType.bendRelease
     else:
-        points = [gp.BendPoint(0, 0), gp.BendPoint(6, peak), gp.BendPoint(12, peak)]
+        points = [gp.BendPoint(0, 0), gp.BendPoint(12, peak)]
         bend_type = gp.BendType.bend
     return gp.BendEffect(type=bend_type, value=note.bend_semitones * _BEND_UNITS_PER_SEMITONE, points=points)
 

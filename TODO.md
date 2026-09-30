@@ -13,7 +13,9 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 
 - [x] **Comparação RockForge ↔ alphaTab:** skill `rockforge-alphatab-check`. Encontrou o let ring perdido nos `.gp` (RockForge a566e91).
 - [x] **Teste de ponta a ponta até ao chart do Rocksmith:** RockForge `tests/test_gp_to_chart.py`, de GP5 até XML e SNG, verificado também com o September. Encontrou o bend comprimido quando a nota é encurtada e a curva perdida ao reler o XML (RockForge cdbdd97). Sem o jogo, que não corre aqui.
-- [ ] **Bends de 3–4 pontos: seguir o alphaTab?** (RockForge, decidir com um teste no jogo). O alphaTab simplifica estes bends: "sobe até meio da nota e fica lá" passa a "sobe devagar ao longo da nota toda", e o mesmo em pre-bends e releases. O RockForge usa a curva do ficheiro, por isso o bend no Rocksmith sobe mais depressa do que no alphaTab. Seguir o alphaTab obriga a pôr um ponto do bend no início da nota, e o próprio RockForge avisa que isso é frágil no jogo.
+- [x] **Bends de 3 pontos como no alphaTab** (RockForge + PDF-to-GP5). "Sobe até meio da nota e fica" passa a subir ao longo da nota toda, e o mesmo nos pre-bends com release. No Rocksmith a subida fica como um único ponto no fim da nota, sem ponto no início. A skill `rockforge-alphatab-check` compara agora também a forma do bend.
+- [ ] **Pre-bend simples** (RockForge, decidir com um teste no jogo). O alphaTab toca-o já dobrado desde o início; o RockForge escreve-o como uma subida (um ponto no fim da nota), porque um ponto no início da nota é o caso frágil no jogo.
+- [ ] **Bends de 4 pontos que não são bend + release** (ex.: sobe e fica, com dois pontos no meio): o alphaTab também os simplifica; o RockForge usa a curva do ficheiro. Não aparecem nos ficheiros que este programa gera.
 
 ## Aplicação (PDF-to-GP5)
 

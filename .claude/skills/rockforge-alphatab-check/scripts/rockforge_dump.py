@@ -2,8 +2,8 @@
 
 Usage: <rockforge>/.venv/bin/python rockforge_dump.py ROCKFORGE_DIR FILE
 Prints {"tracks": [{"index", "name", "error" | "notes", "downbeats"}]}: the notes
-(time in seconds from bar 1, string 0 = lowest, fret, techniques, bend, slides)
-and the time of each played bar's downbeat, as parse_gp_track returns them.
+(time in seconds from bar 1, string 0 = lowest, fret, techniques, bend and its
+curve, slides) and the time of each played bar's downbeat, as parse_gp_track returns them.
 """
 
 from __future__ import annotations
@@ -36,6 +36,10 @@ def main() -> None:
                 "fret": n.fret,
                 "techniques": sorted(t.value for t in n.techniques),
                 "bend": n.bend_semitones,
+                # the curve in seconds; empty = the single-peak bend (a rise across the note)
+                "bend_points": [
+                    [n.time + p.position * n.sustain, p.step] for p in n.bend_points
+                ],
                 "slide_to": n.slide_to_fret,
                 "slide_unpitch_to": n.slide_unpitch_to,
                 "slide_in_from": n.slide_in_from,

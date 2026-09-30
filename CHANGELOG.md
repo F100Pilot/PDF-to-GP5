@@ -45,6 +45,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio da música no ficheiro Guitar Pro: depois de converter, pode escolher o mp3 (ou ogg/wav) da música; o download passa a ser um ficheiro .gp (Guitar Pro 7/8) com o áudio como faixa de áudio e o início da música marcado ("Marcar início" enquanto ouve o áudio na página). Sem áudio, o download continua a ser .gp5. O ficheiro .gp é criado no browser (com o alphaTab): o áudio não é enviado para o servidor.
 
 ### Alterado
+- Bends no GP5 como o alphaTab os toca: o bend simples e o pre-bend com release passam a ter só dois pontos (uma linha ao longo da nota), por isso o Guitar Pro e o TuxGuitar mostram a mesma curva que o alphaTab. O bend + release continua com 4 pontos.
+- Skill `rockforge-alphatab-check`: compara também a forma do bend (linha `bend curve`), não só o tamanho.
 - Painel do áudio, início da música: o valor fica ao centro, sempre com centésimas de segundo, com −1 −0,1 −0,01 à esquerda (adiantar a partitura) e +0,01 +0,1 +1 à direita (atrasar); "Marcar início" passa para baixo. No painel estreito, o valor fica por cima dos botões.
 - Porta por defeito passa de 8020 para 8021 (`python -m app`, scripts de arranque e README). O browser guarda a biblioteca e as preferências por endereço: o que ficou guardado em `127.0.0.1:8020` não aparece em `127.0.0.1:8021`.
 - Painel do áudio no leitor: colapsar recolhe-o para o lado, numa barra estreita (expandir, Tocar/Pausa), e a partitura fica com a largura toda; com o painel do vídeo também aberto, fica só a linha do título e o Tocar. O botão que volta a mostrar o painel depois de fechado com ✕ passou para a barra de reprodução (sempre visível), e também está no Ctrl K ("Mostrar o painel do áudio").

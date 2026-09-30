@@ -141,15 +141,15 @@ def test_roundtrip_stroke():
 
 
 @pytest.mark.parametrize(
-    ("pre", "release", "expected"),
+    ("pre", "release", "expected", "points"),
     [
-        (False, False, gp.BendType.bend),
-        (False, True, gp.BendType.bendRelease),
-        (True, False, gp.BendType.prebend),
-        (True, True, gp.BendType.prebendRelease),
+        (False, False, gp.BendType.bend, [(0, 0), (12, 4)]),
+        (False, True, gp.BendType.bendRelease, [(0, 0), (3, 4), (6, 4), (9, 0)]),
+        (True, False, gp.BendType.prebend, [(0, 4), (12, 4)]),
+        (True, True, gp.BendType.prebendRelease, [(0, 4), (12, 0)]),
     ],
 )
-def test_bend_types(pre, release, expected):
+def test_bend_types(pre, release, expected, points):
     note = ScoreNote(2, 10, bend_semitones=2, bend_pre=pre, bend_release=release)
     bend = (
         _roundtrip(_score([ScoreMeasure([ScoreBeat(32, [note])])]))
@@ -161,9 +161,9 @@ def test_bend_types(pre, release, expected):
         .effect.bend
     )
     assert bend.type == expected and bend.value == 100
-    # Guitar Pro 7/8 (.gp) keeps at most 4 bend points; alphaTab's .gp export drops longer bends.
-    assert 2 <= len(bend.points) <= 4
-    assert bend.points[0].position == 0
+    # The curve alphaTab plays (a three-point bend loses its middle point), and at most 4 points:
+    # Guitar Pro 7/8 (.gp) keeps no more, and alphaTab's .gp export drops longer bends.
+    assert [(p.position, p.value) for p in bend.points] == points
 
 
 def test_more_than_seven_strings_rejected():

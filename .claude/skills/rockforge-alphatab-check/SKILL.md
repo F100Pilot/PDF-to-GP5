@@ -47,7 +47,10 @@ note differently from what alphaTab plays, before it gets to the game.
   - a tie chain is one note, and its bend and vibrato belong to the held note;
   - hammer/pull is on the destination, and a hammerOn or pullOff depends on
     whether the fret goes up or down;
-  - a bend is its peak in half-steps;
+  - a bend is its peak in half-steps, and its curve: each side's points are
+    read on the other's curve, in seconds on RockForge's bar grid (points
+    past RockForge's shortened note end are not compared; a note without a
+    curve is RockForge's single-peak bend, a rise across the note);
   - harmonics are plain (natural, tapped, semi) or pinch (artificial, pinch);
   - a slide-to has a target fret;
   - grace notes are notes of their own.
@@ -65,6 +68,7 @@ note differently from what alphaTab plays, before it gets to the game.
 | `<technique>: in alphaTab, not in RockForge` | The technique is lost in RockForge (e.g. let ring written as `<LetRing/>` in a `.gp`) |
 | `<technique>: in RockForge, not in alphaTab` | RockForge adds or misreads the technique (e.g. pinch read as a natural harmonic) |
 | `bend size` / `slide target` | Same note, a different bend size or slide target fret |
+| `bend curve` | Same bend size, a different shape: the first moment where the pitch differs (e.g. a flat pre-bend, which RockForge charts as a rise) |
 
 Sustain lengths are not compared: RockForge trims each one to leave a gap
 before the next note.
