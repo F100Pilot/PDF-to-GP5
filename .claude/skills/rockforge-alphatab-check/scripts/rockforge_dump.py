@@ -37,9 +37,7 @@ def main() -> None:
                 "techniques": sorted(t.value for t in n.techniques),
                 "bend": n.bend_semitones,
                 # the curve in seconds; empty = the single-peak bend (a rise across the note)
-                "bend_points": [
-                    [n.time + p.position * n.sustain, p.step] for p in n.bend_points
-                ],
+                "bend_points": [[n.time + p.position * n.sustain, p.step] for p in n.bend_points],
                 "slide_to": n.slide_to_fret,
                 "slide_unpitch_to": n.slide_unpitch_to,
                 "slide_in_from": n.slide_in_from,

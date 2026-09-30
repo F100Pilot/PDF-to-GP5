@@ -72,7 +72,6 @@ def _system(events, rhythm):
         start_x=0,
         end_x=100,
         char_width=6.0,
-        source="engraved",
         rhythm=rhythm,
     )
 

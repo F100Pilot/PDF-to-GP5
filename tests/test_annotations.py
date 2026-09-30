@@ -95,7 +95,6 @@ def _system(events=(), dyn=(), bars=(0.0, 100.0), numbers=(1,), lyr=()):
         start_x=0,
         end_x=100,
         char_width=5.0,
-        source="engraved",
         bar_numbers=list(numbers),
         dynamics=list(dyn),
         lyrics=list(lyr),

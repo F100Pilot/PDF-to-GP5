@@ -6,10 +6,8 @@ from app.model import Link, TabEvent, TabSystem
 from app.rhythm import REPRESENTABLE_UNITS, RhythmOptions, _quantize, build_measures, split_units
 
 
-def _system(events, bars, start=0.0, end=100.0, source="ascii"):
-    return TabSystem(
-        page=1, string_count=6, events=events, bars=bars, start_x=start, end_x=end, char_width=1.0, source=source
-    )
+def _system(events, bars, start=0.0, end=100.0):
+    return TabSystem(page=1, string_count=6, events=events, bars=bars, start_x=start, end_x=end, char_width=1.0)
 
 
 @pytest.mark.parametrize("units", range(1, 97))
@@ -109,7 +107,7 @@ def test_empty_bar_becomes_full_rest():
 
 def test_multi_bar_rest_from_bar_numbers():
     events = [TabEvent(x=2.0, string=1, fret=0)]
-    system = _system(events, [0.0, 10.0, 20.0, 30.0], end=30.0, source="engraved")
+    system = _system(events, [0.0, 10.0, 20.0, 30.0], end=30.0)
     system.bar_numbers = [53, 54, 57]  # bar 54 is a 3-bar rest; bar 57 is 1 bar (end of piece)
     counts = []
     measures = build_measures([system], RhythmOptions(mode="spacing"), [], counts)
@@ -117,9 +115,9 @@ def test_multi_bar_rest_from_bar_numbers():
 
 
 def test_multi_bar_rest_uses_next_system_number():
-    first = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0, 20.0], end=20.0, source="engraved")
+    first = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0, 20.0], end=20.0)
     first.bar_numbers = [1, 2]
-    second = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0], end=10.0, source="engraved")
+    second = _system([TabEvent(x=2.0, string=1, fret=0)], [0.0, 10.0], end=10.0)
     second.bar_numbers = [6]
     counts = []
     build_measures([first, second], RhythmOptions(mode="spacing"), [], counts)
@@ -162,18 +160,11 @@ def test_measure_cap_is_enforced():
     import pytest
 
     from app.converter import ConversionError, ConversionOptions, convert
-    from tests.pdf_factory import ascii_tab_pdf
+    from tests.pdf_factory import engraved_tab_pdf
 
-    tab = [
-        "e|-0---|-0---|-0---|",
-        "B|-----|-----|-----|",
-        "G|-----|-----|-----|",
-        "D|-----|-----|-----|",
-        "A|-----|-----|-----|",
-        "E|-----|-----|-----|",
-    ]
+    tab = engraved_tab_pdf([[(1, 0)], [(1, 0)], [(1, 0)]])
     with pytest.raises(ConversionError, match="compassos"):
-        convert(ascii_tab_pdf([tab]), ConversionOptions(max_measures=2))
+        convert(tab, ConversionOptions(max_measures=2))
 
 
 def test_time_signature_change_and_repeat_signs_per_bar():

@@ -10,16 +10,14 @@ from app import main
 from app.converter import ConversionError, ConversionOptions
 from app.sandbox import GENERIC_ERROR, ConversionTimeout, _decode_reply, run_isolated
 from app.security import RateLimiter
-from tests.pdf_factory import ascii_tab_pdf, blank_pdf
+from tests.pdf_factory import blank_pdf, engraved_tab_pdf
 
-TAB = [
-    "e|-0---3---5h7---|",
-    "B|---------------|",
-    "G|---------------|",
-    "D|---------------|",
-    "A|---------------|",
-    "E|---------------|",
-]
+# One bar on the high E string: 0 3 5 h 7.
+TAB = [[(1, 0), (1, 3), (1, 5), (1, 7, "H")]]
+
+
+def _tab_pdf(**kwargs) -> bytes:
+    return engraved_tab_pdf(TAB, **kwargs)
 
 
 @pytest.fixture(scope="module")
@@ -127,7 +125,7 @@ def test_page_files_are_revalidated(client):
 
 
 def test_convert_json(client):
-    response = _post(client, ascii_tab_pdf([TAB]), title="Riff", tempo="90", tuning="drop_d")
+    response = _post(client, _tab_pdf(), title="Riff", tempo="90", tuning="drop_d")
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["filename"] == "Riff.gp5"
@@ -148,7 +146,7 @@ def test_convert_with_every_form_field_as_browser_sends_it(client):
         "rhythm_mode": "fixed",
         "fixed_value": "8",
     }
-    response = _post(client, ascii_tab_pdf([TAB]), **form)
+    response = _post(client, _tab_pdf(), **form)
     assert response.status_code == 200, response.text
     song = gp.parse(io.BytesIO(base64.b64decode(response.json()["gp5_base64"])))
     assert song.measureHeaders[0].timeSignature.numerator == 3
@@ -156,7 +154,7 @@ def test_convert_with_every_form_field_as_browser_sends_it(client):
 
 
 def test_convert_binary(client):
-    response = _post(client, ascii_tab_pdf([TAB]), path="/api/convert/gp5")
+    response = _post(client, _tab_pdf(), path="/api/convert/gp5")
     assert response.status_code == 200
     assert response.headers["content-disposition"] == 'attachment; filename="my tab.gp5"'
     assert response.content.startswith(b"\x18FICHIER GUITAR PRO v5.10")
@@ -198,18 +196,18 @@ def test_corrupt_pdf(client):
     ],
 )
 def test_invalid_options(client, form):
-    assert _post(client, ascii_tab_pdf([TAB]), **form).status_code == 422
+    assert _post(client, _tab_pdf(), **form).status_code == 422
 
 
 def test_rate_limit(client, monkeypatch):
     monkeypatch.setattr(main, "rate_limiter", RateLimiter(per_minute=1))
-    assert _post(client, ascii_tab_pdf([TAB])).status_code == 200
-    assert _post(client, ascii_tab_pdf([TAB])).status_code == 429
+    assert _post(client, _tab_pdf()).status_code == 200
+    assert _post(client, _tab_pdf()).status_code == 429
 
 
 def test_sandbox_timeout_kills_worker():
     with pytest.raises(ConversionTimeout):
-        run_isolated(ascii_tab_pdf([TAB]), ConversionOptions(), timeout_s=0, memory_mb=1024)
+        run_isolated(_tab_pdf(), ConversionOptions(), timeout_s=0, memory_mb=1024)
 
 
 def test_sandbox_propagates_user_errors():
@@ -233,13 +231,11 @@ def test_sandbox_rejects_malformed_replies(raw):
 
 
 def test_sandbox_success_roundtrip():
-    result = run_isolated(ascii_tab_pdf([TAB]), ConversionOptions(), timeout_s=30, memory_mb=1024)
+    result = run_isolated(_tab_pdf(), ConversionOptions(), timeout_s=30, memory_mb=1024)
     assert result.gp5.startswith(b"\x18FICHIER GUITAR PRO") and result.report["notes"] == 4
 
 
 def test_empty_staves_do_not_vote_and_become_rests(client):
-    from tests.pdf_factory import engraved_tab_pdf
-
     pdf = engraved_tab_pdf([[[(1, 0)], [(2, 1)]], [[], []]])
     response = _post(client, pdf)
     assert response.status_code == 200, response.text
@@ -249,7 +245,7 @@ def test_empty_staves_do_not_vote_and_become_rests(client):
 
 
 def test_metadata_is_detected_when_fields_are_left_empty(client):
-    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
+    pdf = _tab_pdf(extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
     report = _post(client, pdf).json()["report"]
     assert (report["title"], report["artist"], report["tempo"]) == ("Riff Song", "The Band", 96)
     assert report["auto"] == {"title": True, "artist": True, "tempo": True, "time_signature": False}
@@ -257,7 +253,7 @@ def test_metadata_is_detected_when_fields_are_left_empty(client):
 
 
 def test_user_values_override_detection(client):
-    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Tempo: 96"])
+    pdf = _tab_pdf(extra_lines=["Title: Riff Song", "Tempo: 96"])
     response = _post(client, pdf, title="Mine", tempo="140", time_signature="3/4")
     report = response.json()["report"]
     assert (report["title"], report["tempo"], report["time_signature"]) == ("Mine", 140, "3/4")
@@ -265,7 +261,7 @@ def test_user_values_override_detection(client):
 
 
 def test_inspect_returns_detected_metadata_only(client):
-    pdf = ascii_tab_pdf([TAB], extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
+    pdf = _tab_pdf(extra_lines=["Title: Riff Song", "Artist: The Band", "Tempo: 96"])
     response = client.post("/api/inspect", files={"file": ("x.pdf", pdf, "application/pdf")})
     assert response.status_code == 200
     assert response.json() == {
@@ -294,17 +290,14 @@ def test_changelog_endpoint(client):
     assert all(r["version"] != "Unreleased" for r in body["releases"])
 
 
-BASS = ["G|-------------|", "D|-------------|", "A|-3---5---7---|", "E|-------------|"]
-
-
 def _post_many(client, pdfs, path="/api/convert", **form):
     files = [("file", (name, data, "application/pdf")) for name, data in pdfs]
     return client.post(path, files=files, data=form)
 
 
 def test_multi_track_song(client):
-    guitar = ascii_tab_pdf([TAB, TAB], extra_lines=["Title: Riff Song", "Tempo: 100"])
-    bass = ascii_tab_pdf([[line.replace("|", "|--", 1) for line in BASS]])
+    guitar = engraved_tab_pdf([TAB, TAB], extra_lines=["Title: Riff Song", "Tempo: 100"])
+    bass = engraved_tab_pdf([[(2, 3), (2, 5), (2, 7)]], strings=4)
     response = _post_many(client, [("Riff Song - Lead.pdf", guitar), ("Riff Song - Bass.pdf", bass)])
     assert response.status_code == 200, response.text
     body = response.json()
@@ -322,7 +315,7 @@ def test_multi_track_song(client):
 
 
 def test_per_track_options(client):
-    pdf = ascii_tab_pdf([TAB])
+    pdf = _tab_pdf()
     response = _post_many(
         client,
         [("a.pdf", pdf), ("b.pdf", pdf)],
@@ -339,24 +332,24 @@ def test_per_track_options(client):
 
 
 def test_per_track_option_count_must_match(client):
-    pdf = ascii_tab_pdf([TAB])
+    pdf = _tab_pdf()
     response = _post_many(client, [("a.pdf", pdf)] * 3, tuning=["standard", "drop_d"])
     assert response.status_code == 422
 
 
 def test_too_many_tracks(client):
-    pdf = ascii_tab_pdf([TAB])
+    pdf = _tab_pdf()
     assert _post_many(client, [("a.pdf", pdf)] * 8).status_code == 422
 
 
 def test_error_names_the_failing_track(client):
-    response = _post_many(client, [("ok.pdf", ascii_tab_pdf([TAB])), ("scan.pdf", blank_pdf())])
+    response = _post_many(client, [("ok.pdf", _tab_pdf()), ("scan.pdf", blank_pdf())])
     assert response.status_code == 422
     assert response.json()["detail"].startswith("Track 2 (scan.pdf):")
 
 
 def test_parenthesized_repeat_is_written_as_a_tie(client):
-    pdf = ascii_tab_pdf([["e|-0---(0)---0---|", *TAB[1:]]])
+    pdf = engraved_tab_pdf([[(1, 0), (1, 0, "("), (1, 0), (1, 3)]])  # four quarters
     data = _post(client, pdf).json()["gp5_base64"]
     notes = [
         n for b in gp.parse(io.BytesIO(base64.b64decode(data))).tracks[0].measures[0].voices[0].beats for n in b.notes
@@ -366,8 +359,6 @@ def test_parenthesized_repeat_is_written_as_a_tie(client):
 
 
 def test_tracks_are_aligned_by_printed_bar_numbers(client):
-    from tests.pdf_factory import engraved_tab_pdf
-
     full = engraved_tab_pdf(
         [[[(1, 0)], [(1, 1)], [(1, 2)]], [[(1, 3)], [(1, 4)], [(1, 5)]]], bar_numbers=[[1, 2, 3], [4, 5, 6]]
     )
@@ -385,14 +376,13 @@ def test_tracks_are_aligned_by_printed_bar_numbers(client):
 
 
 def test_eight_string_tab_is_rejected_with_clear_message(client):
-    eight = [*TAB, "B|---------------|", "F#|--------------|"]
-    response = _post(client, ascii_tab_pdf([eight]))
+    response = _post(client, engraved_tab_pdf(TAB, strings=8))
     assert response.status_code == 422
     assert "7" in response.json()["detail"]
 
 
 def test_cross_site_post_is_refused(client):
-    pdf = ascii_tab_pdf([TAB])
+    pdf = _tab_pdf()
     files = {"file": ("a.pdf", pdf, "application/pdf")}
     assert client.post("/api/convert", files=files, headers={"Origin": "https://evil.example"}).status_code == 403
     assert client.post("/api/convert", files=files, headers={"Origin": "null"}).status_code == 403
@@ -405,7 +395,7 @@ def test_unknown_host_is_refused(client):
 
 def test_inspect_has_its_own_rate_budget(client, monkeypatch):
     monkeypatch.setattr(main, "rate_limiter", RateLimiter(per_minute=1))
-    pdf = ascii_tab_pdf([TAB])
+    pdf = _tab_pdf()
     for _ in range(3):
         assert client.post("/api/inspect", files={"file": ("x.pdf", pdf, "application/pdf")}).status_code == 200
     assert _post(client, pdf).status_code == 200
@@ -413,8 +403,6 @@ def test_inspect_has_its_own_rate_budget(client, monkeypatch):
 
 
 def test_huge_printed_bar_number_does_not_create_rest_bars(client):
-    from tests.pdf_factory import engraved_tab_pdf
-
     pdf = engraved_tab_pdf([[[(1, 0)], [(1, 2)]]], bar_numbers=[[1, 300000]])
     response = _post(client, pdf)
     assert response.status_code == 200, response.text
@@ -433,4 +421,4 @@ def test_sandbox_start_failure_is_reported_as_unavailable(monkeypatch):
 
     monkeypatch.setattr(sandbox._CTX, "Process", Broken)
     with pytest.raises(sandbox.ConversionUnavailable):
-        run_isolated(ascii_tab_pdf([TAB]), ConversionOptions(), timeout_s=5, memory_mb=1024)
+        run_isolated(_tab_pdf(), ConversionOptions(), timeout_s=5, memory_mb=1024)

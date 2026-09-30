@@ -3,23 +3,34 @@
 import io
 
 import guitarpro as gp
+import pytest
 
+from app import converter
 from app.converter import ConversionOptions, convert
 from app.repeats import playback_order
-from tests.pdf_factory import ascii_tab_pdf
+from tests.pdf_factory import engraved_tab_pdf
 
-TAB = [
-    "e|:-0---3-:|-5---5-|   x3",
-    "B|--1------|-------|",
-    "G|:-------:|-------|",
-    "D|---------|-------|",
-    "A|---------|-------|",
-    "E|---------|-------|",
-]
+# Two bars (bar lines at x 60, 300, 540); the first is played three times.
+TAB = [[(1, 0), (2, 1), (1, 3)], [(1, 5), (1, 5)]]
 
 
-def test_text_tab_repeat_reaches_the_gp5():
-    result = convert(ascii_tab_pdf([TAB]), ConversionOptions())
+@pytest.fixture()
+def repeated_first_bar(monkeypatch):
+    """The staff as read, with "|: :| x3" around bar 1 (the repeat glyphs themselves are
+    covered in test_extract)."""
+    extract = converter.extract_engraved_systems
+
+    def with_repeat(page):
+        systems = extract(page)
+        for system in systems:
+            system.repeat_starts, system.repeat_ends = [system.bars[0]], [(system.bars[1], 3)]
+        return systems
+
+    monkeypatch.setattr(converter, "extract_engraved_systems", with_repeat)
+
+
+def test_repeat_reaches_the_gp5(repeated_first_bar):
+    result = convert(engraved_tab_pdf(TAB), ConversionOptions())
     headers = gp.parse(io.BytesIO(result.gp5)).measureHeaders
     assert [h.isRepeatOpen for h in headers] == [True, False]
     assert [h.repeatClose for h in headers] == [2, -1]  # played 3 times in all
@@ -38,8 +49,8 @@ def test_user_time_signature_replaces_only_the_opening_one():
     assert first.time_signatures == [] and second.time_signatures == [(5, 3, 4)]
 
 
-def test_repeats_written_out_for_rocksmith():
-    result = convert(ascii_tab_pdf([TAB]), ConversionOptions(expand_repeats=True))
+def test_repeats_written_out_for_rocksmith(repeated_first_bar):
+    result = convert(engraved_tab_pdf(TAB), ConversionOptions(expand_repeats=True))
     song = gp.parse(io.BytesIO(result.gp5))
     assert len(song.measureHeaders) == 4  # bar 1 three times, then bar 2
     assert not any(h.isRepeatOpen or h.repeatClose > 0 or h.repeatAlternative for h in song.measureHeaders)
