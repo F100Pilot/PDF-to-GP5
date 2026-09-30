@@ -8,6 +8,12 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 - [ ] **Quintinas e septinas (5 e 7).** Hoje só as tercinas e as sextinas são exatas; as outras ficam com ritmo estimado pelo espaçamento.
 - [ ] **Técnicas em falta:** tremolo picking (traços na haste), trilo (tr~~), alavanca (dip/dive) e volume swell. O RockForge já trata o tremolo e o trilo. Preciso de PDFs que as tenham.
 - [ ] **rit. / accel.** como mudanças graduais de andamento.
+- [ ] **Ler tabs a partir de um print** (imagem PNG/JPG ou PDF digitalizado). Hoje só se leem PDFs com texto. **À espera de prints de exemplo** para escolher a fase e testar o OCR antes de mexer na app. Ideia: transformar o print no mesmo formato interno dos PDFs (linhas e caracteres com posição) e reaproveitar a leitura que já existe.
+  1. Print de tab em texto (`e|--0--3h5--|`): OCR com a posição de cada carácter e a leitura de tab em texto atual. Trabalho médio; boa qualidade com imagens nítidas.
+  2. Print de tab gravada (Songsterr, Guitar Pro): detetar cordas e barras de compasso e reconhecer os números. Trabalho grande; o ritmo fica estimado pelo espaçamento.
+  3. Técnicas desenhadas (bends, slides, hastes, vibrato): trabalho muito grande, qualidade incerta.
+  - Precisa de uma biblioteca de OCR (ex.: Tesseract, que no Windows se instala à parte); por escolher e testar.
+  - Aceitar PNG/JPG no ecrã de conversão, processar no processo isolado com limites de tamanho e de pixels, e avisar no relatório que a leitura veio de um print e deve ser conferida.
 
 ## Ligação ao RockForge
 
