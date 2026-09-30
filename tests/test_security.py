@@ -63,6 +63,7 @@ def test_csp_allows_score_viewer_without_unsafe_inline():
     assert "unsafe-inline" not in CSP and "unsafe-eval" not in CSP
     assert "script-src 'self';" in CSP
     assert "worker-src 'self' blob:;" in CSP
+    assert "img-src 'self' data: blob:;" in CSP  # library covers kept in the browser
     assert "frame-src https://www.youtube-nocookie.com https://www.youtube.com;" in CSP
     assert len(ALPHATAB_STYLE_HASHES) == 2
     assert all(f"'{h}'" in CSP for h in ALPHATAB_STYLE_HASHES)

@@ -7,6 +7,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Capas na biblioteca: a capa do álbum é procurada pelo artista e título (pesquisa pública do iTunes, através do servidor — `/api/cover`, com limite de pedidos `COVER_SEARCH_PER_MINUTE`) e guardada com a música; "Procurar capa" tenta de novo e "Escolher imagem" usa uma imagem própria.
+- MP3 obtido de um endereço guardado na pasta das partituras (Chrome/Edge): os PDFs escolhidos ou arrastados deixam a aplicação saber a pasta, e "Guardar o MP3 na pasta das partituras" abre o diálogo de gravação nessa pasta com o nome preenchido; a pasta fica lembrada na biblioteca.
 - Biblioteca: as músicas convertidas ficam guardadas no browser (IndexedDB) com o relatório e o áudio escolhido; "Tocar" reabre a música sem converter de novo, com o áudio e o acerto. Procura por título/artista, remoção em dois passos e espaço usado.
 - Leitor: barra de reprodução fixa em baixo, com as secções da música (pela ordem em que se tocam, com repetições) por cima da barra de tempo — a atual destacada, clicar salta para lá — e Loop A–B.
 - Atalhos de teclado (Espaço, ← →, 1–4, [ ], L) e Ctrl K / ⌘K para procurar páginas, músicas da biblioteca e comandos (tocar, vista, loop, tema).

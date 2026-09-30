@@ -25,6 +25,7 @@ from . import __revision__, __version__, audio_download
 from .changelog import load_releases, version_key
 from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
+from .cover import CoverError, find_cover
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
@@ -57,6 +58,7 @@ app = FastAPI(
 rate_limiter = RateLimiter(settings.rate_limit_per_minute)
 inspect_limiter = RateLimiter(settings.inspect_rate_limit_per_minute)
 video_limiter = RateLimiter(settings.video_search_per_minute)
+cover_limiter = RateLimiter(settings.cover_search_per_minute)
 audio_limiter = RateLimiter(settings.audio_jobs_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
 presence = Presence()  # enabled by the local launcher (python -m app)
@@ -145,6 +147,29 @@ async def video_search(request: Request, q: Annotated[str, Query(min_length=2, m
         logger.warning("YouTube search failed: %s", exc)
         raise HTTPException(status_code=502, detail="Não foi possível pesquisar no YouTube.") from None
     return {"results": results}
+
+
+@app.get("/api/cover")
+async def song_cover(
+    request: Request,
+    artist: Annotated[str, Query(min_length=1, max_length=200)],
+    title: Annotated[str, Query(min_length=1, max_length=200)],
+) -> Response:
+    """The song's album cover (iTunes Search API), for the library; 404 when there is none."""
+    client = request.client
+    if not cover_limiter.allow(client_key(client.host if client else None)):
+        raise HTTPException(status_code=429, detail="Demasiadas pesquisas de capas. Tente dentro de um minuto.")
+    try:
+        found = await run_in_threadpool(find_cover, artist, title)
+    except CoverError as exc:
+        logger.warning("Cover search failed: %s", exc)
+        raise HTTPException(
+            status_code=502, detail="Não foi possível procurar a capa (sem ligação à internet?)."
+        ) from None
+    if found is None:
+        raise HTTPException(status_code=404, detail="Capa não encontrada.")
+    image, media_type = found
+    return Response(content=image, media_type=media_type)
 
 
 class PresenceReport(BaseModel):

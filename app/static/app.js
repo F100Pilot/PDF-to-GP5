@@ -25,6 +25,10 @@
   let instruments = ["auto"];
   let tracks = []; // { file, name, tuning, instrument, info }
   let inspection = 0; // ignores answers for a selection that was replaced
+  // The first chosen PDF as a file handle (Chrome's file picker / drag and drop), and the one of
+  // the open song: a "save" dialog can then open in the folder of the song's PDFs.
+  let selectionHandle = null;
+  let songHandle = null;
 
   const TUNING_LABELS = {
     auto: "Automática (do PDF)", standard: "Standard (EADGBE)", drop_d: "Drop D", eb_standard: "Mib (½ tom abaixo)",
@@ -238,7 +242,8 @@
     submit.disabled = active;
   }
 
-  async function selectFiles(fileList) {
+  async function selectFiles(fileList, handle = null) {
+    selectionHandle = handle;
     const files = [...fileList].filter((f) => f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf");
     const token = ++inspection;
     result.hidden = true;
@@ -297,12 +302,43 @@
   }
 
   fileInput.addEventListener("change", () => selectFiles(fileInput.files));
+  // Chrome: choose the PDFs with the File System Access picker to know their folder (nothing
+  // is read from it but the chosen files); elsewhere the plain file input.
+  let nativePicker = false; // falling back to the plain file input (its click reaches this label too)
+  drop.addEventListener("click", async (event) => {
+    if (!window.showOpenFilePicker || nativePicker) {
+      nativePicker = false;
+      return;
+    }
+    event.preventDefault();
+    try {
+      const handles = await window.showOpenFilePicker({
+        id: "pdfs",
+        multiple: true,
+        types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
+      });
+      const files = await Promise.all(handles.map((handle) => handle.getFile()));
+      selectFiles(files, handles[0] || null);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        nativePicker = true;
+        fileInput.click();
+      }
+    }
+  });
   ["dragenter", "dragover"].forEach((type) =>
     drop.addEventListener(type, (event) => { event.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((type) =>
     drop.addEventListener(type, (event) => { event.preventDefault(); drop.classList.remove("over"); }));
-  drop.addEventListener("drop", (event) => {
-    if (event.dataTransfer && event.dataTransfer.files.length) selectFiles(event.dataTransfer.files);
+  drop.addEventListener("drop", async (event) => {
+    if (!event.dataTransfer || !event.dataTransfer.files.length) return;
+    const files = [...event.dataTransfer.files];
+    // The handles must be asked for during the drop event, before any await.
+    const pending = [...event.dataTransfer.items]
+      .filter((item) => item.kind === "file" && item.getAsFileSystemHandle)
+      .map((item) => item.getAsFileSystemHandle().catch(() => null));
+    const handles = (await Promise.all(pending)).filter((handle) => handle && handle.kind === "file");
+    selectFiles(files, handles[0] || null);
   });
 
   function summaryList(items) {
@@ -409,7 +445,8 @@
 
   // Show a converted song: its result, its score and the file to download. `fromLibrary`: reopened
   // from the library (library.js), so not saved there again.
-  function openSong(gp5, filename, report, fromLibrary = false) {
+  function openSong(gp5, filename, report, fromLibrary = false, pdfHandle = null) {
+    songHandle = pdfHandle;
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(new Blob([gp5], { type: "application/octet-stream" }));
     download.href = objectUrl;
@@ -419,14 +456,14 @@
     result.hidden = false;
     const { title, artist, tempo } = report;
     document.dispatchEvent(new CustomEvent("song-converted", {
-      detail: { title, artist, tempo, tracks: report.tracks.length, gp5, filename, report, fromLibrary },
+      detail: { title, artist, tempo, tracks: report.tracks.length, gp5, filename, report, fromLibrary, pdfHandle },
     }));
     if (window.ScoreView) {
       const lyricsTrack = Boolean(report.lyrics && report.lyrics.track === LYRICS_TRACK);
       window.ScoreView.show(gp5, report.tracks.length, trackColors, report.timed_lyrics, lyricsTrack);
     }
   }
-  window.App = { openSong };
+  window.App = { openSong, pdfFolder: () => songHandle };
 
   function base64ToBytes(b64) {
     const binary = atob(b64);
@@ -473,7 +510,7 @@
       if (!response.ok) {
         throw new Error(typeof payload.detail === "string" ? payload.detail : "Pedido inválido.");
       }
-      openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report);
+      openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report, false, selectionHandle);
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Erro inesperado.", true);
     } finally {

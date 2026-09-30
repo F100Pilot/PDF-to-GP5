@@ -58,8 +58,8 @@
     try {
       const all = await transaction("readonly", (store) => store.getAll());
       songs = all
-        .map(({ key, title, artist, tempo, measures, trackNames, savedAt, audio }) => ({
-          key, title, artist, tempo, measures, trackNames, savedAt, audioName: audio ? audio.name : "",
+        .map(({ key, title, artist, tempo, measures, trackNames, savedAt, audio, cover }) => ({
+          key, title, artist, tempo, measures, trackNames, savedAt, audioName: audio ? audio.name : "", cover: cover || null,
         }))
         .sort((a, b) => b.savedAt - a.savedAt);
       render();
@@ -79,6 +79,93 @@
   }
 
   const normalize = (text) => text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  // Covers: the album cover from the internet (iTunes, through the server) or an image chosen here.
+  const COVER_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_COVER_BYTES = 5 * 1024 * 1024;
+  let coverUrls = []; // object URLs of the covers on screen, released on the next render
+
+  async function setCover(key, blob) {
+    const song = await getSong(key);
+    if (!song) return;
+    song.cover = blob;
+    await putSong(song);
+    refresh();
+  }
+
+  // Look the cover up by artist and title; `quiet`: after a conversion, no message when not found.
+  async function findCover(key, artist, title, quiet) {
+    if (!artist || !title) {
+      if (!quiet) setStatus("Sem artista e título não é possível procurar a capa: escolha uma imagem.");
+      return;
+    }
+    try {
+      const response = await fetch(`/api/cover?${new URLSearchParams({ artist, title })}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        if (COVER_TYPES.includes(blob.type)) {
+          await setCover(key, blob);
+          if (!quiet) setStatus("");
+          return;
+        }
+      }
+      if (!quiet) {
+        const reason = response.status === 404 ? "Capa não encontrada" : "Não foi possível procurar a capa (sem ligação à internet?)";
+        setStatus(`${reason}: pode escolher uma imagem.`);
+      }
+    } catch {
+      if (!quiet) setStatus("Não foi possível procurar a capa (sem ligação ao servidor).");
+    }
+  }
+
+  function coverFigure(song) {
+    const figure = document.createElement("div");
+    figure.className = "song-cover";
+    if (song.cover) {
+      const image = document.createElement("img");
+      const url = URL.createObjectURL(song.cover);
+      coverUrls.push(url);
+      image.src = url;
+      image.alt = `Capa de ${song.title || "a música"}`;
+      figure.appendChild(image);
+    } else {
+      const initials = document.createElement("span");
+      initials.setAttribute("aria-hidden", "true");
+      initials.textContent = (song.title || "?").trim().slice(0, 1).toUpperCase();
+      figure.appendChild(initials);
+    }
+    return figure;
+  }
+
+  function coverActions(song) {
+    const row = document.createElement("div");
+    row.className = "song-cover-actions";
+    const search = document.createElement("button");
+    search.type = "button";
+    search.className = "link-button";
+    search.textContent = song.cover ? "Procurar outra vez" : "Procurar capa";
+    search.addEventListener("click", () => findCover(song.key, song.artist, song.title, false));
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = COVER_TYPES.join(",");
+    input.hidden = true;
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!COVER_TYPES.includes(file.type) || file.size > MAX_COVER_BYTES) {
+        setStatus("A capa tem de ser uma imagem JPEG, PNG ou WebP até 5 MB.");
+        return;
+      }
+      setCover(song.key, file).then(() => setStatus("")).catch(() => setStatus("Não foi possível guardar a capa."));
+    });
+    const choose = document.createElement("button");
+    choose.type = "button";
+    choose.className = "link-button";
+    choose.textContent = "Escolher imagem";
+    choose.addEventListener("click", () => input.click());
+    row.append(search, choose, input);
+    return row;
+  }
 
   function card(song) {
     const item = document.createElement("li");
@@ -133,7 +220,7 @@
       refresh();
     });
     actions.append(play, remove);
-    article.append(title, artist, tags, when, actions);
+    article.append(coverFigure(song), title, artist, tags, when, coverActions(song), actions);
     item.appendChild(article);
     return item;
   }
@@ -141,6 +228,8 @@
   function render() {
     const query = normalize(search.value.trim());
     const shown = songs.filter((song) => !query || normalize(`${song.title} ${song.artist}`).includes(query));
+    for (const url of coverUrls) URL.revokeObjectURL(url);
+    coverUrls = [];
     list.replaceChildren(...shown.map(card));
     empty.hidden = songs.length > 0;
     if (songs.length && !shown.length) setStatus("Nenhuma música corresponde à procura.");
@@ -162,7 +251,7 @@
         document.addEventListener("score-loaded", resolve, { once: true });
         setTimeout(resolve, 60000);
       });
-      window.App.openSong(gp5, song.filename, song.report, true);
+      window.App.openSong(gp5, song.filename, song.report, true, song.pdfHandle || null);
       window.location.hash = "#/tocar";
       if (song.audio) {
         await loaded;
@@ -176,7 +265,7 @@
   }
 
   document.addEventListener("song-converted", async (event) => {
-    const { title, artist, tempo, gp5, filename, report, fromLibrary } = event.detail;
+    const { title, artist, tempo, gp5, filename, report, fromLibrary, pdfHandle } = event.detail;
     currentKey = songKey(title || filename, artist); // untitled songs: by file name
     if (fromLibrary || !gp5) {
       render();
@@ -196,9 +285,13 @@
         gp5: new Blob([gp5], { type: "application/octet-stream" }),
         report,
         audio: previous ? previous.audio : null,
+        cover: previous ? previous.cover || null : null,
+        // The first PDF's file handle (Chrome): the MP3 can be saved in its folder later.
+        pdfHandle: pdfHandle || (previous ? previous.pdfHandle || null : null),
       });
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       refresh();
+      if (!previous || !previous.cover) findCover(currentKey, artist, title, true);
     } catch {
       setStatus("Não foi possível guardar a música na biblioteca.");
     }

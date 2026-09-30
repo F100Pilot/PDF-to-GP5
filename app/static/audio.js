@@ -610,6 +610,9 @@
         savedUrl = URL.createObjectURL(blob);
         saveLink.href = savedUrl;
         saveLink.download = name;
+        savedMp3 = { blob, name };
+        const folder = window.App && window.App.pdfFolder();
+        saveLink.textContent = folder && window.showSaveFilePicker ? "Guardar o MP3 na pasta das partituras" : "Guardar o MP3";
         saveLink.hidden = false;
         setUrlStatus(`Pronto: ${name}. Já está a ser usado com a partitura.`);
         await useAudioFile(new File([blob], name, { type: "audio/mpeg" }));
@@ -620,6 +623,31 @@
       await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     }
   }
+
+  // Save the MP3 next to the song's PDFs: the save dialog opens in their folder with the name
+  // filled in (Chrome); without a known folder the link is a plain download.
+  let savedMp3 = null;
+  saveLink.addEventListener("click", async (event) => {
+    const folder = window.App && window.App.pdfFolder();
+    if (!folder || !window.showSaveFilePicker || !savedMp3) return;
+    event.preventDefault();
+    try {
+      const target = await window.showSaveFilePicker({
+        suggestedName: savedMp3.name,
+        startIn: folder,
+        types: [{ description: "Áudio MP3", accept: { "audio/mpeg": [".mp3"] } }],
+      });
+      const writable = await target.createWritable();
+      await writable.write(savedMp3.blob);
+      await writable.close();
+      setUrlStatus(`MP3 guardado: ${target.name}.`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      saveLink.textContent = "Guardar o MP3";
+      setUrlStatus("Não foi possível guardar na pasta das partituras; carregue outra vez para descarregar.", true);
+      savedMp3 = null;
+    }
+  });
 
   cancelButton.addEventListener("click", () => {
     if (!urlJob) return;

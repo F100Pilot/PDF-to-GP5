@@ -83,6 +83,7 @@ class Settings:
         h.strip() for h in os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost,[::1]").split(",") if h.strip()
     )
     video_search_per_minute: int = _int("VIDEO_SEARCH_PER_MINUTE", 10)
+    cover_search_per_minute: int = _int("COVER_SEARCH_PER_MINUTE", 20)
     youtube_api_key: str = field(default_factory=_youtube_key, repr=False)
     # Audio from a URL (yt-dlp + FFmpeg), for content the user may download.
     audio_jobs_per_minute: int = _int("AUDIO_JOBS_PER_MINUTE", 5)

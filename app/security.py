@@ -22,7 +22,8 @@ _STYLE_SOURCES = " ".join(["'self'", *(f"'{h}'" for h in ALPHATAB_STYLE_HASHES)]
 CSP = (
     "default-src 'self'; script-src 'self'; "
     f"style-src {_STYLE_SOURCES}; "
-    "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; "
+    # blob:: the song covers kept in the browser's library.
+    "img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; "
     # The song's audio chosen by the user plays from a local blob: URL (never uploaded).
     "media-src 'self' blob:; "
     # Optional YouTube video beside the score: only the privacy-enhanced embed player may be framed.
