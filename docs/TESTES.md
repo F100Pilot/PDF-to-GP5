@@ -32,8 +32,8 @@ Dickerson "Happen To Me" (Acoustic, Guitar 1 a 4 e Pro).
 | | | Sincronização | O RockForge lê um início de −2,15 s (o compasso 1 começa antes da gravação), sem o pôr a 0 |
 | | | Bends (Lead Guitar) | Os 18 chegam ao RockForge com a curva completa; o primeiro sobe ½ tom e volta, como no alphaTab |
 
-O que falta nestes ficheiros é o teste à mão: abrir no Guitar Pro 8 e gerar o
-PSARC no RockForge (pontos 2 e 3 abaixo).
+O que falta nestes ficheiros é abrir no Guitar Pro 8 (ponto 2 abaixo) e testar
+o PSARC no jogo (RockForge, `docs/TESTES-NO-JOGO.md`).
 
 ## Verificado aqui, no browser
 
@@ -53,17 +53,16 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 |---|---|---|---|
 | 1 | **Bends no Guitar Pro e no TuxGuitar** | Converter o PDF do "September" e abrir o GP5 | Os bends aparecem, com a mesma forma que na partitura da aplicação: o bend com release sobe, fica e volta; o bend simples sobe ao longo da nota |
 | 2 | **`.gp` com áudio no Guitar Pro 8** | Converter, escolher o MP3, acertar o início e exportar `.gp` | O Guitar Pro toca o áudio e a partitura em sincronia |
-| 3 | **`.gp` com áudio no RockForge** | Importar o `.gp` do ponto 2 no RockForge (o `September.gp` de 2026-09-30 já passou as verificações acima) | Aparece "Usar o áudio que vem dentro do ficheiro GP" e as notas batem com a música, também com um início antes do áudio (acerto negativo) |
-| 4 | **Acerto do início com música real** | Painel do áudio, com uma música | Os botões mexem o valor em 1 s, 0,1 s e 0,01 s, e ouve-se a diferença |
-| 5 | **Biblioteca noutro browser** | Abrir a aplicação no Edge e no Chrome | As mesmas músicas nos dois, vindas da pasta `~/PDF-to-GP5/Biblioteca` |
-| 6 | **Capa automática** | Converter uma música com artista e título | A capa do álbum aparece na biblioteca; "Procurar capa" e "Escolher imagem" funcionam |
-| 7 | **Guardar o MP3 na pasta das partituras** | Chrome/Edge: escolher os PDFs, obter o MP3 de um endereço e "Guardar o MP3 na pasta das partituras" | O diálogo abre nessa pasta com o nome preenchido |
-| 8 | **URL → MP3 do YouTube** | No painel do áudio, colar um link do YouTube no campo do endereço | O MP3 é obtido; se faltar o Deno/Node.js, a página diz o que falta |
-| 9 | **Pesquisa automática do vídeo** | Com a chave do YouTube configurada (`docs/CHAVE_YOUTUBE.md`) | O vídeo da música é encontrado sozinho |
-| 10 | **Arranque no Windows** | `start-casa.bat` e `start-trabalho.bat` | A aplicação abre em `http://127.0.0.1:8021` |
+| 3 | **Acerto do início com música real** | Painel do áudio, com uma música | Os botões mexem o valor em 1 s, 0,1 s e 0,01 s, e ouve-se a diferença |
+| 4 | **Biblioteca noutro browser** | Abrir a aplicação no Edge e no Chrome | As mesmas músicas nos dois, vindas da pasta `~/PDF-to-GP5/Biblioteca` |
+| 5 | **Capa automática** | Converter uma música com artista e título | A capa do álbum aparece na biblioteca; "Procurar capa" e "Escolher imagem" funcionam |
+| 6 | **Guardar o MP3 na pasta das partituras** | Chrome/Edge: escolher os PDFs, obter o MP3 de um endereço e "Guardar o MP3 na pasta das partituras" | O diálogo abre nessa pasta com o nome preenchido |
+| 7 | **URL → MP3 do YouTube** | No painel do áudio, colar um link do YouTube no campo do endereço | O MP3 é obtido; se faltar o Deno/Node.js, a página diz o que falta |
+| 8 | **Pesquisa automática do vídeo** | Com a chave do YouTube configurada (`docs/CHAVE_YOUTUBE.md`) | O vídeo da música é encontrado sozinho |
+| 9 | **Arranque no Windows** | `start-casa.bat` e `start-trabalho.bat` | A aplicação abre em `http://127.0.0.1:8021` |
 
 ## Confirmado por ti
 
 | O quê | Data | Música | Notas |
 |---|---|---|---|
-| (nada registado ainda) | | | |
+| `.gp` com áudio no RockForge: o RockForge usa o áudio do ficheiro e as notas batem com a música, com o início antes da gravação (−2,15 s) | 2026-09-30 | Daughtry "September" (Acoustic Guitar como referência) | Precisou da correção RockForge 8b61bf0: a página de sincronização punha o início a 0, mostrava a Acoustic aos 3,20 s em vez de 1,05 s e as notas 2,15 s atrasadas |
