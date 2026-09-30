@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import base64
 import bisect
+import itertools
 import json
 import os
 import subprocess
@@ -134,7 +135,7 @@ def _expected(notes: list[dict]) -> list[dict]:
     for n in sorted(notes, key=lambda n: n["tick"]):
         by_string[n["string"]].append(n)
     for run in by_string.values():
-        for a, b in zip(run, run[1:], strict=False):
+        for a, b in itertools.pairwise(run):
             if a["hammerOrigin"]:
                 b["hammer_to"] = "hammerOn" if b["fret"] > a["fret"] else "pullOff"
             if a["slideOut"] in (1, 2):

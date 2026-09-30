@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Skill `rockforge-alphatab-check` (corre na sessão do Claude quando se pede para comparar com o RockForge): compara, nota a nota e por pista, o que o RockForge faz de um `.gp5`/`.gp` com o que o alphaTab toca — por compasso tocado e posição, com ligaduras, hammer/pull, bends, harmónicos, slides e graces em termos de Rocksmith.
 - Skill `gp-alphatab-check` (`.claude/skills`, corre na sessão do Claude quando se pede para comparar): compara, nota a nota, um `.gp5`/`.gp` com o que o alphaTab lê dele e com o que sobrevive quando o alphaTab o grava como `.gp` (bends, graces, harmónicos, slides, ligaduras, dinâmicas, ritmo, repetições…). Usa o alphaTab da aplicação num Chromium sem janela (Playwright, em `requirements-dev.txt`).
 - Biblioteca numa pasta do computador (`~/PDF-to-GP5/Biblioteca`, ou `LIBRARY_DIR`), uma subpasta por música com o GP5, o áudio, a capa e `musica.json`: já não se perde ao mudar de porta ou de browser, nem ao limpar os dados do browser. Só com a aplicação aberta no próprio computador; numa cópia publicada continua no browser. As músicas guardadas no browser passam sozinhas para a pasta (as de outra porta: abrir a aplicação uma vez nessa porta).
 - Capas na biblioteca: a capa do álbum é procurada pelo artista e título (pesquisa pública do iTunes, através do servidor — `/api/cover`, com limite de pedidos `COVER_SEARCH_PER_MINUTE`) e guardada com a música; "Procurar capa" tenta de novo e "Escolher imagem" usa uma imagem própria.
