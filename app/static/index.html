@@ -231,18 +231,20 @@
                   <span id="audio-time" class="score-time">0:00 / 0:00</span>
                 </div>
                 <div id="audio-panel-body" class="side-body">
-                <label class="audio-offset">Início da música no áudio (s)
-                  <input id="audio-offset" type="number" min="-60" max="3600" step="0.01" value="0">
-                </label>
-                <button id="audio-mark" type="button" class="mark" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
-                <div class="nudges" role="group" aria-label="Acertar a partitura com a música">
-                  <span>Adiantar a partitura</span>
-                  <button type="button" class="icon" data-audio-nudge="-0.1" title="A partitura vai atrasada em relação à música">0,1 s</button>
-                  <button type="button" class="icon" data-audio-nudge="-1" title="A partitura vai atrasada em relação à música">1 s</button>
-                  <span>Atrasar a partitura</span>
-                  <button type="button" class="icon" data-audio-nudge="0.1" title="A partitura vai adiantada em relação à música">0,1 s</button>
-                  <button type="button" class="icon" data-audio-nudge="1" title="A partitura vai adiantada em relação à música">1 s</button>
+                <div class="audio-sync">
+                  <label for="audio-offset">Início da música no áudio (s)</label>
+                  <div class="sync-steps" role="group" aria-label="Acertar a partitura com a música">
+                    <button type="button" class="icon" data-audio-nudge="-1" aria-label="Adiantar a partitura 1 segundo" title="Adiantar a partitura 1 s (vai atrasada em relação à música)">−1</button>
+                    <button type="button" class="icon" data-audio-nudge="-0.1" aria-label="Adiantar a partitura 0,1 segundos" title="Adiantar a partitura 0,1 s">−0,1</button>
+                    <button type="button" class="icon" data-audio-nudge="-0.01" aria-label="Adiantar a partitura 0,01 segundos" title="Adiantar a partitura 0,01 s">−0,01</button>
+                    <input id="audio-offset" type="number" min="-60" max="3600" step="0.01" value="0.00">
+                    <button type="button" class="icon" data-audio-nudge="0.01" aria-label="Atrasar a partitura 0,01 segundos" title="Atrasar a partitura 0,01 s">+0,01</button>
+                    <button type="button" class="icon" data-audio-nudge="0.1" aria-label="Atrasar a partitura 0,1 segundos" title="Atrasar a partitura 0,1 s">+0,1</button>
+                    <button type="button" class="icon" data-audio-nudge="1" aria-label="Atrasar a partitura 1 segundo" title="Atrasar a partitura 1 s (vai adiantada em relação à música)">+1</button>
+                  </div>
+                  <div class="sync-legend" aria-hidden="true"><span>← adianta a partitura</span><span>atrasa a partitura →</span></div>
                 </div>
+                <button id="audio-mark" type="button" class="mark" title="Com o áudio a tocar, carregue quando ouvir o primeiro tempo do compasso 1">Marcar início</button>
                 <p id="audio-sync-status" class="hint" role="status" aria-live="polite" hidden></p>
                 <div class="tempo-row">
                   <label class="audio-offset">Tempo da partitura (BPM)

@@ -375,8 +375,13 @@
     lastLabel.textContent = lastLabel.hidden ? "" : `(da última vez: ${saved.file})`;
   }
 
+  // The start is shown and kept to the hundredth of a second.
+  function showOffset(seconds) {
+    offsetInput.value = (Math.round(Math.min(Math.max(seconds, MIN_OFFSET), MAX_OFFSET) * 100) / 100).toFixed(2);
+  }
+
   function setOffset(seconds) {
-    offsetInput.value = String(Math.min(Math.max(Math.round(seconds * 100) / 100, MIN_OFFSET), MAX_OFFSET));
+    showOffset(seconds);
     remember({ offset: offset() });
     if (following() && song.playing) {
       seekAudio();
@@ -423,7 +428,7 @@
   tempoInput.value = String(baseTempo);
   // "Marcar início": bar 1 starts at the audio's current time; the score restarts there.
   document.getElementById("audio-mark").addEventListener("click", () => {
-    offsetInput.value = String(Math.round(player.currentTime * 100) / 100);
+    showOffset(player.currentTime);
     remember({ offset: offset() });
     if (following()) window.ScoreView.restart();
     window.Highway3D.setWaveformSync(offset(), window.ScoreView.tempoFactor());
@@ -452,7 +457,7 @@
       songKey = key || "";
       const saved = remembered() || {};
       const savedOffset = Number(saved.offset);
-      offsetInput.value = String(Number.isFinite(savedOffset) ? Math.min(Math.max(savedOffset, MIN_OFFSET), MAX_OFFSET) : 0);
+      showOffset(Number.isFinite(savedOffset) ? savedOffset : 0);
       const savedTempo = Number(saved.tempo);
       const tempoToUse = Number.isFinite(savedTempo) && savedTempo >= 20 && savedTempo <= 400 ? savedTempo : baseTempo;
       tempoInput.value = String(tempoToUse);

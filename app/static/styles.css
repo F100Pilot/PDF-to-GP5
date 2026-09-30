@@ -454,6 +454,32 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .nudges { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; font-size: 0.9rem; }
 .nudges button { margin: 0; padding: 4px 10px; font-size: 0.85rem; white-space: nowrap; }
 button.mark { justify-self: start; padding: 6px 12px; }
+/* Audio start: −1 −0,1 −0,01 [value] +0,01 +0,1 +1. Narrow panel: the value on top, the
+   buttons below (advance left, delay right); with room, one row. */
+.audio-sync { display: grid; gap: 4px; container-type: inline-size; }
+.audio-sync > label { font-size: 0.9rem; color: var(--muted); }
+.sync-steps {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-areas: "value value value value value value" "m1 m01 m001 p001 p01 p1";
+}
+@container (min-width: 400px) {
+  .sync-steps {
+    grid-template-columns: repeat(3, auto) minmax(6em, 1fr) repeat(3, auto);
+    grid-template-areas: "m1 m01 m001 value p001 p01 p1";
+  }
+}
+.sync-steps input { grid-area: value; min-width: 6em; width: 100%; text-align: center; font: 600 1.1rem ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; background: var(--panel); }
+.sync-steps button { margin: 0; padding: 4px 2px; font-size: 0.85rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sync-steps [data-audio-nudge="-1"] { grid-area: m1; }
+.sync-steps [data-audio-nudge="-0.1"] { grid-area: m01; }
+.sync-steps [data-audio-nudge="-0.01"] { grid-area: m001; }
+.sync-steps [data-audio-nudge="0.01"] { grid-area: p001; }
+.sync-steps [data-audio-nudge="0.1"] { grid-area: p01; }
+.sync-steps [data-audio-nudge="1"] { grid-area: p1; }
+.sync-legend { display: flex; justify-content: space-between; gap: 8px; font-size: 0.75rem; color: var(--muted); }
 .tempo-row { display: flex; align-items: center; gap: 6px; }
 .tempo-row .audio-offset { flex: 1; }
 .tempo-row button { padding: 4px 10px; font-size: 0.85rem; }

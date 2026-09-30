@@ -85,6 +85,9 @@ def test_audio_for_gp_download_is_offered_and_can_play_locally(client):
     response = client.get("/")
     assert 'id="audio-file"' in response.text and 'src="audio.js"' in response.text
     assert 'id="audio-tempo"' in response.text and 'data-audio-nudge="-1"' in response.text
+    # Start nudges on each side of the value: ±1, ±0,1 and ±0,01 s.
+    for step in ("-1", "-0.1", "-0.01", "0.01", "0.1", "1"):
+        assert f'data-audio-nudge="{step}"' in response.text
     assert "media-src 'self' blob:" in response.headers["content-security-policy"]
     assert client.get("/audio.js").status_code == 200
     # The .gp's audio is renamed "backing-track.<ext>" (gpzip.js), before score.js exports it.
