@@ -63,13 +63,9 @@ def _bend(note: ScoreNote) -> gp.BendEffect:
             points = [gp.BendPoint(0, peak), gp.BendPoint(12, peak)]
             bend_type = gp.BendType.prebend
     elif note.bend_release:
-        points = [
-            gp.BendPoint(0, 0),
-            gp.BendPoint(3, peak),
-            gp.BendPoint(6, peak),
-            gp.BendPoint(9, 0),
-            gp.BendPoint(12, 0),
-        ]
+        # At most 4 points (origin, two middle, destination): the Guitar Pro 7/8 format holds
+        # no more, and alphaTab's .gp export silently drops a bend with more.
+        points = [gp.BendPoint(0, 0), gp.BendPoint(3, peak), gp.BendPoint(6, peak), gp.BendPoint(9, 0)]
         bend_type = gp.BendType.bendRelease
     else:
         points = [gp.BendPoint(0, 0), gp.BendPoint(6, peak), gp.BendPoint(12, peak)]

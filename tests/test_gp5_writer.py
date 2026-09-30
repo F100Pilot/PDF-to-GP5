@@ -161,6 +161,9 @@ def test_bend_types(pre, release, expected):
         .effect.bend
     )
     assert bend.type == expected and bend.value == 100
+    # Guitar Pro 7/8 (.gp) keeps at most 4 bend points; alphaTab's .gp export drops longer bends.
+    assert 2 <= len(bend.points) <= 4
+    assert bend.points[0].position == 0
 
 
 def test_more_than_seven_strings_rejected():
