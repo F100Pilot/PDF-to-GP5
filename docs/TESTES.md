@@ -7,16 +7,21 @@ testar à mão. Atualizar depois de cada teste: passar de "Por testar" para
 Os testes no Rocksmith (o PSARC que o RockForge cria a partir do GP) estão no
 RockForge, em `docs/TESTES-NO-JOGO.md`.
 
+**Versão atual: 0.7.0** (2026-09-30). As verificações abaixo foram feitas nesta
+versão, salvo indicação em contrário; o que está "Por testar à mão" é para testar
+nela. O que mudou está nas Novidades da aplicação (`CHANGELOG.md` /
+`CHANGELOG.en.md`).
+
 ## Automáticos
 
 Correm na sessão do Claude, sem ninguém a ver, e não precisam de rede.
 
 | O quê | Como | Última vez | Resultado |
 |---|---|---|---|
-| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-09-30 | 445 passam (inclui `test_i18n.py`: nenhum texto sem tradução) |
-| Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-09-30 | Sem erros |
-| GP5 igual ao alphaTab | Skill `gp-alphatab-check`, nos 12 PDFs e no `September.gp` | 2026-09-30 | Tudo igual, incluindo o `.gp` exportado pelo alphaTab |
-| RockForge igual ao alphaTab | Skill `rockforge-alphatab-check`, nos 12 PDFs | 2026-09-30 | Tudo igual, incluindo a forma dos bends |
+| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-09-30, 0.7.0 | 447 passam (inclui `test_i18n.py`: nenhum texto sem tradução; `test_changelog.py`: as Novidades em inglês com as mesmas entradas) |
+| Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-09-30, 0.7.0 | Sem erros |
+| GP5 igual ao alphaTab | Skill `gp-alphatab-check`, nos 12 PDFs e no `September.gp` | 2026-09-30, 0.7.0 | Tudo igual, incluindo o `.gp` exportado pelo alphaTab |
+| RockForge igual ao alphaTab | Skill `rockforge-alphatab-check`, nos 12 PDFs | 2026-09-30, 0.7.0 (RockForge d0e6c11) | Tudo igual, incluindo a forma dos bends |
 
 PDFs usados (os teus, não guardados no repositório): Daughtry "September" (Lead
 Guitar); Eagles "Hotel California" (Lead 1, 2, 3 e Pro, duas versões); Russell
@@ -46,6 +51,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 - Exportar `.gp` com áudio: o áudio fica com o nome `backing-track.mp3` dentro do ficheiro.
 - Partitura desenhada pelo alphaTab, nas vistas normal e só tab.
 - Relatório da conversão: a pré-visualização em texto aparece numa tab em texto e não aparece numa tab gravada ("September").
+- Novidades (0.7.0): o quadro aparece em inglês ("Version 0.7.0 · Added / Changed…") e em português, conforme o idioma.
 - Idiomas: a aplicação em inglês e em português, com o "September" convertido e todas as páginas abertas — em inglês não fica texto em português (fora o nome "Português" na escolha de idioma) e o `lang` da página e o título seguem o idioma.
 
 ## Por testar à mão
@@ -61,7 +67,8 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 | 7 | **URL → MP3 do YouTube** | No painel do áudio, colar um link do YouTube no campo do endereço | O MP3 é obtido; se faltar o Deno/Node.js, a página diz o que falta |
 | 8 | **Pesquisa automática do vídeo** | Com a chave do YouTube configurada (`docs/CHAVE_YOUTUBE.md`) | O vídeo da música é encontrado sozinho |
 | 9 | **Arranque no Windows** | `start-casa.bat` e `start-trabalho.bat` | A aplicação abre em `http://127.0.0.1:8021` |
-| 10 | **Idioma** | Mudar para English no fundo do menu lateral e usar a aplicação (converter, tocar, áudio, biblioteca) | Tudo em inglês, incluindo os avisos da conversão e os erros; voltar a Português repõe tudo |
+| 10 | **Idioma** | Mudar para English no fundo do menu lateral e usar a aplicação (converter, tocar, áudio, biblioteca) | Tudo em inglês, incluindo os avisos da conversão, os erros e as Novidades; voltar a Português repõe tudo |
+| 11 | **Novidades da 0.7.0** | Abrir a aplicação depois de atualizar | Aparece o quadro das Novidades da versão 0.7.0 uma vez; depois de fechado não volta a aparecer |
 
 ## Confirmado por ti
 
