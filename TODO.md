@@ -8,12 +8,11 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 - [ ] **Quintinas e septinas (5 e 7).** Hoje só as tercinas e as sextinas são exatas; as outras ficam com ritmo estimado pelo espaçamento.
 - [ ] **Técnicas em falta:** tremolo picking (traços na haste), trilo (tr~~), alavanca (dip/dive) e volume swell. O RockForge já trata o tremolo e o trilo. Preciso de PDFs que as tenham.
 - [ ] **rit. / accel.** como mudanças graduais de andamento.
-- [ ] **Ler tabs a partir de um print** (imagem PNG/JPG, ou um print guardado como PDF: o PDF só tem a imagem, sem texto). Hoje só se leem PDFs com texto; um PDF só com imagem dá "PDFs digitalizados exigem OCR". Nesse caso, cada página do PDF é desenhada como imagem e segue o mesmo caminho de um PNG/JPG, também num PDF que misture páginas com texto e páginas só com imagem. **À espera de prints de exemplo** para escolher a fase e testar o OCR antes de mexer na app. Ideia: transformar o print no mesmo formato interno dos PDFs (linhas e caracteres com posição) e reaproveitar a leitura que já existe.
-  1. Print de tab em texto (`e|--0--3h5--|`): OCR com a posição de cada carácter e a leitura de tab em texto atual. Trabalho médio; boa qualidade com imagens nítidas.
-  2. Print de tab gravada (Songsterr, Guitar Pro): detetar cordas e barras de compasso e reconhecer os números. Trabalho grande; o ritmo fica estimado pelo espaçamento.
-  3. Técnicas desenhadas (bends, slides, hastes, vibrato): trabalho muito grande, qualidade incerta.
-  - Precisa de uma biblioteca de OCR (ex.: Tesseract, que no Windows se instala à parte); por escolher e testar.
-  - Aceitar PNG/JPG no ecrã de conversão, processar no processo isolado com limites de tamanho e de pixels, e avisar no relatório que a leitura veio de um print e deve ser conferida.
+- [x] **Ler tabs a partir de um print — fase 2: tab gravada em imagem** (PNG/JPEG/WebP, ou PDF só com imagens). `app/extract/raster_tab.py`: linhas das cordas e barras de compasso por morfologia (OpenCV), números pelo reconhecedor do RapidOCR (ONNX Runtime, no computador), e a página resultante vai para a leitura de tab gravada que já existia. Ritmo pelo espaçamento; aviso no relatório para conferir. Nos 12 PDFs de teste desenhados como imagem: 99,9 % das notas encontradas, 99 % com o traste certo.
+- [ ] **Fase 1: tab em texto numa imagem** (`e|--0--3h5--|`): não tem linhas das cordas desenhadas, por isso a fase 2 não a encontra. Precisa da deteção de texto do RapidOCR (posição de cada carácter) e da leitura de tab em texto atual.
+- [ ] **Fase 3: técnicas e ritmo desenhados numa imagem** (hastes, bends, slides, ligaduras, vibrato): trabalho muito grande, qualidade incerta.
+- [ ] **Vários prints na mesma track**: hoje uma imagem é uma track; vários prints da mesma parte têm de ir num PDF.
+- [ ] **Título, artista e BPM de uma imagem**: hoje não são lidos (só números).
 
 ## Ligação ao RockForge
 

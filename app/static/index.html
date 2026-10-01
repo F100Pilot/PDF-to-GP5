@@ -66,7 +66,7 @@
           <header class="page-head">
             <div>
               <h1 id="h-converter" tabindex="-1">Converter</h1>
-              <p class="page-sub">Tablaturas em PDF (texto ou exportadas de editores) → ficheiro Guitar Pro. Os PDFs são processados em memória e não são guardados.</p>
+              <p class="page-sub">Tablaturas em PDF (texto ou exportadas de editores) ou em imagem → ficheiro Guitar Pro. Os ficheiros são processados em memória e não são guardados.</p>
             </div>
           </header>
 
@@ -82,9 +82,9 @@
             <div class="form-main card">
               <h2 class="card-title">Tracks <span class="hint-inline">uma por PDF · a ordem é a do ficheiro GP5</span></h2>
               <label id="drop" class="drop" for="file">
-                <input id="file" type="file" accept="application/pdf,.pdf" multiple>
+                <input id="file" type="file" accept="application/pdf,.pdf,image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" multiple>
                 <svg class="drop-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
-                <span id="drop-text">Arraste os PDFs da música (um por track) ou clique para escolher</span>
+                <span id="drop-text">Arraste os PDFs ou imagens da música (um por track) ou clique para escolher</span>
                 <span class="hint-inline">Tabs de editor (MuseScore, Guitar Pro) ou tabs em texto</span>
               </label>
 
@@ -143,7 +143,7 @@
           </form>
 
           <section id="status" role="status" aria-live="polite" hidden></section>
-          <p class="hint page-foot">Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados.</p>
+          <p class="hint page-foot">Suporta PDFs com texto e imagens de tablaturas (PNG, JPEG, WebP ou PDF digitalizado) com as linhas das cordas desenhadas, lidas por OCR.</p>
         </section>
 
         <!-- 2. Resultado -->
@@ -450,7 +450,7 @@
             <section class="card" aria-labelledby="h-about">
               <h2 id="h-about" class="card-title">Sobre</h2>
               <p id="version" class="muted"></p>
-              <p class="hint">Suporta PDFs com texto. PDFs digitalizados (imagem) não são suportados. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>; fontes Sora e IBM Plex Sans (SIL Open Font License).</p>
+              <p class="hint">Suporta PDFs com texto e imagens de tablaturas (PNG, JPEG, WebP ou PDF digitalizado) com as linhas das cordas desenhadas, lidas por OCR. Partitura desenhada com <a href="https://alphatab.net" rel="noopener">alphaTab</a>; fontes Sora e IBM Plex Sans (SIL Open Font License).</p>
             </section>
           </div>
         </section>

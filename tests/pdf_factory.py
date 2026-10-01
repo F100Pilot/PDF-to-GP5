@@ -35,6 +35,7 @@ def engraved_tab_pdf(
     widths: list[float] | None = None,
     measure_number_noise: int = 0,
     ranges: list[tuple[int, str, float, float]] | None = None,
+    knockout: bool = False,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -44,7 +45,8 @@ def engraved_tab_pdf(
     the letter above the staff between the previous note and this one.
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to. Staff lines are drawn one
-    segment per measure, right to left, as some editors do.
+    segment per measure, right to left, as some editors do. ``knockout`` blanks
+    the line behind each number, as editors do on screen and in print.
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -71,6 +73,11 @@ def engraved_tab_pdf(
                 flags = rest[0] if rest else ""
                 y = top - (string - 1) * spacing
                 x = start + step * (k + 0.5) + 4
+                if knockout:
+                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.6
+                    pdf.setFillColorRGB(1, 1, 1)
+                    pdf.rect(x - half, y - 3, 2 * half, 6, stroke=0, fill=1)
+                    pdf.setFillColorRGB(0, 0, 0)
                 pdf.drawCentredString(x, y - 2.5, str(fret))
                 if "(" in flags:
                     half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.8
@@ -107,5 +114,31 @@ def blank_pdf() -> bytes:
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     pdf.rect(100, 100, 200, 200, fill=1)
+    pdf.save()
+    return buffer.getvalue()
+
+
+def tab_png(pdf: bytes, width: int = 1300, image_format: str = "PNG") -> bytes:
+    """Page 1 of ``pdf`` as a picture, like a screenshot of the tab."""
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument(pdf)
+    page = document[0]
+    image = page.render(scale=width / page.get_size()[0]).to_pil().convert("RGB")
+    document.close()
+    buffer = io.BytesIO()
+    image.save(buffer, format=image_format)
+    return buffer.getvalue()
+
+
+def image_pdf(pictures: list[bytes]) -> bytes:
+    """A PDF whose pages are only pictures (no text): a scan, or a web page printed to PDF."""
+    from reportlab.lib.utils import ImageReader
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    for picture in pictures:
+        pdf.drawImage(ImageReader(io.BytesIO(picture)), 0, 0, *A4)
+        pdf.showPage()
     pdf.save()
     return buffer.getvalue()

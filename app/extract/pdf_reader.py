@@ -87,6 +87,7 @@ class Page:
     chars: list[Char]
     segments: list[Segment]
     curves: list[Segment] = field(default_factory=list)  # bounding boxes of curved paths
+    images: int = 0  # pictures drawn on the page (a print saved as PDF is one picture per page)
 
 
 class PdfReadError(Exception):
@@ -179,7 +180,7 @@ def read_document(data: bytes, max_pages: int) -> tuple[list[Page], dict[str, st
                 for o in page.lines
             ] + [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.rects]
             curves = [Segment(float(o["x0"]), float(o["x1"]), float(o["top"]), float(o["bottom"])) for o in page.curves]
-            pages.append(Page(index, float(page.width), float(page.height), chars, segments, curves))
+            pages.append(Page(index, float(page.width), float(page.height), chars, segments, curves, len(page.images)))
     return pages, info
 
 

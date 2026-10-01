@@ -7,3 +7,5 @@ PyGuitarPro==0.9.3
 starlette==1.7.0
 yt-dlp[default]==2026.8.19
 imageio-ffmpeg==0.6.0
+# Tab images (OCR): text recogniser on ONNX Runtime; brings OpenCV and NumPy
+rapidocr-onnxruntime==1.4.4

@@ -14,7 +14,10 @@
   const timeSignature = document.getElementById("time_signature");
   const tracksBox = document.getElementById("tracks-box");
   const trackList = document.getElementById("tracks");
-  const DROP_HINT = T("Arraste os PDFs da música (um por track) ou clique para escolher");
+  // Files the converter reads: PDFs and pictures of tabs (OCR).
+  const ACCEPTED = /\.(?:pdf|png|jpe?g|webp)$/i;
+  const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+  const DROP_HINT = T("Arraste os PDFs ou imagens da música (um por track) ou clique para escolher");
   let objectUrl = null;
   let maxBytes = 10 * 1024 * 1024;
   let maxTotalBytes = 40 * 1024 * 1024;
@@ -222,7 +225,7 @@
   function nameFromFile(filename, title, artist) {
     const normalize = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, "");
     const known = new Set([title, artist].filter(Boolean).map(normalize));
-    const stem = filename.replace(/\.pdf$/i, "").replace(/_/g, " ");
+    const stem = filename.replace(/\.(?:pdf|png|jpe?g|webp)$/i, "").replace(/_/g, " ");
     const parts = stem.split(/\s+-\s+|\s*[–—]\s*/).map((p) => p.trim()).filter(Boolean);
     return parts.filter((p) => !known.has(normalize(p))).join(" - ").slice(0, 40);
   }
@@ -244,7 +247,7 @@
 
   async function selectFiles(fileList, handle = null) {
     selectionHandle = handle;
-    const files = [...fileList].filter((f) => f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf");
+    const files = [...fileList].filter((f) => ACCEPTED.test(f.name) || ACCEPTED_TYPES.includes(f.type));
     const token = ++inspection;
     result.hidden = true;
     status.hidden = true;
@@ -315,7 +318,10 @@
       const handles = await window.showOpenFilePicker({
         id: "pdfs",
         multiple: true,
-        types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
+        types: [{
+          description: T("PDF ou imagem"),
+          accept: { "application/pdf": [".pdf"], "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"], "image/webp": [".webp"] },
+        }],
       });
       const files = await Promise.all(handles.map((handle) => handle.getFile()));
       selectFiles(files, handles[0] || null);
@@ -369,7 +375,7 @@
       [T("Ficheiro"), track.filename || "—"], [T("Compassos"), track.measures], [T("Notas"), track.notes],
       [T("Cordas"), track.strings], [T("Afinação"), TUNING_LABELS[track.tuning] || track.tuning],
       [T("Som"), INSTRUMENT_LABELS[track.instrument] || track.instrument], [T("Ritmo"), rhythm],
-      [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : T("gravada"))).join(", ")],
+      [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : s === "image" ? T("imagem (OCR)") : T("gravada"))).join(", ")],
     ]));
     const table = document.createElement("table");
     table.className = "systems";

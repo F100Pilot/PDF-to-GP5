@@ -27,6 +27,7 @@ from .changelog import load_releases, version_key
 from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .cover import CoverError, find_cover
+from .extract.raster_tab import image_kind
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .i18n import LanguageMiddleware, tr
 from .library_store import LibraryError, LibraryStore
@@ -343,6 +344,8 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
         fixed_value=form.fixed_value,
         expand_repeats=form.expand_repeats,
         max_pages=settings.max_pages,
+        max_image_pages=settings.max_image_pages,
+        max_image_pixels=settings.max_image_pixels,
         max_events=settings.max_events,
         max_measures=settings.max_measures,
     )
@@ -366,12 +369,12 @@ async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
                 status_code=413,
                 detail=tr(f"Ficheiro demasiado grande: {upload.filename}.", f"File too large: {upload.filename}."),
             )
-        if not data or not looks_like_pdf(data):
+        if not data or not (looks_like_pdf(data) or image_kind(data)):
             raise HTTPException(
                 status_code=415,
                 detail=tr(
-                    f"O ficheiro enviado não é um PDF: {upload.filename}.",
-                    f"The uploaded file is not a PDF: {upload.filename}.",
+                    f"O ficheiro enviado não é um PDF nem uma imagem PNG, JPEG ou WebP: {upload.filename}.",
+                    f"The uploaded file is not a PDF or a PNG, JPEG or WebP image: {upload.filename}.",
                 ),
             )
         pdfs.append(data)
@@ -431,6 +434,8 @@ async def inspect_pdf(request: Request, file: FileField) -> JSONResponse:
     options = ConversionOptions(
         tracks=(TrackOptions(filename=file.filename or ""),),
         max_pages=settings.max_pages,
+        max_image_pages=settings.max_image_pages,
+        max_image_pixels=settings.max_image_pixels,
         max_events=settings.max_events,
         max_measures=settings.max_measures,
     )

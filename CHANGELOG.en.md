@@ -6,6 +6,14 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
+### Added
+- Tabs in images (OCR, experimental): PNG, JPEG or WebP prints/screenshots, and PDFs that are only images (a print saved as PDF, a scan), are now converted. The string lines and bar lines are found in the image and the numbers read by a text-recognition model that runs on the computer (RapidOCR); nothing leaves the computer (ONNX Runtime's telemetry is turned off); the rhythm is estimated from the spacing and the report asks you to check the notes (bends, slides, ties and other techniques are not read). In a PDF, only the pages with no text or engraved tab are read this way. In the report, the format shows as "image (OCR)". Limits: 15 pages read by OCR per file (`MAX_IMAGE_PAGES`) and 40 megapixels per image (`MAX_IMAGE_MEGAPIXELS`).
+
+### Changed
+- The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
+
+### Fixed
+- A written tuning with the notes run together ("Tuning: D♯ G♯ C♯ F♯A♯ D♯", as in an Ultimate Guitar print saved as PDF): it was ignored and the track stayed in standard tuning.
 
 ## [0.7.0] - 2026-09-30
 ### Added

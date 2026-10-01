@@ -1,6 +1,6 @@
 # PDF → GP5
 
-Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (`.gp5`).
+Aplicação web que converte tablaturas em PDF (ou em imagem) para ficheiros **Guitar Pro 5** (`.gp5`).
 
 ## Formatos suportados
 
@@ -8,12 +8,14 @@ Aplicação web que converte tablaturas em PDF para ficheiros **Guitar Pro 5** (
 |---|---|---|
 | Tab em texto (monoespaçado) | `e|--0--3h5--|` impresso de um `.txt` / site | ✅ |
 | Tab gravada por editor | Exportação PDF do Guitar Pro, MuseScore, TuxGuitar | ⚠️ experimental |
-| PDF digitalizado (imagem) | Scan / fotografia | ❌ requer OCR |
+| Imagem de tab gravada (OCR) | Print/screenshot PNG, JPEG ou WebP; PDF só com imagens (print guardado como PDF, digitalização) | ⚠️ experimental: só números, linhas das cordas e barras de compasso |
+| Imagem de tab em texto | Print de `e|--0--3h5--|` | ❌ ainda não (sem linhas das cordas desenhadas) |
 
 - 4–8 cordas (baixo, guitarra 6/7/8 cordas); afinação lida das etiquetas (`e B G D A D` → Drop D) ou escolhida manualmente.
 - Técnicas: hammer-on/pull-off (`h`/`p`), slides (`/`, `\`, `s`), bend (`b`, `7b9`, `7b9r7`), vibrato (`~`), nota abafada (`x`), ghost note (`(5)`).
 - Tabs gravadas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste anterior na corda, senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
 - Vários sistemas e páginas são concatenados numa única pista.
+- Imagens (OCR): as linhas das cordas e as barras de compasso são detetadas na imagem (OpenCV) e os números lidos por um modelo de reconhecimento de texto ([RapidOCR](https://github.com/RapidAI/RapidOCR), modelos PP-OCR em ONNX Runtime, que correm no computador, sem rede: a telemetria do ONNX Runtime é desligada com `ORT_DISABLE_TELEMETRY=1`). O ritmo é estimado pelo espaçamento; título, artista, BPM e técnicas (bends, slides, ligaduras, hastes) não são lidos. Uma imagem é uma track: vários prints da mesma parte juntam-se num PDF. Melhor com a página inteira a 1000 px ou mais de largura (linhas das cordas a 10 px ou mais umas das outras). Num PDF, só as páginas sem tab em texto nem gravada, mas com imagens, são lidas por OCR. Nos PDFs de teste (exportados de editores) desenhados como imagem, 99,9 % das notas são encontradas e 99 % ficam com o traste certo, com cerca de 2 % de notas a mais (números que não são trastes): o relatório pede para conferir.
 
 O estado detalhado de cada nota e técnica (implementado, parcial, por implementar, sem suporte em GP5) está em [`docs/NOTACAO.md`](docs/NOTACAO.md).
 
@@ -120,7 +122,7 @@ A quota gratuita dá cerca de 100 pesquisas por dia (cada música é pesquisada 
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
 
 Campos (multipart):
-- `file` (obrigatório; repetir para várias tracks, até 7, pela ordem das tracks).
+- `file` (obrigatório; PDF, PNG, JPEG ou WebP; repetir para várias tracks, até 7, pela ordem das tracks).
 - Por track (um valor por PDF, ou um só valor para todos): `track_name`, `tuning`, `instrument`.
 - Da música: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `parentheses` (`tie` = ligadura, `note` = nota normal).
 
@@ -134,8 +136,8 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 
 ## Segurança
 
-- A aplicação não guarda ficheiros: os PDFs são processados em memória. Uploads acima de 1 MB são colocados pelo servidor (Starlette) num ficheiro temporário, apagado no fim do pedido.
-- Validação: tamanho máximo (cabeçalho `Content-Length` **e** contagem em streaming), assinatura `%PDF-`, limite de páginas e de notas, campos validados.
+- A aplicação não guarda ficheiros: os PDFs e as imagens são processados em memória. Uploads acima de 1 MB são colocados pelo servidor (Starlette) num ficheiro temporário, apagado no fim do pedido.
+- Validação: tamanho máximo (cabeçalho `Content-Length` **e** contagem em streaming), assinatura `%PDF-` (ou PNG/JPEG/WebP), limite de páginas, de páginas lidas por OCR, de píxeis por imagem e de notas, campos validados.
 - Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux/macOS; Job Object em Windows); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
 - Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429; IPv6 agrupado por /64), verificados antes de ler o corpo do pedido; inspeção com orçamento próprio.
 - Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
@@ -152,9 +154,11 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 | `MAX_UPLOAD_MB` (por PDF) | 10 |
 | `MAX_TOTAL_UPLOAD_MB` (todos os PDFs) | 40 |
 | `MAX_PAGES` | 40 |
+| `MAX_IMAGE_PAGES` (páginas lidas por OCR, por ficheiro) | 15 |
+| `MAX_IMAGE_MEGAPIXELS` (por imagem) | 40 |
 | `MAX_EVENTS` | 50000 |
 | `CONVERSION_TIMEOUT_S` | 30 |
-| `WORKER_MEMORY_MB` | 1024 |
+| `WORKER_MEMORY_MB` | 2048 (o OCR precisa de ~1,5 GB de espaço de endereços) |
 | `MAX_CONCURRENT_CONVERSIONS` | 2 |
 | `RATE_LIMIT_PER_MINUTE` | 20 |
 | `INSPECT_RATE_LIMIT_PER_MINUTE` | 60 |
@@ -170,6 +174,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 
 - Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
 - Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
+- Em imagens (OCR): só números, linhas das cordas e barras de compasso; números que tocam na linha da corda (sem o espaço em branco que os editores deixam) ou imagens muito pequenas podem falhar. Tab em texto numa imagem ainda não é lida.
 - Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
 - Acordes por extenso, ritardando/accelerando ("rit.", "accel.") e, nas tabs em texto, mudanças de compasso não são convertidos. Repetições, voltas, D.C./D.S./Coda/Fine e marcas de tempo só são lidos por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos). O GP5 guarda cada sinal de navegação (Segno, Coda, D.S. al Coda…) uma só vez por música.
 

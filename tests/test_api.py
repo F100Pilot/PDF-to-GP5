@@ -10,7 +10,7 @@ from app import main
 from app.converter import ConversionError, ConversionOptions
 from app.sandbox import GENERIC_ERROR, ConversionTimeout, _decode_reply, run_isolated
 from app.security import RateLimiter
-from tests.pdf_factory import ascii_tab_pdf, blank_pdf
+from tests.pdf_factory import ascii_tab_pdf, blank_pdf, engraved_tab_pdf, tab_png
 
 TAB = [
     "e|-0---3---5h7---|",
@@ -171,10 +171,18 @@ def test_rejects_too_large(client):
     assert response.status_code == 413
 
 
-def test_scanned_pdf_reports_no_text(client):
+def test_pdf_without_text_or_images_reports_nothing_to_read(client):
     response = _post(client, blank_pdf())
     assert response.status_code == 422
-    assert "OCR" in response.json()["detail"]
+    assert "nem imagens" in response.json()["detail"]
+
+
+def test_converts_a_picture_of_a_tab(client):
+    png = tab_png(engraved_tab_pdf([[(1, 0), (2, 3)], [(3, 5)]], knockout=True))
+    response = client.post("/api/convert", files={"file": ("riff.png", png, "image/png")})
+    assert response.status_code == 200
+    track = response.json()["report"]["tracks"][0]
+    assert track["sources"] == ["image"] and track["notes"] == 3
 
 
 def test_corrupt_pdf(client):
@@ -213,7 +221,7 @@ def test_sandbox_timeout_kills_worker():
 
 
 def test_sandbox_propagates_user_errors():
-    with pytest.raises(ConversionError, match="OCR"):
+    with pytest.raises(ConversionError, match="nem imagens"):
         run_isolated(blank_pdf(), ConversionOptions(), timeout_s=30, memory_mb=1024)
 
 

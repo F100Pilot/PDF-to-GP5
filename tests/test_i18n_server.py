@@ -29,8 +29,8 @@ def test_endpoint_error_follows_the_header(client):
     english = client.post("/api/convert", files=files, headers=EN)
     portuguese = client.post("/api/convert", files=files)
     assert english.status_code == portuguese.status_code == 415
-    assert english.json()["detail"] == "The uploaded file is not a PDF: not.pdf."
-    assert portuguese.json()["detail"] == "O ficheiro enviado não é um PDF: not.pdf."
+    assert english.json()["detail"] == "The uploaded file is not a PDF or a PNG, JPEG or WebP image: not.pdf."
+    assert portuguese.json()["detail"] == "O ficheiro enviado não é um PDF nem uma imagem PNG, JPEG ou WebP: not.pdf."
 
 
 def test_conversion_error_from_the_worker_process_follows_the_header(client):
@@ -38,8 +38,8 @@ def test_conversion_error_from_the_worker_process_follows_the_header(client):
     english = client.post("/api/convert", files=files, headers=EN)
     portuguese = client.post("/api/convert", files=files)
     assert english.status_code == portuguese.status_code == 422
-    assert "no extractable text" in english.json()["detail"]
-    assert "não contém texto extraível" in portuguese.json()["detail"]
+    assert "no text and no images" in english.json()["detail"]
+    assert "não contém texto nem imagens" in portuguese.json()["detail"]
 
 
 def test_conversion_warning_follows_the_header(client):

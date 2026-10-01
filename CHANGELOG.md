@@ -6,6 +6,14 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
+### Adicionado
+- Tabs em imagem (OCR, experimental): prints/screenshots PNG, JPEG ou WebP, e PDFs só com imagens (um print guardado como PDF, uma digitalização), passam a ser convertidos. As linhas das cordas e as barras de compasso são detetadas na imagem e os números lidos por um modelo de reconhecimento de texto que corre no computador (RapidOCR); nada sai do computador (a telemetria do ONNX Runtime fica desligada); o ritmo é estimado pelo espaçamento e o relatório avisa para conferir as notas (bends, slides, ligaduras e outras técnicas não são lidos). Num PDF, só as páginas sem tab em texto nem gravada são lidas assim. No relatório, o formato aparece como "imagem (OCR)". Limites: 15 páginas por OCR por ficheiro (`MAX_IMAGE_PAGES`) e 40 megapíxeis por imagem (`MAX_IMAGE_MEGAPIXELS`).
+
+### Alterado
+- O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
+
+### Corrigido
+- Afinação escrita com as notas coladas ("Tuning: D♯ G♯ C♯ F♯A♯ D♯", como num print do Ultimate Guitar guardado como PDF): era ignorada e a track ficava em afinação standard.
 
 ## [0.7.0] - 2026-09-30
 ### Adicionado

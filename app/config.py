@@ -86,9 +86,11 @@ class Settings:
     max_upload_bytes: int = _int("MAX_UPLOAD_MB", 10) * 1024 * 1024
     max_total_upload_bytes: int = _int("MAX_TOTAL_UPLOAD_MB", 40) * 1024 * 1024  # all PDFs of one song
     max_pages: int = _int("MAX_PAGES", 40)
+    max_image_pages: int = _int("MAX_IMAGE_PAGES", 15)  # pages read by OCR per file, about 1 s each
+    max_image_pixels: int = _int("MAX_IMAGE_MEGAPIXELS", 40) * 1_000_000
     max_events: int = _int("MAX_EVENTS", 50_000)
     conversion_timeout_s: int = _int("CONVERSION_TIMEOUT_S", 30)
-    worker_memory_mb: int = _int("WORKER_MEMORY_MB", 1024)
+    worker_memory_mb: int = _int("WORKER_MEMORY_MB", 2048)  # address space; OCR (onnxruntime) needs ~1.5 GB
     max_concurrent: int = _int("MAX_CONCURRENT_CONVERSIONS", 2)
     rate_limit_per_minute: int = _int("RATE_LIMIT_PER_MINUTE", 20)
     inspect_rate_limit_per_minute: int = _int("INSPECT_RATE_LIMIT_PER_MINUTE", 60)

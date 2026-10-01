@@ -18,8 +18,10 @@ Correm na sessão do Claude, sem ninguém a ver, e não precisam de rede.
 
 | O quê | Como | Última vez | Resultado |
 |---|---|---|---|
-| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-09-30, 0.7.0 | 447 passam (inclui `test_i18n.py`: nenhum texto sem tradução; `test_changelog.py`: as Novidades em inglês com as mesmas entradas) |
-| Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-09-30, 0.7.0 | Sem erros |
+| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-10-01, 0.7.0 + OCR | 464 passam (inclui `test_i18n.py`: nenhum texto sem tradução; `test_changelog.py`: as Novidades em inglês com as mesmas entradas; `test_raster.py`: tab em imagem PNG/JPEG/WebP, de 850 a 5000 px, recorte de uma pauta, PDF só com imagens, limites, telemetria do ONNX Runtime desligada) |
+| Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-10-01, 0.7.0 + OCR | Sem erros |
+| OCR nos 12 PDFs desenhados como imagem | Cada página renderizada e lida por OCR, comparada nota a nota com a leitura do PDF vetorial | 2026-10-01 | 99,9 % das notas encontradas, 99,1 % com o traste certo, ~2 % de notas a mais |
+| Os 12 PDFs vetoriais não mudam com o OCR | GP5 de cada um antes e depois | 2026-10-01 | Iguais byte a byte (nenhuma página é lida por OCR) |
 | GP5 igual ao alphaTab | Skill `gp-alphatab-check`, nos 12 PDFs e no `September.gp` | 2026-09-30, 0.7.0 | Tudo igual, incluindo o `.gp` exportado pelo alphaTab |
 | RockForge igual ao alphaTab | Skill `rockforge-alphatab-check`, nos 12 PDFs | 2026-09-30, 0.7.0 (RockForge d0e6c11) | Tudo igual, incluindo a forma dos bends |
 
@@ -40,6 +42,12 @@ Dickerson "Happen To Me" (Acoustic, Guitar 1 a 4 e Pro).
 O que falta nestes ficheiros é abrir no Guitar Pro 8 (ponto 2 abaixo) e testar
 o PSARC no jogo (RockForge, `docs/TESTES-NO-JOGO.md`).
 
+## Prints (OCR), verificados aqui
+
+| Ficheiro | Data | Resultado |
+|---|---|---|
+| `Simple_Plan_-_Jet_Lag_Rhythm_Guitar.pdf` (print do Ultimate Guitar guardado como PDF; o conteúdo é "You're A God", Vertical Horizon) | 2026-10-01 | As 8 pautas das 3 páginas lidas com 6 cordas; 36 compassos, 234 notas; afinação Mib lida da linha "Tuning"; ~7 s no processo isolado. Título lido sem espaços ("YoureAGod"), corrigir no formulário |
+
 ## Verificado aqui, no browser
 
 Com a aplicação a correr e o Chromium sem janela (Playwright). Sem rede, sem
@@ -52,6 +60,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 - Partitura desenhada pelo alphaTab, nas vistas normal e só tab.
 - Relatório da conversão: a pré-visualização em texto aparece numa tab em texto e não aparece numa tab gravada ("September").
 - Novidades (0.7.0): o quadro aparece em inglês ("Version 0.7.0 · Added / Changed…") e em português, conforme o idioma.
+- Prints (OCR): escolher o PDF do Ultimate Guitar e um PNG; o relatório mostra o formato "imagem (OCR)" / "image (OCR)", o aviso para conferir as notas e nenhuma pré-visualização em texto; o campo de ficheiros aceita PDF, PNG, JPEG e WebP. Sem ligações à Microsoft (telemetria do ONNX Runtime desligada).
 - Idiomas: a aplicação em inglês e em português, com o "September" convertido e todas as páginas abertas — em inglês não fica texto em português (fora o nome "Português" na escolha de idioma) e o `lang` da página e o título seguem o idioma.
 
 ## Por testar à mão
@@ -69,6 +78,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 | 9 | **Arranque no Windows** | `start-casa.bat` e `start-trabalho.bat` | A aplicação abre em `http://127.0.0.1:8021` |
 | 10 | **Idioma** | Mudar para English no fundo do menu lateral e usar a aplicação (converter, tocar, áudio, biblioteca) | Tudo em inglês, incluindo os avisos da conversão, os erros e as Novidades; voltar a Português repõe tudo |
 | 11 | **Novidades da 0.7.0** | Abrir a aplicação depois de atualizar | Aparece o quadro das Novidades da versão 0.7.0 uma vez; depois de fechado não volta a aparecer |
+| 12 | **Prints (OCR)** | Depois do `start`, que instala o OCR (~210 MB): converter um print PNG/JPG de uma tab (Songsterr, Ultimate Guitar, Guitar Pro) e um PDF só com imagens | As notas batem com o print (conferir algumas linhas); o ritmo é aproximado; aparece o aviso. Se falhar, enviar o print |
 
 ## Confirmado por ti
 

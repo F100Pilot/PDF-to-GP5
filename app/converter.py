@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import itertools
 import re
 from collections import Counter
@@ -11,7 +12,8 @@ from dataclasses import dataclass, field
 from .extract.ascii_tab import extract_ascii_systems
 from .extract.engraved_tab import extract_engraved_systems
 from .extract.metadata import SongMetadata, detect_metadata, detect_part_name, track_name_from_filename
-from .extract.pdf_reader import PdfReadError, read_document
+from .extract.pdf_reader import Page, PdfReadError, read_document
+from .extract.raster_tab import image_kind, read_image, read_pdf_page
 from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .i18n import tr
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
@@ -62,6 +64,8 @@ class ConversionOptions:
     rhythm_mode: RhythmMode = "auto"
     fixed_value: int = 8
     max_pages: int = 40
+    max_image_pages: int = 15  # pages read from a picture (OCR) per file: about a second each
+    max_image_pixels: int = 40_000_000
     max_events: int = 50_000
     max_measures: int = 2000
     expand_repeats: bool = False  # write repeated passages out (Rocksmith has no repeats)
@@ -84,40 +88,85 @@ class _ParsedPdf:
     warnings: list[str] = field(default_factory=list)
 
 
-def _read(pdf: bytes, options: ConversionOptions):
+def _read(pdf: bytes, options: ConversionOptions) -> tuple[list[Page], dict[str, str]]:
     try:
         pages, info = read_document(pdf, options.max_pages)
     except PdfReadError as exc:
         raise ConversionError(str(exc)) from exc
-    if not any(page.chars for page in pages):
+    if not any(page.chars or page.images for page in pages):
         raise ConversionError(
             tr(
-                "O PDF não contém texto extraível (provavelmente é uma digitalização/imagem). "
-                "PDFs digitalizados exigem OCR, que não é suportado.",
-                "The PDF has no extractable text (it is probably a scan/image). "
-                "Scanned PDFs need OCR, which is not supported.",
+                "O PDF não contém texto nem imagens: não há tablatura para ler.",
+                "The PDF has no text and no images: there is no tablature to read.",
             )
         )
     return pages, info
 
 
+# Shown once per track read from a picture.
+def _image_warning() -> str:
+    return tr(
+        "Tablatura lida de uma imagem (OCR): confira as notas. O ritmo é estimado pelo espaçamento das notas; "
+        "bends, slides, ligaduras e outras técnicas não são lidos.",
+        "Tablature read from an image (OCR): check the notes. The rhythm is estimated from the spacing of the "
+        "notes; bends, slides, ties and other techniques are not read.",
+    )
+
+
+def _image_systems(page: Page) -> list[TabSystem]:
+    return [dataclasses.replace(s, source="image") for s in extract_engraved_systems(page)]
+
+
+def _check_picture_count(count: int, options: ConversionOptions) -> None:
+    if count > options.max_image_pages:
+        raise ConversionError(
+            tr(
+                f"O PDF tem {count} páginas em imagem; o máximo para ler por OCR é {options.max_image_pages}.",
+                f"The PDF has {count} pages that are images; the maximum read by OCR is {options.max_image_pages}.",
+            )
+        )
+
+
 def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
-    pages, info = _read(pdf, options)
     warnings: list[str] = []
     systems: list[TabSystem] = []
-    for page in pages:
-        ascii_systems, page_warnings = extract_ascii_systems(page)
-        warnings.extend(page_warnings)
-        systems.extend(ascii_systems or extract_engraved_systems(page))
+    if image_kind(pdf):
+        try:
+            picture = read_image(pdf, options.max_image_pixels)
+        except PdfReadError as exc:
+            raise ConversionError(str(exc)) from exc
+        pages, info = [], {}  # nothing but fret numbers is read from a picture: no title, no tempo
+        systems.extend(_image_systems(picture))
+    else:
+        pages, info = _read(pdf, options)
+        pictures: list[int] = []  # pages with neither text nor engraved tab, but an image: OCR
+        for index, page in enumerate(pages):
+            ascii_systems, page_warnings = extract_ascii_systems(page)
+            warnings.extend(page_warnings)
+            found = ascii_systems or extract_engraved_systems(page)
+            systems.extend(found)
+            if not found and page.images:
+                pictures.append(index)
+        _check_picture_count(len(pictures), options)
+        for index in pictures:
+            try:
+                systems.extend(_image_systems(read_pdf_page(pdf, index)))
+            except PdfReadError as exc:
+                raise ConversionError(str(exc)) from exc
+        systems.sort(key=lambda system: system.page)  # pictures read last; stable within a page
     if not systems:
         raise ConversionError(
             tr(
-                "Não foi encontrada tablatura no PDF. São suportadas tablaturas em texto (ex.: e|--0--2--|) "
-                "e tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar).",
-                "No tablature was found in the PDF. Text tablatures (e.g. e|--0--2--|) and tablatures "
-                "engraved by editors (Guitar Pro, MuseScore, TuxGuitar) are supported.",
+                "Não foi encontrada tablatura no ficheiro. São suportadas tablaturas em texto (ex.: e|--0--2--|), "
+                "tablaturas gravadas por editores (Guitar Pro, MuseScore, TuxGuitar) e imagens de tablaturas "
+                "com as linhas das cordas desenhadas.",
+                "No tablature was found in the file. Text tablatures (e.g. e|--0--2--|), tablatures engraved "
+                "by editors (Guitar Pro, MuseScore, TuxGuitar) and images of tablatures with the string lines "
+                "drawn are supported.",
             )
         )
+    if any(s.source == "image" for s in systems):
+        warnings.append(_image_warning())
     metadata = detect_metadata(pages, info)
     return _ParsedPdf(systems, metadata, detect_part_name(pages, metadata), warnings)
 

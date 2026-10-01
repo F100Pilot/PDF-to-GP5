@@ -109,6 +109,7 @@ def _detect_time_signature(page: Page) -> tuple[int, int] | None:
 
 _TUNING_LINE = re.compile(r"^\s*(?:tuning|afina[cç][aã]o)\s*[:\-]?\s*(?P<v>.+)$", re.IGNORECASE)
 _NOTE_TOKEN = re.compile(r"^[A-Ga-g](?:#|b|♯|♭)?$")
+_JOINED_NOTES = re.compile(r"(?:[A-G][#b]?){2,7}")
 
 
 def _detect_tuning(texts: list[str]) -> tuple[str, ...]:
@@ -125,6 +126,8 @@ def _detect_tuning(texts: list[str]) -> tuple[str, ...]:
         if value in names:
             return names[value]
         tokens = [t.replace("♯", "#").replace("♭", "b") for t in re.split(r"[\s,\-–]+", match.group("v").strip()) if t]
+        # notes printed without spaces between some or all of them ("D# G# C# F#A# D#")
+        tokens = [n for t in tokens for n in (re.findall(r"[A-G][#b]?", t) if _JOINED_NOTES.fullmatch(t) else [t])]
         if 4 <= len(tokens) <= 7 and all(_NOTE_TOKEN.match(t) for t in tokens):
             return tuple(t[0].upper() + t[1:] for t in reversed(tokens))
     return ()
@@ -220,7 +223,7 @@ def _normalize(text: str) -> str:
 
 def track_name_from_filename(filename: str, title: str | None, artist: str | None) -> str | None:
     """Part name from a file like "Artist - Song - Bass.pdf": what remains after removing song/artist."""
-    stem = re.sub(r"\.pdf$", "", filename.replace("\\", "/").rsplit("/", 1)[-1], flags=re.IGNORECASE)
+    stem = re.sub(r"\.(?:pdf|png|jpe?g|webp)$", "", filename.replace("\\", "/").rsplit("/", 1)[-1], flags=re.IGNORECASE)
     stem = stem.replace("_", " ")
     known = {_normalize(value) for value in (title, artist) if value}
     parts = [p.strip() for p in re.split(r"\s+-\s+|\s*[–—]\s*", stem) if p.strip()]

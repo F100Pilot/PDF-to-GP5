@@ -414,7 +414,7 @@ def _segment_measures(
         )
         return _sequence([(_to_notes(c.events), 1) for c in cols], units)
     content_start = start + unit_width  # skip the bar-line glyph
-    if system.source == "engraved" or cols[0].x - content_start <= 1.5 * unit_width:
+    if system.source != "ascii" or cols[0].x - content_start <= 1.5 * unit_width:
         origin = cols[0].x
     else:
         origin = content_start + unit_width  # leading rest: assume one spacer before the grid

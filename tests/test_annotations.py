@@ -171,6 +171,12 @@ def test_written_tuning_and_custom_octaves():
     assert _detect_tuning(["Afinação: Drop D"]) == ("E", "B", "G", "D", "A", "D")
     assert _detect_tuning(["Tuning: half step down"])[0] == "D#"
     assert _detect_tuning(["Tuning is great"]) == ()
+    # printed without spaces (Ultimate Guitar, printed to PDF)
+    assert _detect_tuning(["Tuning:D♯G♯C♯F♯A♯D♯"]) == ("D#", "A#", "F#", "C#", "G#", "D#")
+    assert _detect_tuning(["Tuning: D♯ G♯ C♯ F♯A♯ D♯"]) == ("D#", "A#", "F#", "C#", "G#", "D#")
+    assert _detect_tuning(["Tuning: EADGBE"]) == ("E", "B", "G", "D", "A", "E")
+    assert _detect_tuning(["Tuning: Eb Ab Db Gb Bb Eb"]) == ("Eb", "Bb", "Gb", "Db", "Ab", "Eb")
+    assert _detect_tuning(["Tuning: Dbstuff"]) == ()
     assert labels_to_midi(["E", "C", "G", "C", "G", "C"]) == [64, 60, 55, 48, 43, 36]  # open C
     assert resolve_tuning("auto", 6, ["E", "B", "G", "D", "A", "D"])[0] == list(TUNINGS["drop_d"])
     tuning, warnings = resolve_tuning("auto", 6, ["E", "B", "G", "D"])
