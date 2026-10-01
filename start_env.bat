@@ -48,13 +48,18 @@ if not errorlevel 1 goto :port_busy
 echo [3/3] Servidor em http://%HOST%:%PORT%
 echo       Para parar: feche a pagina no browser (ou Ctrl+C nesta janela).
 rem Abrir no Chrome: no Brave o video do YouTube nao toca dentro da pagina.
+rem O Chrome abre com um perfil so desta aplicacao: nesse perfil a aceleracao grafica
+rem (WebGL, precisa dela a pista 3D) esta sempre ligada, mesmo que esteja desligada no
+rem perfil normal, e --ignore-gpu-blocklist usa a placa grafica mesmo que o Chrome a
+rem tenha na lista das que nao usa (comum em portateis). Fica numa janela a parte.
+set "CHROME_FLAGS=--user-data-dir="%LocalAppData%\PDF-to-GP5\Chrome" --ignore-gpu-blocklist --no-first-run --no-default-browser-check"
 rem Sem Chrome instalado, abre o browser predefinido.
 set "BROWSER="
 if exist "%ProgramFiles%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 if not defined BROWSER if exist "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe" set "BROWSER=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
 if not defined BROWSER if exist "%LocalAppData%\Google\Chrome\Application\chrome.exe" set "BROWSER=%LocalAppData%\Google\Chrome\Application\chrome.exe"
 if not defined BROWSER goto :open_default
-start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start "" "%BROWSER%" http://%HOST%:%PORT%"
+start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start "" "%BROWSER%" %CHROME_FLAGS% http://%HOST%:%PORT%"
 goto :run_server
 :open_default
 echo       Chrome nao encontrado: a abrir o browser predefinido.

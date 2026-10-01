@@ -13,6 +13,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - Tabs in images: the time signature (the two big numbers on the staff, at the start or at a change mid-song) is now read. In a PDF whose page 1 is an image but has some text (a printed web page: title and artist as text), the BPM and time signature that are only in the image are read too; they used to stay at 120 and 4/4.
 
 ### Changed
+- `start.bat` and `start_env.bat` open Chrome with a profile of the app's own, where graphics acceleration (WebGL) is always on, and with `--ignore-gpu-blocklist`: on a laptop with acceleration turned off, or with its graphics card on Chrome's block list, the 3D highway did not show.
 - Faster tabs in images: numbers are read in batches at their real width (the model read each one on a 320 px line) — Jet Lag as an image goes from 60 s to 16 s; when a file is chosen, the analysis that fills in the form no longer reads the frets (3 s instead of 15 s).
 - Windows startup scripts renamed: `start-casa.bat` is now `start.bat` and `start-trabalho.bat` is now `start_env.bat` (the one with the virtual environment).
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.

@@ -13,6 +13,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Tabs em imagem: o compasso (os dois números grandes na pauta, no início ou numa mudança a meio da música) passa a ser lido. Num PDF cuja página 1 é uma imagem mas tem algum texto (um print de uma página web: título e artista em texto), o BPM e o compasso que só estão na imagem também são lidos; antes ficavam 120 e 4/4.
 
 ### Alterado
+- `start.bat` e `start_env.bat` abrem o Chrome com um perfil só da aplicação, onde a aceleração gráfica (WebGL) está sempre ligada, e com `--ignore-gpu-blocklist`: num portátil com a aceleração desligada ou com a placa gráfica na lista de bloqueio do Chrome, a pista 3D não aparecia.
 - Tabs em imagem mais rápidas: os números são lidos em lotes à largura real (o modelo lia cada um numa linha de 320 px) — a Jet Lag como imagem passa de 60 s para 16 s; ao escolher o ficheiro, a análise que preenche o formulário já não lê os trastes (3 s em vez de 15 s).
 - Scripts de arranque para Windows com nomes novos: `start-casa.bat` passa a `start.bat` e `start-trabalho.bat` passa a `start_env.bat` (o que usa o ambiente virtual).
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
