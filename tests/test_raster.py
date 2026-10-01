@@ -190,3 +190,46 @@ def test_pdf_text_with_tempo_and_time_signature_from_its_picture():
         96,
         "3/4",
     )
+
+
+def _notes(gp5: bytes) -> list[tuple[int, int, int, str, bool]]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (number, note.string, note.value, note.type.name, note.effect.ghostNote)
+        for number, measure in enumerate(song.tracks[0].measures, start=1)
+        for beat in measure.voices[0].beats
+        for note in beat.notes
+    ]
+
+
+def test_parenthesized_notes_in_a_picture_are_ghost_notes_or_ties_as_in_the_pdf():
+    staves = [[[(1, 3), (2, 5, "(")], [(1, 3, "("), (3, 7)]]]
+    pdf = engraved_tab_pdf(staves, knockout=True)
+    assert _notes(convert(tab_png(pdf), ConversionOptions()).gp5) == _notes(convert(pdf, ConversionOptions()).gp5)
+
+
+def test_bar_numbers_count_a_multi_bar_rest_in_a_picture():
+    # bar 2 is a rest standing for bars 2-4: the numbers jump from 2 to 5
+    staves = [[[(1, 0)], [], [(2, 3)]]]
+    pdf = engraved_tab_pdf(staves, knockout=True, bar_numbers=[[1, 2, 5]])
+    assert convert(pdf, ConversionOptions()).report["measures"] == 5
+    assert convert(tab_png(pdf), ConversionOptions()).report["measures"] == 5
+
+
+def test_misread_bar_numbers_are_dropped():
+    from app.extract.raster_tab import _increasing
+
+    read = [(0, 50), (1, 52), (2, 63), (3, 54), (4, 6), (5, 56)]  # 63 and 6 misread
+    assert _increasing(read) == [0, 1, 3, 5]
+
+
+def test_chord_digits_touching_are_cut_apart():
+    from app.extract.raster_tab import _split_chords
+
+    lines = [100.0, 116.0, 132.0]
+    touching = (10, 109, 10, 30, 200)  # a "2" on the line at 116 touching a "0" on the line at 132
+    single = (40, 109, 10, 14, 90)
+    pieces = list(_split_chords([touching, single], lines, 16.0))
+    assert [(y, h) for _, y, _, h, _ in pieces] == [(109, 15), (124, 15), (109, 14)]

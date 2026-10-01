@@ -213,6 +213,70 @@ def _find_staves(gray, cv2, np):
     return dark, groups, spacing
 
 
+def _brackets(blobs):
+    """(left parenthesis, the number's own blobs, right parenthesis) of a group of blobs on a
+    line. The recogniser reads a parenthesis as "1", "[" or "]", so it is kept out of the crop and
+    put back as a character (the tab reader makes the note a tie or a ghost note). A parenthesis
+    is a blob at an end of the group about as tall as the digits and far narrower. A "1" can be
+    nearly as narrow: a blob only somewhat narrow counts as one of a pair round the number."""
+
+    def shape(blob, inner, ratio: float, relative: float) -> bool:
+        _, _, w, h, _ = blob
+        widest, tallest = max(b[2] for b in inner), max(b[3] for b in inner)
+        return w <= ratio * h and w <= relative * widest and h >= 0.7 * tallest
+
+    def strict(blob, inner) -> bool:
+        return shape(blob, inner, 0.25, 0.4)
+
+    def loose(blob, inner) -> bool:
+        return shape(blob, inner, 0.35, 0.45)
+
+    blobs = list(blobs)
+    if len(blobs) < 2:
+        return None, blobs, None
+    first, last = blobs[0], blobs[-1]
+    middle = blobs[1:-1] or None
+    if middle and loose(first, middle) and loose(last, middle):
+        return first, middle, last  # a pair of parentheses round the number
+    left = first if strict(first, blobs[1:]) else None
+    right = last if strict(last, blobs[:-1]) and len(blobs) > (2 if left else 1) else None
+    return left, blobs[1 if left else 0 : len(blobs) - 1 if right else len(blobs)], right
+
+
+def _chord_brackets(numbers, spacing: float):
+    """_brackets of each group, with what a chord says: in a column where the other notes are in
+    parentheses, a narrow blob at the end of a number is its parenthesis too (one of the pair
+    may have been lost to a neighbour or read on its own)."""
+    parts = [_brackets(group) for group in numbers]
+    columns = [(group[0][0] + group[-1][0] + group[-1][2]) / 2 for group in numbers]
+    bracketed = [x for x, (left, _, right) in zip(columns, parts, strict=True) if left and right]
+    out = []
+    for x, (left, blobs, right) in zip(columns, parts, strict=True):
+        if len(blobs) >= 2 and any(abs(x - other) <= 0.6 * spacing for other in bracketed):
+            if not left and _narrow(blobs[0], blobs[1:]):
+                left, blobs = blobs[0], blobs[1:]
+            if not right and len(blobs) >= 2 and _narrow(blobs[-1], blobs[:-1]):
+                right, blobs = blobs[-1], blobs[:-1]
+        out.append((left, blobs, right))
+    return out
+
+
+def _narrow(blob, inner) -> bool:
+    """A blob shaped like a parenthesis beside the digits ``inner``: thin, nearly as tall."""
+    _, _, w, h, _ = blob
+    return w <= 0.45 * h and h >= 0.7 * max(b[3] for b in inner) and w < max(b[2] for b in inner)
+
+
+def _stacked(blobs) -> bool:
+    """Blobs one above the other (a rest drawn on the staff, read as "1"): the digits of a
+    number stand side by side."""
+    for a, b in itertools.combinations(blobs, 2):
+        overlap = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+        if overlap > 0.5 * min(a[2], b[2]):
+            return True
+    return False
+
+
 def _clean(text: str) -> str:
     """Fret text only: letters the recogniser confuses with digits are mapped back (the model also
     reads Chinese, and a lone round 0 can come out as the ideographic full stop)."""
@@ -222,7 +286,10 @@ def _clean(text: str) -> str:
     return "".join(ch for ch in text if ch.isdigit() or ch in "()xX")
 
 
-def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | None]:
+def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> tuple[Page, Page | None]:
+    """The tab page read from the picture, and with ``heading`` the text above its first staff.
+    Without ``frets`` (inspecting a file to fill in the form) only the staves, bar lines and
+    time signatures are read: the fret numbers and bar numbers are most of the work."""
     cv2, np = _cv()
     dark, groups, spacing = _find_staves(gray, cv2, np)
     height, width = gray.shape
@@ -249,16 +316,47 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
         for cols in np.split(xs, np.where(np.diff(xs) > 1)[0] + 1) if len(xs) else []:
             if len(cols) <= max(3, spacing * 0.35):
                 xc = x0 + float(cols.mean())
+                on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True
+                if bars[-1] and xc - bars[-1][-1] < 0.6 * spacing:
+                    continue  # the second stroke of a double bar line: one bar line
                 bars[-1].append(xc)
                 segments.append(Segment(xc * k, xc * k, top * k, bottom * k))
-                on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True
 
     glyph = dark & ~on_line
+    chars = _frets(glyph, groups, spacing, k) if frets else []
+    signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
+    numbers = _bar_numbers(gray, dark, groups, bars, spacing, k) if frets else []
+    page = Page(number, width * k, height * k, chars + signatures + numbers, segments)
+    if not heading:
+        return page, None
+    head = _heading(gray, groups, spacing, k, number)
+    first = min(groups, key=lambda group: group[0][0])  # the time signature at the start, for the form
+    head.chars.extend(c for c in signatures if first[0][0] * k <= c.top - 0.9 * (c.bottom - c.top) <= first[-1][0] * k)
+    return page, head
+
+
+def _split_chords(blobs, line_ys: list[float], spacing: float):
+    """The blobs, with two digits of a chord that touch (one above the other, on neighbouring
+    strings, in a small picture) cut apart halfway between their strings."""
+    for x, y, w, h, area in blobs:
+        inside = [ly for ly in line_ys if y < ly < y + h]
+        if 1.25 * spacing < h <= 2.6 * spacing and len(inside) == 2 and inside[1] - inside[0] < 1.3 * spacing:
+            cut = round((inside[0] + inside[1]) / 2)
+            yield x, y, w, cut - y, area
+            yield x, cut, w, y + h - cut, area
+        else:
+            yield x, y, w, h, area
+
+
+def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
+    """Fret numbers: digit-sized blobs centred on a staff line, read by the recogniser."""
+    cv2, np = _cv()
     count, _, stats, _ = cv2.connectedComponentsWithStats(glyph.astype(np.uint8), connectivity=8)
     line_ys = [line[0] for group in groups for line in group]
     candidates = []  # digit-sized blobs centred on a staff line: (x, y, w, h, line y)
-    for x, y, w, h, area in stats[1:count]:
-        if area < 4 or not (0.45 * spacing <= h <= 1.25 * spacing and w <= 1.6 * spacing):
+    for x, y, w, h, area in _split_chords(stats[1:count], line_ys, spacing):
+        # a digit is taller than wide (a wide blob is a rest or a beam)
+        if area < 4 or not (0.45 * spacing <= h <= 1.25 * spacing and w <= 1.6 * spacing and w <= h):
             continue
         line_y = min(line_ys, key=lambda ly, yc=y + h / 2: abs(ly - yc))
         if abs(line_y - (y + h / 2)) <= 0.4 * spacing:
@@ -272,9 +370,10 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
         else:
             numbers.append([c])
 
-    boxes, crops = [], []
+    boxes, crops, brackets = [], [], []
     pad = int(spacing * 0.4)
-    for blobs in numbers:
+    for left, blobs, right in _chord_brackets([g for g in numbers if not _stacked(g)], spacing):
+        brackets.append((left, right))
         gx0, gx1 = min(c[0] for c in blobs), max(c[0] + c[2] for c in blobs)
         gy0, gy1 = min(c[1] for c in blobs), max(c[1] + c[3] for c in blobs)
         pixels = glyph[gy0:gy1, gx0:gx1].copy()
@@ -297,20 +396,21 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
         boxes.append((gx0, gx1, gy0, gy1))
     chars: list[Char] = []
     if crops:
-        results, _ = _recognizer()(crops)
-        for (gx0, gx1, gy0, gy1), (text, _score) in zip(boxes, results, strict=True):
+        results = _recognize(crops)  # free reading, then _clean: better than digits only here
+        for (gx0, gx1, gy0, gy1), (left, right), text in zip(boxes, brackets, results, strict=True):
             text = _clean(text)
-            step = (gx1 - gx0) / len(text) if text else 0
+            if left or right:
+                text = text.strip("()")
+            if not text:
+                continue
+            step = (gx1 - gx0) / len(text)
             for j, ch in enumerate(text):  # one character per digit, the box split evenly
                 chars.append(Char(ch, (gx0 + j * step) * k, (gx0 + (j + 1) * step) * k, gy0 * k, gy1 * k))
-    signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
-    page = Page(number, width * k, height * k, chars + signatures, segments)
-    if not heading:
-        return page, None
-    head = _heading(gray, groups, spacing, k, number)
-    first = min(groups, key=lambda group: group[0][0])  # the time signature at the start, for the form
-    head.chars.extend(c for c in signatures if first[0][0] * k <= c.top - 0.9 * (c.bottom - c.top) <= first[-1][0] * k)
-    return page, head
+            for bracket, symbol in ((left, "("), (right, ")")):
+                if bracket:
+                    bx, _, bw, _, _ = bracket
+                    chars.append(Char(symbol, bx * k, (bx + bw) * k, gy0 * k, gy1 * k))
+    return chars
 
 
 def _alike(upper, lower, spacing: float) -> bool:
@@ -318,7 +418,152 @@ def _alike(upper, lower, spacing: float) -> bool:
     not to be a stem or an arrow."""
     heights = [box[3] - box[2] for box in (upper, lower)]
     widths = [box[1] - box[0] for box in (upper, lower)]
-    return max(heights) <= 1.4 * min(heights) and min(widths) >= 0.6 * spacing
+    return max(heights) <= 1.4 * min(heights) and min(widths) >= 0.8 * spacing
+
+
+def _bar_numbers(gray, dark, groups, bars: list[list[float]], spacing: float, k: float) -> list[Char]:
+    """The bar numbers printed just above the staff at the start of a bar (on every bar, or only
+    where a line or a multi-bar rest starts). The tab reader counts a multi-bar rest from them,
+    as in a PDF — without them the bars after it would come early. A number missing (cut off at
+    the picture's edge, misread) is filled from a neighbour and the multi-bar rest's count, the
+    big number over the rest: the bar before a "40" with a "4" over it is bar 36."""
+    entries = []  # per bar, in reading order: (x, staff top, number box, count box, first of its line)
+    for group, staff_bars in zip(groups, bars, strict=True):
+        top = group[0][0]
+        x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
+        bounds: list[float] = []
+        for x in sorted([float(x0), *staff_bars, float(x1)]):
+            if not bounds or x - bounds[-1] >= 0.6 * spacing:
+                bounds.append(x)
+        for start, end in itertools.pairwise(bounds):
+            reach = 2.0 if start - x0 < spacing else 0.8  # a line's first number can start further left
+            number = _small_number(dark, top, start - reach * spacing, start + 1.6 * spacing, spacing)
+            entries.append((start, top, number, _rest_count(dark, top, start, end, spacing), start - x0 < spacing))
+    boxes = [box for _, _, number, count, _ in entries for box in (number, count) if box]
+    votes = iter(_read_boxes(gray, boxes))
+    numbers: list[int | None] = []
+    counts: list[int | None] = []
+    for _, _, number, count, _ in entries:
+        text = next(votes) if number else ""
+        numbers.append(int(text) if text and len(text) <= 3 else None)
+        text = next(votes) if count else ""
+        counts.append(int(text) if text and 2 <= int(text) <= 64 else None)
+    kept = set(_increasing([(i, n) for i, n in enumerate(numbers) if n is not None]))
+    numbers = [n if i in kept else None for i, n in enumerate(numbers)]
+    for i in range(len(entries) - 1):
+        # a line's first number cut at the picture's edge ("5" for 55) can still go up: a jump
+        # there needs the rest's count to back it
+        first, jump = entries[i][4], numbers[i + 1] is not None and numbers[i] is not None
+        if first and jump and numbers[i + 1] - numbers[i] > 1 and counts[i] != numbers[i + 1] - numbers[i]:
+            numbers[i] = None
+    for _ in range(2):  # fill gaps from a neighbour and the rest's count, both ways
+        for i in range(len(entries) - 1):
+            if numbers[i] is not None and numbers[i + 1] is None and counts[i]:
+                numbers[i + 1] = numbers[i] + counts[i]
+            if numbers[i] is None and numbers[i + 1] is not None and counts[i]:
+                numbers[i] = numbers[i + 1] - counts[i]
+    chars: list[Char] = []
+    for (x, top, box, _, _), number in zip(entries, numbers, strict=True):
+        if number is None:
+            continue
+        # where the number was read, at its place; a filled-in one just after the bar line
+        bx0, bx1, by0, by1 = box or (x, x + 0.6 * spacing, top - 1.0 * spacing, top - 0.4 * spacing)
+        text = str(number)
+        step = (bx1 - bx0) / len(text)
+        for j, digit in enumerate(text):
+            chars.append(Char(digit, (bx0 + j * step) * k, (bx0 + (j + 1) * step) * k, by0 * k, by1 * k))
+    return chars
+
+
+def _read_boxes(gray, boxes) -> list[str]:
+    """Digits in each box: read once with a middle margin, and only those that come back empty
+    again with the other margins (most bar numbers read the first time; three readings of
+    every one doubled the time of a page)."""
+    if not boxes:
+        return []
+    texts = _read_digits([_margins(gray, *box, margins=(0.6,))[0] for box in boxes])
+    retry = [i for i, text in enumerate(texts) if not text]
+    if retry:
+        again = _read_digits([crop for i in retry for crop in _margins(gray, *boxes[i], margins=(0.3, 1.0))])
+        for n, i in enumerate(retry):
+            texts[i] = _vote(again[2 * n : 2 * n + 2])
+    return texts
+
+
+def _components(dark, y0: float, y1: float, x0: float, x1: float):
+    """Connected blobs (x, y, w, h, area) of the dark pixels in the box, in its coordinates."""
+    cv2, np = _cv()
+    a, b, c, d = max(0, int(x0)), int(x1), max(0, int(y0)), int(y1)
+    if b - a < 3 or d - c < 3:
+        return a, c, []
+    count, _, stats, _ = cv2.connectedComponentsWithStats(dark[c:d, a:b].astype(np.uint8), connectivity=8)
+    return a, c, [tuple(int(v) for v in row) for row in stats[1:count]]
+
+
+def _small_number(dark, top: float, left: float, right: float, spacing: float):
+    """Box (x0, x1, y0, y1) of the first small number between ``left`` and ``right`` in the band
+    just above the staff (a bar number), or None."""
+    a, c, blobs = _components(dark, top - 1.5 * spacing, top - 0.2 * spacing, left, right)
+    digits = sorted(
+        (x, y, w, h)
+        for x, y, w, h, area in blobs
+        if 0.35 * spacing <= h <= 1.0 * spacing and w <= 2.5 * h and area >= 4  # italic digits touch
+    )
+    if not digits:
+        return None
+    run = [digits[0]]  # the first number from the bar line: digits side by side
+    for d in digits[1:]:
+        if d[0] - (run[-1][0] + run[-1][2]) <= 0.3 * d[3] and abs(d[1] - run[-1][1]) <= 0.3 * d[3]:
+            run.append(d)
+    return (
+        a + run[0][0],
+        a + max(d[0] + d[2] for d in run),
+        c + min(d[1] for d in run),
+        c + max(d[1] + d[3] for d in run),
+    )
+
+
+def _rest_count(dark, top: float, start: float, end: float, spacing: float):
+    """Box of the big number centred over a bar (how many bars a multi-bar rest stands for), or
+    None: digits taller than a bar number, in the middle of the bar, just above the staff."""
+    a, c, blobs = _components(
+        dark, top - 2.2 * spacing, top - 0.1 * spacing, start + 0.5 * spacing, end - 0.5 * spacing
+    )
+    middle = (end - start) / 2 - 0.5 * spacing
+    digits = sorted(
+        (x, y, w, h)
+        for x, y, w, h, _ in blobs
+        if 0.85 * spacing <= h <= 2.0 * spacing and w <= 1.5 * h and abs(x + w / 2 - middle) <= 1.5 * spacing
+    )
+    if not digits or len(digits) > 2:
+        return None
+    return (
+        a + digits[0][0],
+        a + max(d[0] + d[2] for d in digits),
+        c + min(d[1] for d in digits),
+        c + max(d[1] + d[3] for d in digits),
+    )
+
+
+def _increasing(read: list[tuple[int, int]]) -> list[int]:
+    """Indexes of the longest run of (index, bar number) pairs whose numbers go up in reading
+    order (staves top to bottom, bars left to right): a misread number ("63" between 52 and 54)
+    would make the tab reader count a multi-bar rest that is not there; dropped, it is filled in
+    from its neighbours where it can be."""
+    if not read:
+        return []
+    best = [1] * len(read)
+    before = [-1] * len(read)
+    for i, (_, number) in enumerate(read):
+        for j in range(i):
+            if read[j][1] < number and best[j] + 1 > best[i]:
+                best[i], before[i] = best[j] + 1, j
+    i = max(range(len(read)), key=best.__getitem__)
+    kept = []
+    while i >= 0:
+        kept.append(read[i][0])
+        i = before[i]
+    return kept[::-1]
 
 
 def _signature_row(gray, band, origin: tuple[int, int], cx0: int, cx1: int, h0: int, h1: int):
@@ -326,7 +571,7 @@ def _signature_row(gray, band, origin: tuple[int, int], cx0: int, cx1: int, h0: 
     the picture itself for the recogniser — it reads these big digits better with their
     anti-aliasing and a wide white margin than as clean black shapes — at each margin, and its
     box."""
-    cv2, np = _cv()
+    _, np = _cv()
     rows = np.where(band[h0:h1, cx0:cx1].any(axis=1))[0]
     cols = np.where(band[h0:h1, cx0:cx1].any(axis=0))[0]
     if not len(rows) or not len(cols):
@@ -334,40 +579,74 @@ def _signature_row(gray, band, origin: tuple[int, int], cx0: int, cx1: int, h0: 
     ry0, ry1 = h0 + int(rows[0]), h0 + int(rows[-1]) + 1
     rx0, rx1 = cx0 + int(cols[0]), cx0 + int(cols[-1]) + 1
     left, top = origin
-    digit = np.ascontiguousarray(gray[top + ry0 : top + ry1, left + rx0 : left + rx1])
+    return _margins(gray, left + rx0, left + rx1, top + ry0, top + ry1), (rx0, rx1, ry0, ry1)
+
+
+def _margins(gray, x0: int, x1: int, y0: int, y1: int, margins=None) -> list:
+    """The picture's digits in the box, with each white margin (default _SIGNATURE_MARGINS)."""
+    cv2, np = _cv()
+    digit = np.ascontiguousarray(gray[y0:y1, x0:x1])
     crops = []
-    for margin in _SIGNATURE_MARGINS:
-        pad = int(margin * (ry1 - ry0))
+    for margin in margins or _SIGNATURE_MARGINS:
+        pad = int(margin * (y1 - y0))
         crop = cv2.copyMakeBorder(digit, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=255)
         scale = 48 / crop.shape[0]
         crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
-    return crops, (rx0, rx1, ry0, ry1)
+    return crops
 
 
-# A lone big digit is read unreliably (with a wide margin it can come back empty, "12" once as
+# A lone digit (of a time signature, a bar number) is read unreliably (with a wide margin it can come back empty, "12" once as
 # "42"): each row is read with three white margins, and the reading that wins outright is kept.
 _SIGNATURE_MARGINS = (0.3, 0.6, 1.0)
 
 
 def _read_digits(crops) -> list[str]:
-    """Read each crop as digits only: the recogniser's scores at each position are kept for the
-    ten digits (and the CTC blank) alone. Left free, the model — trained mostly on Chinese —
-    reads a lone big digit as a Chinese character ("左" for a 4)."""
+    """Read each crop as digits only. Left free, the model — trained mostly on Chinese — reads
+    a lone big digit as a Chinese character ("左" for a 4)."""
+    return _recognize(crops, "0123456789")
+
+
+# Crops read in one run of the model; each run is as wide as its widest crop.
+_BATCH = 16
+
+
+def _recognize(crops, alphabet: str | None = None) -> list[str]:
+    """Text of each crop. The library pads every crop to a 320 px wide line before reading;
+    a fret number is a few dozen pixels wide, so nearly all of that work went on white space
+    (17 s for a page of a strummed song). Here crops of similar width are read together, at
+    the width of the widest. With ``alphabet``, the model's scores at each position are kept
+    for those characters (and the CTC blank) alone."""
     _, np = _cv()
     recognizer = _recognizer()
-    table = recognizer.postprocess_op.dict
-    allowed = [0] + [table[d] for d in "0123456789"]  # 0 is the CTC blank
-    out = []
-    for crop in crops:
-        height, width = crop.shape[:2]
-        image = recognizer.resize_norm_img(crop, max(width / height, 320 / 48))[np.newaxis].astype(np.float32)
-        scores = recognizer.session(image)[0][0][:, allowed]
-        best = scores.argmax(axis=1)
-        digits = [
-            str(i - 1) for j, i in enumerate(best) if i and (j == 0 or best[j - 1] != i)
-        ]  # CTC: drop blanks and repeats
-        out.append("".join(digits))
+    decode = recognizer.postprocess_op
+    allowed = [0] + [decode.dict[ch] for ch in alphabet] if alphabet else None  # 0 is the CTC blank
+    ratios = [crop.shape[1] / crop.shape[0] for crop in crops]
+    order = sorted(range(len(crops)), key=ratios.__getitem__)
+    out = [""] * len(crops)
+    for start in range(0, len(order), _BATCH):
+        batch = order[start : start + _BATCH]
+        widest = max(ratios[i] for i in batch)
+        if alphabet:
+            widest = max(widest, 320 / 48)  # lone digits read best on the library's 320 px line
+        images = np.stack([recognizer.resize_norm_img(crops[i], widest) for i in batch])
+        scores = recognizer.session(images.astype(np.float32))[0]
+        if allowed is None:
+            texts = [text for text, _ in decode(scores)]
+        else:
+            texts = []
+            for best in scores[:, :, allowed].argmax(axis=2):
+                kept = [i for j, i in enumerate(best) if i and (j == 0 or best[j - 1] != i)]  # CTC
+                texts.append("".join(alphabet[i - 1] for i in kept))
+        for i, text in zip(batch, texts, strict=True):
+            out[i] = text
+    if alphabet is None:
+        # a lone digit read with little room can come back empty (a "0"): read those again on
+        # their own at the library's 320 px line, where it reads them
+        for i, text in enumerate(out):
+            if not text.strip():
+                image = recognizer.resize_norm_img(crops[i], max(ratios[i], 320 / 48))[np.newaxis]
+                out[i] = decode(recognizer.session(image.astype(np.float32))[0])[0][0]
     return out
 
 
@@ -426,7 +705,7 @@ def _time_signatures(gray, glyph, groups, bars: list[list[float]], spacing: floa
                 continue
             cut = (cy0 + cy1) // 2  # both rows are the same size (the emptiest row can be a digit's thin tip)
             halves = ((cy0, cut), (cut, cy1))
-            if any(h1 - h0 < 1.0 * spacing for h0, h1 in halves):
+            if any(h1 - h0 < 1.15 * spacing for h0, h1 in halves):  # a fret digit is ~0.7
                 continue
             pair = [_signature_row(gray, band, (x0, y0), cx0, cx1, h0, h1) for h0, h1 in halves]
             if all(pair) and _alike(*(box for _, box in pair), spacing):
@@ -486,7 +765,9 @@ def _join_lines(rects: list[tuple[int, int, int, int]]) -> list[tuple[int, int, 
 def _with_spaces(text: str, info, crop, np) -> str:
     """Put back the spaces between words that the recogniser (trained mostly on Chinese text)
     often leaves out ("VerticalHorizon"): one at each wide blank gap in the picture, between the
-    two characters the recogniser placed on either side of it — never inside a number."""
+    two characters the recogniser placed on either side of it. Between two digits only a wider
+    gap counts: the detector can take a tempo mark and the bar count printed after it as one
+    line ("= 145" and "3" read "= 1453"), but the digits of a number sit close together."""
     columns = [col for word in info[2] for col in word]
     ink = crop < 160
     rows = np.where(ink.any(axis=1))[0]
@@ -494,12 +775,13 @@ def _with_spaces(text: str, info, crop, np) -> str:
     if len(columns) != len(text) or len(rows) < 2 or len(cols) < 2:
         return text
     height = rows[-1] - rows[0] + 1
-    gaps = [(a + b) / 2 for a, b in itertools.pairwise(cols) if b - a - 1 > 0.25 * height]
+    gaps = [((a + b) / 2, b - a - 1) for a, b in itertools.pairwise(cols) if b - a - 1 > 0.25 * height]
     xs = [col / max(info[0], 1) * crop.shape[1] for col in columns]  # each character's x in the crop
     cuts = set()
-    for gap in gaps:
+    for gap, width in gaps:
         cut = next((i for i in range(1, len(text)) if xs[i - 1] < gap < xs[i]), None)
-        if cut and " " not in text[cut - 1 : cut + 1] and not (text[cut - 1].isdigit() and text[cut].isdigit()):
+        digits = cut and text[cut - 1].isdigit() and text[cut].isdigit()
+        if cut and " " not in text[cut - 1 : cut + 1] and (not digits or width > 0.3 * height):
             cuts.add(cut)
     return "".join(f" {ch}" if i in cuts else ch for i, ch in enumerate(text))
 
@@ -559,7 +841,7 @@ def _heading(gray, groups, spacing: float, k: float, number: int) -> Page:
 
 
 def _normalized(
-    render: Callable[[float], object], width: float, height: float, number: int, heading: bool
+    render: Callable[[float], object], width: float, height: float, number: int, heading: bool, frets: bool = True
 ) -> tuple[Page, Page | None]:
     """Read the picture at the scale where its staff spacing is the tuned one. It is first looked at
     about 1300 px wide (a whole page of tab then has about that spacing), then at other sizes if no
@@ -584,7 +866,7 @@ def _normalized(
         better = min(scale * factor, limit)
         if abs(better / scale - 1) > 0.05:
             gray = render(better)
-    return _read_page(gray, number, heading)
+    return _read_page(gray, number, heading, frets)
 
 
 def decode_image(data: bytes, max_pixels: int):
@@ -618,7 +900,7 @@ def decode_image(data: bytes, max_pixels: int):
         ) from exc
 
 
-def read_image(data: bytes, max_pixels: int) -> tuple[Page, Page | None]:
+def read_image(data: bytes, max_pixels: int, frets: bool = True) -> tuple[Page, Page | None]:
     """The tab page of an image upload, and the text above its first staff (see ``_heading``)."""
     cv2, _ = _cv()
     original = decode_image(data, max_pixels)
@@ -629,10 +911,10 @@ def read_image(data: bytes, max_pixels: int) -> tuple[Page, Page | None]:
         method = cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC
         return cv2.resize(original, None, fx=scale, fy=scale, interpolation=method)
 
-    return _normalized(render, original.shape[1], original.shape[0], 1, heading=True)
+    return _normalized(render, original.shape[1], original.shape[0], 1, heading=True, frets=frets)
 
 
-def read_pdf_page(data: bytes, index: int, heading: bool = False) -> tuple[Page, Page | None]:
+def read_pdf_page(data: bytes, index: int, heading: bool = False, frets: bool = True) -> tuple[Page, Page | None]:
     """Page ``index`` (0-based) of a PDF, rendered and read as a picture, and with ``heading`` the
     text above its first staff. Coordinates are in the picture's own units (staff spacing 7), not
     the PDF's points."""
@@ -654,6 +936,6 @@ def read_pdf_page(data: bytes, index: int, heading: bool = False) -> tuple[Page,
             # the digits differently and reads worse
             return np.asarray(page.render(scale=scale).to_pil().convert("L"))
 
-        return _normalized(render, width, height, index + 1, heading)
+        return _normalized(render, width, height, index + 1, heading, frets)
     finally:
         document.close()

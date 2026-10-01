@@ -13,10 +13,18 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - Tabs in images: the time signature (the two big numbers on the staff, at the start or at a change mid-song) is now read. In a PDF whose page 1 is an image but has some text (a printed web page: title and artist as text), the BPM and time signature that are only in the image are read too; they used to stay at 120 and 4/4.
 
 ### Changed
+- Faster tabs in images: numbers are read in batches at their real width (the model read each one on a 320 px line) — Jet Lag as an image goes from 60 s to 16 s; when a file is chosen, the analysis that fills in the form no longer reads the frets (3 s instead of 15 s).
 - Windows startup scripts renamed: `start-casa.bat` is now `start.bat` and `start-trabalho.bat` is now `start_env.bat` (the one with the virtual environment).
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- Tabs in images (OCR), tested with Jet Lag (Simple Plan) drawn as an image and compared bar by bar with the PDF — from 108 to 119 matching bars out of 119:
+  - Notes in parentheses: the parentheses were read as "1" ("(2)" became 12 or 21); they are now recognised by their shape and by the chord (when the other notes in the column are in parentheses) and the note becomes a ghost note or a tie, as in a PDF.
+  - Rests drawn on the staff are no longer read as "1".
+  - Bar numbers and multi-bar rests: they are read (the small number over each bar and the big number over the rest), and the song gets the right number of bars — bars used to be missing and the rest came early. A number cut at the picture's edge or misread is dropped and, where possible, worked out from its neighbour and the rest's count.
+  - A double bar line (‖) read as two bars.
+  - Chords in small pictures: numbers on neighbouring strings that touch were dropped (at 1000 px, 84 % of notes found; now 99 %).
+  - BPM next to another number ("♩ = 145" followed by a rest's "3" was read as 1453).
 - Notes in parentheses taken for ties: a note kept sounding over bars where its string is not even played (Simple Plan "Jet Lag", bars 77–90: the open low E from bar 76 to 82), and repeated palm-muted notes (`(9)(9)(9)…`) became one long note. A tie now only continues a note sounding on the string in the beat before and, in MuseScore PDFs (which draw ties as arcs), only when an arc reaches the note, also when cut at the start of a line; without an arc, the note in parentheses is a new note (ghost note).
 - `start.bat` (formerly `start-casa.bat`) installed the dependencies into the PC's shared Python (`pip install --user`) and changed versions other apps need: on the same PC as RockForge, PyGuitarPro went down to 0.9.3 (RockForge asks for 0.10 or later) and OCR brought NumPy 2 (RockForge asks for below 2). It now uses its own virtual environment, in `.venv` in the project folder, like `start_env.bat`.
 - A written tuning with the notes run together ("Tuning: D♯ G♯ C♯ F♯A♯ D♯", as in an Ultimate Guitar print saved as PDF): it was ignored and the track stayed in standard tuning.

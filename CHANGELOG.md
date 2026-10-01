@@ -13,10 +13,18 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Tabs em imagem: o compasso (os dois números grandes na pauta, no início ou numa mudança a meio da música) passa a ser lido. Num PDF cuja página 1 é uma imagem mas tem algum texto (um print de uma página web: título e artista em texto), o BPM e o compasso que só estão na imagem também são lidos; antes ficavam 120 e 4/4.
 
 ### Alterado
+- Tabs em imagem mais rápidas: os números são lidos em lotes à largura real (o modelo lia cada um numa linha de 320 px) — a Jet Lag como imagem passa de 60 s para 16 s; ao escolher o ficheiro, a análise que preenche o formulário já não lê os trastes (3 s em vez de 15 s).
 - Scripts de arranque para Windows com nomes novos: `start-casa.bat` passa a `start.bat` e `start-trabalho.bat` passa a `start_env.bat` (o que usa o ambiente virtual).
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido
+- Tabs em imagem (OCR), testadas com a Jet Lag (Simple Plan) desenhada como imagem e comparada compasso a compasso com o PDF — de 108 para 119 compassos iguais em 119:
+  - Notas entre parêntesis: os parêntesis eram lidos como "1" ("(2)" virava 12 ou 21); passam a ser reconhecidos pela forma e pelo acorde (se as outras notas da coluna estão entre parêntesis) e a nota fica ghost note ou ligadura, como num PDF.
+  - Pausas desenhadas na pauta deixam de ser lidas como "1".
+  - Números de compasso e pausas de vários compassos: são lidos (o número pequeno em cima de cada compasso e o número grande por cima da pausa), e a música fica com o número certo de compassos — antes faltavam compassos e o resto vinha adiantado. Um número cortado na margem da imagem ou mal lido é descartado e, quando dá, deduzido do vizinho e da contagem da pausa.
+  - Barra dupla (‖) lida como dois compassos.
+  - Acordes em imagens pequenas: os números de cordas vizinhas que se tocam eram descartados (a 1000 px, 84 % das notas encontradas; agora 99 %).
+  - BPM junto a outro número ("♩ = 145" seguido do "3" de uma pausa era lido 1453).
 - Notas entre parêntesis tomadas por ligaduras: uma nota ficava a soar por cima de compassos onde a corda nem é tocada (Simple Plan "Jet Lag", compassos 77–90: o Mi solto desde o 76 até ao 82), e notas repetidas em palm mute (`(9)(9)(9)…`) ficavam uma só nota longa. Uma ligadura só continua uma nota que soa na corda no tempo anterior e, nos PDFs do MuseScore (que desenham as ligaduras como arcos), só quando um arco chega à nota, também cortado no início da linha; sem arco, a nota entre parêntesis é uma nota nova (ghost note).
 - `start.bat` (antes `start-casa.bat`) instalava as dependências no Python partilhado do PC (`pip install --user`) e trocava as versões de que outras aplicações precisam: no mesmo PC que o RockForge, o PyGuitarPro descia para 0.9.3 (o RockForge pede 0.10 ou mais) e o OCR trazia o NumPy 2 (o RockForge pede menos de 2). Passa a usar um ambiente virtual próprio, em `.venv` na pasta do projeto, como o `start_env.bat`.
 - Afinação escrita com as notas coladas ("Tuning: D♯ G♯ C♯ F♯A♯ D♯", como num print do Ultimate Guitar guardado como PDF): era ignorada e a track ficava em afinação standard.

@@ -149,13 +149,15 @@ def _check_picture_count(count: int, options: ConversionOptions) -> None:
         )
 
 
-def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
+def _parse_pdf(pdf: bytes, options: ConversionOptions, frets: bool = True) -> _ParsedPdf:
+    """Tab systems, metadata and part name of one file. Without ``frets`` (inspect) pictures are
+    read only for their staves and heading."""
     warnings: list[str] = []
     systems: list[TabSystem] = []
     heading = None  # the text read above the first staff of a PDF's page 1 when it is a picture
     if image_kind(pdf):
         try:
-            picture, image_heading = read_image(pdf, options.max_image_pixels)
+            picture, image_heading = read_image(pdf, options.max_image_pixels, frets)
         except PdfReadError as exc:
             raise ConversionError(str(exc)) from exc
         systems.extend(_image_systems(picture))
@@ -175,7 +177,7 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
         _check_picture_count(len(pictures), options)
         for index in pictures:
             try:
-                picture, page_heading = read_pdf_page(pdf, index, heading=index == 0)
+                picture, page_heading = read_pdf_page(pdf, index, heading=index == 0, frets=frets)
             except PdfReadError as exc:
                 raise ConversionError(str(exc)) from exc
             systems.extend(_image_systems(picture))
@@ -214,9 +216,10 @@ def _merge_metadata(items: list[SongMetadata]) -> SongMetadata:
     return SongMetadata(first("title"), first("artist"), first("tempo"), *signature)
 
 
-def _main_staves(systems: list[TabSystem], warnings: list[str]) -> tuple[int, list[TabSystem]]:
-    # Only staves with notes vote: empty engraved staves may be standard-notation staves.
-    with_notes = [s for s in systems if s.events]
+def _main_staves(systems: list[TabSystem], warnings: list[str], notes_read: bool = True) -> tuple[int, list[TabSystem]]:
+    # Only staves with notes vote: empty engraved staves may be standard-notation staves. When the
+    # notes were not read (inspecting a picture), every staff votes.
+    with_notes = [s for s in systems if s.events] if notes_read else systems
     if not with_notes:
         raise ConversionError(
             tr("A tablatura foi encontrada mas não contém notas.", "The tablature was found but has no notes.")
@@ -961,9 +964,10 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
 
 def inspect(pdf: bytes, options: ConversionOptions) -> dict:
     """Detect song metadata and the track's part, so the user can review them before converting."""
-    parsed = _parse_pdf(pdf, options)
+    parsed = _parse_pdf(pdf, options, frets=False)
     meta = parsed.metadata
-    string_count, kept = _main_staves(parsed.systems, [])
+    pictures_only = all(s.source == "image" for s in parsed.systems)
+    string_count, kept = _main_staves(parsed.systems, [], notes_read=not pictures_only)
     labels = next((s.labels for s in kept if s.labels), []) or list(meta.tuning_labels)
     tuning, _ = resolve_tuning("auto", string_count, labels)
     return {

@@ -89,8 +89,8 @@ def engraved_tab_pdf(
                 flags = rest[0] if rest else ""
                 y = top - (string - 1) * spacing
                 x = start + step * (k + 0.5) + 4
-                if knockout:
-                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.6
+                if knockout:  # the gap also takes the parentheses, as editors draw them
+                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + (2.4 if "(" in flags else 0.6)
                     pdf.setFillColorRGB(1, 1, 1)
                     pdf.rect(x - half, y - 3, 2 * half, 6, stroke=0, fill=1)
                     pdf.setFillColorRGB(0, 0, 0)
