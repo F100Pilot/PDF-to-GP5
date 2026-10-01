@@ -147,3 +147,46 @@ def test_boxes_cut_on_one_line_are_joined():
     note, number, far = (100, 50, 118, 70), (122, 51, 150, 69), (400, 50, 450, 70)
     assert sorted(_join_lines([number, far, note])) == [(100, 50, 150, 70), far]
     assert _join_lines([(100, 50, 150, 70), (100, 90, 150, 110)]) == [(100, 50, 150, 70), (100, 90, 150, 110)]
+
+
+def _signatures(gp5: bytes) -> list[tuple[int, int]]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [(h.timeSignature.numerator, h.timeSignature.denominator.value) for h in song.measureHeaders]
+
+
+def _signature_picture(signatures, width: int = 1300) -> bytes:
+    staves = [[[(1, 0), (2, 3)], [(3, 5), (1, 2)], [(2, 1), (3, 2)]]]
+    return tab_png(engraved_tab_pdf(staves, knockout=True, signatures=signatures), width=width)
+
+
+@pytest.mark.parametrize(("numerator", "denominator"), [(3, 4), (6, 8), (12, 8), (4, 4)])
+def test_time_signature_is_read_from_the_picture(numerator, denominator):
+    result = convert(_signature_picture([(0, 0, numerator, denominator)]), ConversionOptions())
+    assert result.report["time_signature"] == f"{numerator}/{denominator}"
+    assert _signatures(result.gp5)[0] == (numerator, denominator)
+
+
+@pytest.mark.parametrize("width", [1000, 2600])
+def test_time_signature_change_on_the_staff(width):
+    result = convert(_signature_picture([(0, 0, 4, 4), (0, 1, 3, 4)], width), ConversionOptions())
+    assert _signatures(result.gp5)[:3] == [(4, 4), (3, 4), (3, 4)]
+
+
+def test_no_time_signature_is_made_up():
+    result = convert(_picture(), ConversionOptions())
+    assert not result.report["auto"]["time_signature"]
+
+
+def test_pdf_text_with_tempo_and_time_signature_from_its_picture():
+    # a printed web page: title and artist as text, the tab (tempo mark, time signature) a picture
+    staves = [[[(1, 0), (2, 3)], [(3, 5), (1, 2)]]]
+    tab = engraved_tab_pdf(staves, knockout=True, heading=("", "", 96), signatures=[(0, 0, 3, 4)])
+    report = convert(image_pdf([tab_png(tab)], text=("Riff Song", "The Band")), ConversionOptions()).report
+    assert (report["title"], report["artist"], report["tempo"], report["time_signature"]) == (
+        "Riff Song",
+        "The Band",
+        96,
+        "3/4",
+    )

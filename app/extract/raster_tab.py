@@ -235,7 +235,9 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
     # crossing the line (the middle of a 2 or a 5) is kept
     run = cv2.getStructuringElement(cv2.MORPH_RECT, (max(8, int(spacing * 0.9)), 1))
     long_runs = cv2.morphologyEx(dark.astype(np.uint8), cv2.MORPH_OPEN, run).astype(bool)
+    bars: list[list[float]] = []  # bar line x per staff, in pixels
     for group in groups:
+        bars.append([])
         x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
         for y, a, b, lx0, lx1 in group:
             segments.append(Segment(lx0 * k, lx1 * k, y * k, y * k))
@@ -247,6 +249,7 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
         for cols in np.split(xs, np.where(np.diff(xs) > 1)[0] + 1) if len(xs) else []:
             if len(cols) <= max(3, spacing * 0.35):
                 xc = x0 + float(cols.mean())
+                bars[-1].append(xc)
                 segments.append(Segment(xc * k, xc * k, top * k, bottom * k))
                 on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True
 
@@ -300,8 +303,162 @@ def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | N
             step = (gx1 - gx0) / len(text) if text else 0
             for j, ch in enumerate(text):  # one character per digit, the box split evenly
                 chars.append(Char(ch, (gx0 + j * step) * k, (gx0 + (j + 1) * step) * k, gy0 * k, gy1 * k))
-    page = Page(number, width * k, height * k, chars, segments)
-    return page, (_heading(gray, groups, spacing, k, number) if heading else None)
+    signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
+    page = Page(number, width * k, height * k, chars + signatures, segments)
+    if not heading:
+        return page, None
+    head = _heading(gray, groups, spacing, k, number)
+    first = min(groups, key=lambda group: group[0][0])  # the time signature at the start, for the form
+    head.chars.extend(c for c in signatures if first[0][0] * k <= c.top - 0.9 * (c.bottom - c.top) <= first[-1][0] * k)
+    return page, head
+
+
+def _alike(upper, lower, spacing: float) -> bool:
+    """The two rows of a time signature: digits of about the same height, each wide enough
+    not to be a stem or an arrow."""
+    heights = [box[3] - box[2] for box in (upper, lower)]
+    widths = [box[1] - box[0] for box in (upper, lower)]
+    return max(heights) <= 1.4 * min(heights) and min(widths) >= 0.6 * spacing
+
+
+def _signature_row(gray, band, origin: tuple[int, int], cx0: int, cx1: int, h0: int, h1: int):
+    """One row of a time signature cut to its ink (found on the cleaned ``band``), as a crop of
+    the picture itself for the recogniser — it reads these big digits better with their
+    anti-aliasing and a wide white margin than as clean black shapes — at each margin, and its
+    box."""
+    cv2, np = _cv()
+    rows = np.where(band[h0:h1, cx0:cx1].any(axis=1))[0]
+    cols = np.where(band[h0:h1, cx0:cx1].any(axis=0))[0]
+    if not len(rows) or not len(cols):
+        return None
+    ry0, ry1 = h0 + int(rows[0]), h0 + int(rows[-1]) + 1
+    rx0, rx1 = cx0 + int(cols[0]), cx0 + int(cols[-1]) + 1
+    left, top = origin
+    digit = np.ascontiguousarray(gray[top + ry0 : top + ry1, left + rx0 : left + rx1])
+    crops = []
+    for margin in _SIGNATURE_MARGINS:
+        pad = int(margin * (ry1 - ry0))
+        crop = cv2.copyMakeBorder(digit, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=255)
+        scale = 48 / crop.shape[0]
+        crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
+    return crops, (rx0, rx1, ry0, ry1)
+
+
+# A lone big digit is read unreliably (with a wide margin it can come back empty, "12" once as
+# "42"): each row is read with three white margins, and the reading that wins outright is kept.
+_SIGNATURE_MARGINS = (0.3, 0.6, 1.0)
+
+
+def _read_digits(crops) -> list[str]:
+    """Read each crop as digits only: the recogniser's scores at each position are kept for the
+    ten digits (and the CTC blank) alone. Left free, the model — trained mostly on Chinese —
+    reads a lone big digit as a Chinese character ("左" for a 4)."""
+    _, np = _cv()
+    recognizer = _recognizer()
+    table = recognizer.postprocess_op.dict
+    allowed = [0] + [table[d] for d in "0123456789"]  # 0 is the CTC blank
+    out = []
+    for crop in crops:
+        height, width = crop.shape[:2]
+        image = recognizer.resize_norm_img(crop, max(width / height, 320 / 48))[np.newaxis].astype(np.float32)
+        scores = recognizer.session(image)[0][0][:, allowed]
+        best = scores.argmax(axis=1)
+        digits = [
+            str(i - 1) for j, i in enumerate(best) if i and (j == 0 or best[j - 1] != i)
+        ]  # CTC: drop blanks and repeats
+        out.append("".join(digits))
+    return out
+
+
+def _vote(texts: list[str]) -> str:
+    digits = [text for text in texts if text.isdigit()]
+    counts = sorted((digits.count(text) for text in set(digits)), reverse=True)
+    if not counts or (len(counts) > 1 and counts[0] == counts[1]):
+        return ""  # nothing read, or a tie
+    return max(set(digits), key=digits.count)
+
+
+# Music-font digits, as an engraved PDF writes a time signature (see bar_signs.time_signatures).
+_SIGNATURE_DIGITS = {str(d): chr(0xE080 + d) for d in range(10)}
+_DENOMINATORS = (2, 4, 8, 16)
+
+
+def _time_signatures(gray, glyph, groups, bars: list[list[float]], spacing: float, k: float) -> list[Char]:
+    """Time signatures on the staves ("4/4" at the start, or a change later): two big digits, or
+    rows of them, stacked inside the staff — each over a spacing high, where a fret number is
+    about 0.7. They come back as the music-font characters an engraved PDF has, so the tab
+    reader puts them in the bars as it does for a PDF. The staff lines run through them: the
+    gaps the line removal left are closed first (which also joins the two stacked digits), and
+    the pair is then cut in the middle. A time signature stands at the
+    start of the staff (after the clef) or just after a bar line, in the middle of the staff."""
+    cv2, np = _cv()
+    chars: list[Char] = []
+    for group, staff_bars in zip(groups, bars, strict=True):
+        top, bottom = group[0][0], group[-1][0]
+        x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
+        y0, y1 = max(0, int(top - 0.3 * spacing)), int(bottom + 0.3 * spacing) + 1
+        starts = [x0 + 2.5 * spacing] + [bar for bar in staff_bars]  # clef, then any bar line
+        thickness = max(b - a + 1 for _, a, b, _, _ in group)
+        joint = cv2.getStructuringElement(cv2.MORPH_RECT, (1, thickness + 3))
+        band = cv2.morphologyEx(glyph[y0:y1, x0 : x1 + 1].astype(np.uint8), cv2.MORPH_CLOSE, joint)
+        count, _, stats, _ = cv2.connectedComponentsWithStats(band, connectivity=8)
+        tall = sorted(
+            (int(x), int(y), int(w), int(h))
+            for x, y, w, h, _ in stats[1:count]
+            if h >= 1.0 * spacing and 0.25 * spacing <= w <= 3.5 * spacing  # a "1" is narrow: rows are checked whole
+        )
+        clusters: list[list[tuple[int, int, int, int]]] = []  # pieces that overlap across
+        for blob in tall:
+            if clusters and blob[0] <= max(b[0] + b[2] for b in clusters[-1]) + 0.3 * spacing:
+                clusters[-1].append(blob)
+            else:
+                clusters.append([blob])
+        crops, boxes = [], []
+        for blobs in clusters:
+            cx0, cx1 = min(b[0] for b in blobs), max(b[0] + b[2] for b in blobs)
+            cy0, cy1 = min(b[1] for b in blobs), max(b[1] + b[3] for b in blobs)
+            if not (2.0 * spacing <= cy1 - cy0 <= bottom - top + 0.6 * spacing and cx1 - cx0 <= 3.5 * spacing):
+                continue
+            if abs(y0 + (cy0 + cy1) / 2 - (top + bottom) / 2) > 0.6 * spacing:
+                continue
+            if not any(-0.5 * spacing <= x0 + cx0 - start <= 2.5 * spacing for start in starts):
+                continue
+            cut = (cy0 + cy1) // 2  # both rows are the same size (the emptiest row can be a digit's thin tip)
+            halves = ((cy0, cut), (cut, cy1))
+            if any(h1 - h0 < 1.0 * spacing for h0, h1 in halves):
+                continue
+            pair = [_signature_row(gray, band, (x0, y0), cx0, cx1, h0, h1) for h0, h1 in halves]
+            if all(pair) and _alike(*(box for _, box in pair), spacing):
+                for row_crops, (rx0, rx1, ry0, ry1) in pair:
+                    crops.extend(row_crops)
+                    boxes.append((x0 + rx0, x0 + rx1, y0 + ry0, y0 + ry1))
+        if not crops:
+            continue
+        read = _read_digits(crops)
+        n = len(_SIGNATURE_MARGINS)
+        texts = [_vote(read[i : i + n]) for i in range(0, len(read), n)]
+        for i in range(0, len(texts) - 1, 2):
+            numerator, denominator = texts[i], texts[i + 1]
+            if not (numerator.isdigit() and denominator.isdigit()):
+                continue
+            if not (1 <= int(numerator) <= 32 and int(denominator) in _DENOMINATORS):
+                continue
+            for text, (bx0, bx1, by0, by1) in ((numerator, boxes[i]), (denominator, boxes[i + 1])):
+                size, centre, step = by1 - by0, (by0 + by1) / 2, (bx1 - bx0) / len(text)
+                for j, digit in enumerate(text):
+                    # an engraved PDF reports a music-font glyph's box about one em below the
+                    # glyph (see rhythm_marks.glyph_ys): place it the same way
+                    chars.append(
+                        Char(
+                            _SIGNATURE_DIGITS[digit],
+                            (bx0 + j * step) * k,
+                            (bx0 + (j + 1) * step) * k,
+                            (centre + 0.9 * size) * k,
+                            (centre + 1.9 * size) * k,
+                        )
+                    )
+    return chars
 
 
 # A tempo mark read from a picture: the note glyph is lost or read as a letter, and "=" can come

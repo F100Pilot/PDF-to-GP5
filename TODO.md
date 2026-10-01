@@ -13,7 +13,7 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 - [ ] **Fase 3: técnicas e ritmo desenhados numa imagem** (hastes, bends, slides, ligaduras, vibrato): trabalho muito grande, qualidade incerta.
 - [ ] **Vários prints na mesma track**: hoje uma imagem é uma track; vários prints da mesma parte têm de ir num PDF.
 - [x] **Título, artista e BPM de uma imagem**: lidos do texto por cima da primeira pauta (deteção + reconhecimento de texto do RapidOCR), com a afinação.
-- [ ] **Compasso de uma imagem** (os números grandes no início da pauta): hoje fica o 4/4 por defeito.
+- [x] **Compasso de uma imagem**: os dois números grandes na pauta (no início ou numa mudança), lidos só como dígitos.
 
 ## Ligação ao RockForge
 

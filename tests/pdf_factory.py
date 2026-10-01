@@ -37,6 +37,7 @@ def engraved_tab_pdf(
     ranges: list[tuple[int, str, float, float]] | None = None,
     knockout: bool = False,
     heading: tuple[str, str, int] | None = None,
+    signatures: list[tuple[int, int, int, int]] | None = None,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -50,6 +51,8 @@ def engraved_tab_pdf(
     the line behind each number, as editors do on screen and in print.
     ``heading`` is (title, artist, BPM): title and artist centred at the top and
     a tempo mark (a drawn quarter note, "= BPM") above the first staff.
+    ``signatures`` are (staff, measure, numerator, denominator): a time signature
+    in big bold digits at the start of that measure, the staff lines through them.
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -104,6 +107,13 @@ def engraved_tab_pdf(
                     if letter in flags:
                         pdf.drawCentredString(x - step / 2, top + 6, letter)
         pdf.line(x1, top, x1, top - (strings - 1) * spacing)
+        middle = top - (strings - 1) * spacing / 2
+        for staff_index, measure, numerator, denominator in signatures or []:
+            if staff_index == index:
+                pdf.setFont("Helvetica-Bold", 19)
+                x = x0 + measure * width + 10
+                pdf.drawCentredString(x, middle + 0.5, str(numerator))
+                pdf.drawCentredString(x, middle - 14.5, str(denominator))
         for staff_index, text, x_from, x_to in ranges or []:
             if staff_index != index:
                 continue
@@ -144,14 +154,20 @@ def tab_png(pdf: bytes, width: int = 1300, image_format: str = "PNG") -> bytes:
     return buffer.getvalue()
 
 
-def image_pdf(pictures: list[bytes]) -> bytes:
-    """A PDF whose pages are only pictures (no text): a scan, or a web page printed to PDF."""
+def image_pdf(pictures: list[bytes], text: tuple[str, str] | None = None) -> bytes:
+    """A PDF whose pages are only pictures: a scan, or a web page printed to PDF. ``text`` is a
+    title and artist written as text over page 1, as a printed web page has them."""
     from reportlab.lib.utils import ImageReader
 
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
-    for picture in pictures:
+    for number, picture in enumerate(pictures):
         pdf.drawImage(ImageReader(io.BytesIO(picture)), 0, 0, *A4)
+        if text and number == 0:
+            pdf.setFont("Helvetica", 22)
+            pdf.drawCentredString(A4[0] / 2, A4[1] - 45, text[0])
+            pdf.setFont("Helvetica", 12)
+            pdf.drawCentredString(A4[0] / 2, A4[1] - 63, text[1])
         pdf.showPage()
     pdf.save()
     return buffer.getvalue()

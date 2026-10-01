@@ -117,6 +117,28 @@ def _image_systems(page: Page) -> list[TabSystem]:
     return [dataclasses.replace(s, source="image") for s in extract_engraved_systems(page)]
 
 
+def _fill_in(printed: SongMetadata, read: SongMetadata) -> SongMetadata:
+    """Metadata from the PDF's text, with the gaps filled from the picture. A title or artist
+    the PDF has without spaces between words ("YoureAGod") takes the picture's spacing."""
+
+    def text(field: str) -> str | None:
+        mine, other = getattr(printed, field), getattr(read, field)
+        if mine and other and mine.replace(" ", "").lower() == other.replace(" ", "").lower():
+            return other if other.count(" ") > mine.count(" ") else mine
+        return mine or other
+
+    signature = (printed.numerator, printed.denominator) if printed.numerator else (read.numerator, read.denominator)
+    return dataclasses.replace(
+        printed,
+        title=text("title"),
+        artist=text("artist"),
+        tempo=printed.tempo or read.tempo,
+        numerator=signature[0],
+        denominator=signature[1],
+        tuning_labels=printed.tuning_labels or read.tuning_labels,
+    )
+
+
 def _check_picture_count(count: int, options: ConversionOptions) -> None:
     if count > options.max_image_pages:
         raise ConversionError(
@@ -130,14 +152,15 @@ def _check_picture_count(count: int, options: ConversionOptions) -> None:
 def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
     warnings: list[str] = []
     systems: list[TabSystem] = []
+    heading = None  # the text read above the first staff of a PDF's page 1 when it is a picture
     if image_kind(pdf):
         try:
-            picture, heading = read_image(pdf, options.max_image_pixels)
+            picture, image_heading = read_image(pdf, options.max_image_pixels)
         except PdfReadError as exc:
             raise ConversionError(str(exc)) from exc
         systems.extend(_image_systems(picture))
         # title, artist, tempo and tuning come from the text above the first staff
-        metadata_pages, info = [heading] if heading else [], {}
+        metadata_pages, info = [image_heading] if image_heading else [], {}
     else:
         pages, info = _read(pdf, options)
         metadata_pages = pages
@@ -151,15 +174,12 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
                 pictures.append(index)
         _check_picture_count(len(pictures), options)
         for index in pictures:
-            # page 1 with no text of its own: its heading is read from the picture
-            wants_heading = index == 0 and not pages[0].chars
             try:
-                picture, heading = read_pdf_page(pdf, index, heading=wants_heading)
+                picture, page_heading = read_pdf_page(pdf, index, heading=index == 0)
             except PdfReadError as exc:
                 raise ConversionError(str(exc)) from exc
             systems.extend(_image_systems(picture))
-            if heading:
-                metadata_pages = [heading, *pages[1:]]
+            heading = heading or page_heading
         systems.sort(key=lambda system: system.page)  # pictures read last; stable within a page
     if not systems:
         raise ConversionError(
@@ -174,7 +194,13 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
         )
     if any(s.source == "image" for s in systems):
         warnings.append(_image_warning())
-    metadata = detect_metadata(metadata_pages, info)
+    if heading is None:
+        metadata = detect_metadata(metadata_pages, info)
+    else:
+        # page 1 is a picture: what its own text lacks (often the tempo mark and the time
+        # signature, drawn in the picture) comes from the text read in the picture, and only
+        # then from the file's properties (a printed web page's title there is the page's)
+        metadata = _fill_in(detect_metadata(metadata_pages, {}), detect_metadata([heading], info))
     return _ParsedPdf(systems, metadata, detect_part_name(metadata_pages, metadata), warnings)
 
 
