@@ -22,7 +22,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import __revision__, __version__, audio_download, i18n
+from . import __revision__, __version__, audio_download, i18n, library_transfer
 from .changelog import load_releases, version_key
 from .config import settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
@@ -653,6 +653,74 @@ async def library_save(
                 f"Could not write to the library folder: {exc.strerror}.",
             ),
         ) from exc
+
+
+def _write_failed(exc: OSError) -> HTTPException:
+    return HTTPException(
+        status_code=500,
+        detail=tr(
+            f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
+            f"Could not write to the library folder: {exc.strerror}.",
+        ),
+    )
+
+
+class ExportedSong(BaseModel):
+    id: str = Field(max_length=300)
+    settings: dict = Field(default_factory=dict)
+
+
+class LibraryExport(BaseModel):
+    songs: list[ExportedSong] = Field(min_length=1, max_length=library_transfer.MAX_SONGS)
+
+
+@app.post("/api/library/export")
+async def library_export(request: Request, body: LibraryExport) -> Response:
+    """A ZIP of the chosen songs (no audio) with each one's settings from the exporting browser."""
+    store = _library(request)
+    items = [(song.id, song.settings) for song in body.songs]
+    try:
+        data = await run_in_threadpool(library_transfer.export_songs, store, items)
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=tr(
+                f"Não foi possível ler a pasta da biblioteca: {exc.strerror}.",
+                f"Could not read the library folder: {exc.strerror}.",
+            ),
+        ) from exc
+    return Response(
+        data,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="biblioteca-pdf-to-gp5.zip"'},
+    )
+
+
+@app.post("/api/library/import")
+async def library_import(
+    request: Request, file: UploadFile, choices: Annotated[str | None, Form(max_length=1024 * 1024)] = None
+) -> dict:
+    """Without `choices`: the songs in an exported ZIP and which are already in the library. With
+    `choices` (JSON {"chosen": [keys], "replace": [keys]}): import them."""
+    store = _library(request)
+    data = await file.read()
+    try:
+        songs = await run_in_threadpool(library_transfer.read_export, data)
+        if choices is None:
+            return {"songs": await run_in_threadpool(library_transfer.preview, store, songs)}
+        try:
+            picked = json.loads(choices)
+            chosen = {str(k) for k in picked.get("chosen", [])}
+            replace = {str(k) for k in picked.get("replace", [])}
+        except (ValueError, AttributeError, TypeError):
+            raise HTTPException(status_code=422, detail=tr("Escolhas inválidas.", "Invalid choices.")) from None
+        return await run_in_threadpool(library_transfer.import_songs, store, songs, chosen, replace)
+    except LibraryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _write_failed(exc) from exc
 
 
 @app.get("/api/library/{song_id}")

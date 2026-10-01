@@ -402,6 +402,9 @@
               <label class="library-search"><span class="sr-only">Procurar na biblioteca</span>
                 <input id="library-search" type="search" placeholder="Procurar por título ou artista" autocomplete="off">
               </label>
+              <button id="library-export" type="button" class="button secondary" hidden title="Guardar músicas da biblioteca num ficheiro ZIP, para as importar noutro computador (sem o áudio)">Exportar…</button>
+              <button id="library-import" type="button" class="button secondary" hidden title="Juntar à biblioteca as músicas de um ZIP exportado noutro computador">Importar…</button>
+              <input id="library-import-file" type="file" accept=".zip,application/zip" hidden>
             </div>
           </header>
           <p id="library-status" class="hint" role="status" aria-live="polite" hidden></p>
@@ -457,6 +460,22 @@
       </main>
     </div>
   </div>
+
+  <dialog id="transfer" class="transfer" aria-labelledby="transfer-title">
+    <form method="dialog" class="transfer-form">
+      <h2 id="transfer-title"></h2>
+      <p id="transfer-intro" class="hint"></p>
+      <div class="transfer-all">
+        <button type="button" class="link-button" id="transfer-all">Todas</button>
+        <button type="button" class="link-button" id="transfer-none">Nenhuma</button>
+      </div>
+      <ul id="transfer-list" class="transfer-list"></ul>
+      <div class="transfer-actions">
+        <button type="submit" class="button secondary" value="cancel">Cancelar</button>
+        <button type="button" class="button" id="transfer-go"></button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="palette" class="palette" aria-labelledby="palette-title">
     <h2 id="palette-title" class="sr-only">Procurar ou executar um comando</h2>

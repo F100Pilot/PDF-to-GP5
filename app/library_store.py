@@ -168,6 +168,30 @@ class LibraryStore:
         label = entry.get("name", name) if isinstance(entry, dict) else name
         return path, media_type, label
 
+    def export_files(self, song_id: str) -> dict | None:
+        """For an export: the song's folder name, its details without the audio, and the bytes
+        of its gp5 and cover by file name."""
+        folder = self._folder(song_id)
+        meta = self._meta(folder) if folder else None
+        if not meta:
+            return None
+        files = dict(meta.get("files") or {})
+        files.pop("audio", None)
+        on_disk = {p.name: p for p in folder.iterdir() if p.is_file()}
+        gp5 = on_disk.get(files.get("gp5") or "")
+        if gp5 is None:
+            return None
+        found = {gp5.name: gp5.read_bytes()}
+        cover = files.get("cover")
+        cover_path = on_disk.get(cover.get("file") or "") if isinstance(cover, dict) else None
+        if cover_path is None:
+            files.pop("cover", None)  # listed but gone: exported without it
+        else:
+            found[cover_path.name] = cover_path.read_bytes()
+        exported = {k: v for k, v in meta.items() if k != "coverVersion"}
+        exported["files"] = files
+        return {"folder": folder.name, "meta": exported, "files": found}
+
     # --- Writing ----------------------------------------------------------------------------
     def _new_folder(self, artist: str, title: str) -> Path:
         base = safe_name(" - ".join(part for part in (artist, title) if part), "Sem título")

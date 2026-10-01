@@ -137,3 +137,93 @@ def test_safe_names():
     assert safe_name("  ..  ", "fallback") == "fallback"
     assert safe_name("CON", "fallback") == "fallback"
     assert len(safe_name("a" * 300, "x")) == 80
+
+
+# --- Export and import (another computer) ---------------------------------------------------
+SETTINGS = {
+    "audio": {"offset": 1.25, "tempo": 80, "file": "song.mp3"},
+    "video": {"url": "https://youtu.be/x", "offset": -0.5},
+}
+
+
+def _export(client, ids, settings=SETTINGS):
+    return client.post("/api/library/export", json={"songs": [{"id": i, "settings": settings} for i in ids]})
+
+
+def _import(client, data, choices=None):
+    form = {"choices": json.dumps(choices)} if choices is not None else {}
+    return client.post("/api/library/import", data=form, files={"file": ("biblioteca.zip", data, "application/zip")})
+
+
+def test_export_carries_gp5_cover_and_settings_but_not_the_audio(store, local):
+    import io
+    import zipfile
+
+    song = _save(local).json()
+    local.put(f"/api/library/{song['id']}/audio", content=MP3, headers={"X-Filename": "song.mp3"})
+    local.put(f"/api/library/{song['id']}/cover", content=JPEG)
+    response = _export(local, [song["id"], "Nope"])
+    assert response.status_code == 200 and response.headers["content-type"] == "application/zip"
+    names = set(zipfile.ZipFile(io.BytesIO(response.content)).namelist())
+    folder = "Eagles - Hotel California"
+    assert names == {
+        "pdf-to-gp5-biblioteca.json",
+        f"{folder}/musica.json",
+        f"{folder}/Hotel California.gp5",
+        f"{folder}/capa.jpg",
+        f"{folder}/definicoes.json",
+    }
+    assert _export(local, ["Nope"]).status_code == 422
+
+
+def test_import_previews_then_adds_new_songs_with_their_settings(store, local, tmp_path):
+    exported = _export(local, [_save(local).json()["id"]]).content
+    other = LibraryStore(tmp_path / "Outro")
+    main.library = other  # the other computer's library
+    preview = _import(local, exported).json()["songs"]
+    assert [(s["key"], s["existing"]) for s in preview] == [("eagles - hotel california", None)]
+    done = _import(local, exported, {"chosen": ["eagles - hotel california"], "replace": []}).json()
+    assert [s["key"] for s in done["imported"]] == ["eagles - hotel california"]
+    assert done["imported"][0]["settings"] == SETTINGS and not done["imported"][0]["replaced"]
+    assert [s["savedAt"] for s in other.songs()] == [1000]  # the exported song's date is kept
+
+
+def test_existing_song_is_replaced_only_when_asked_and_keeps_its_audio(store, local):
+    song = _save(local, savedAt=1000).json()
+    exported = _export(local, [song["id"]]).content
+    _save(local, savedAt=2000, tempo=99)  # the library's copy changed since
+    local.put(f"/api/library/{song['id']}/audio", content=MP3, headers={"X-Filename": "song.mp3"})
+    preview = _import(local, exported).json()["songs"][0]
+    assert preview["savedAt"] == 1000 and preview["existing"]["savedAt"] == 2000
+    key = "eagles - hotel california"
+    kept = _import(local, exported, {"chosen": [key], "replace": []}).json()
+    assert kept == {"imported": [], "skipped": [key]} and store.songs()[0]["tempo"] == 99
+    replaced = _import(local, exported, {"chosen": [key], "replace": [key]}).json()
+    assert replaced["imported"][0]["replaced"]
+    after = store.songs()[0]
+    assert after["tempo"] == 74 and after["savedAt"] == 1000 and after["audioName"] == "song.mp3"
+
+
+def test_import_rejects_other_files(store, local):
+    import io
+    import zipfile
+
+    assert _import(local, b"not a zip").status_code == 422
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("../evil.txt", "x")
+    assert _import(local, buffer.getvalue()).status_code == 422
+
+
+def test_settings_are_cleaned():
+    from app.library_transfer import clean_settings
+
+    assert clean_settings({"audio": {"offset": float("nan"), "tempo": 90, "x": {"deep": 1}}, "other": {"a": 1}}) == {
+        "audio": {"tempo": 90}
+    }
+    assert clean_settings("nope") == {}
+
+
+def test_export_and_import_only_on_this_computer(store):
+    remote = TestClient(main.app, base_url="http://127.0.0.1:8021", client=("203.0.113.9", 50000))
+    assert remote.post("/api/library/export", json={"songs": [{"id": "x"}]}).status_code == 404

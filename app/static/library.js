@@ -508,8 +508,208 @@
     }
   });
 
+  // --- Export / import (to the library on another computer) ----------------------------------
+  // A ZIP of chosen songs, without the audio, with each song's settings kept by this browser:
+  // where bar 1 starts in the audio and the tempo (audio.js), the YouTube video and its offset
+  // (video.js). Those are stored under "artist - title" as the score names the song.
+  const exportButton = document.getElementById("library-export");
+  const importButton = document.getElementById("library-import");
+  const importFile = document.getElementById("library-import-file");
+  const dialog = document.getElementById("transfer");
+  const dialogTitle = document.getElementById("transfer-title");
+  const dialogIntro = document.getElementById("transfer-intro");
+  const dialogList = document.getElementById("transfer-list");
+  const dialogGo = document.getElementById("transfer-go");
+  let onGo = null;
+
+  const settingKeys = (title, artist) => ({
+    audio: `pdf-to-gp5.audio.${[artist, title].filter(Boolean).join(" - ")}`,
+    video: `pdf-to-gp5.video.${artist} - ${title}`,
+  });
+
+  function readSettings(title, artist) {
+    const out = {};
+    for (const [group, key] of Object.entries(settingKeys(title, artist))) {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || "null");
+        if (value && typeof value === "object") out[group] = value;
+      } catch { /* storage unavailable or damaged */ }
+    }
+    return out;
+  }
+
+  function writeSettings(title, artist, settings) {
+    for (const [group, key] of Object.entries(settingKeys(title, artist))) {
+      if (!settings || !settings[group]) continue;
+      try { localStorage.setItem(key, JSON.stringify(settings[group])); } catch { /* storage unavailable */ }
+    }
+  }
+
+  const when = (time) => new Date(time).toLocaleString(LANG === "pt" ? "pt-PT" : LANG, { dateStyle: "short", timeStyle: "short" });
+  const songName = (song) => [song.title || T("Sem título"), song.artist].filter(Boolean).join(" — ");
+
+  // One row: a check box to take the song; `existing`: also whether to replace the library's copy.
+  function row(song, existing) {
+    const item = document.createElement("li");
+    const label = document.createElement("label");
+    const take = document.createElement("input");
+    take.type = "checkbox";
+    take.checked = true;
+    take.className = "take";
+    take.value = song.key;
+    const name = document.createElement("span");
+    name.textContent = songName(song);
+    label.append(take, name);
+    const details = document.createElement("span");
+    details.className = "muted";
+    details.textContent = T("Guardada em {date} · {tracks}", { date: when(song.savedAt), tracks: song.trackNames.join(", ") });
+    item.append(label, details);
+    if (existing) {
+      const newer = song.savedAt > existing.savedAt ? T("a do ficheiro") : song.savedAt < existing.savedAt ? T("a da biblioteca") : "";
+      const note = document.createElement("span");
+      note.className = "exists";
+      note.textContent = T("Já existe nesta biblioteca (guardada em {here}).", { here: when(existing.savedAt) }) + " ";
+      const strong = document.createElement("strong");
+      strong.textContent = newer ? T("Mais recente: {which}.", { which: newer }) : T("As duas têm a mesma data.");
+      note.appendChild(strong);
+      const replace = document.createElement("label");
+      replace.className = "replace";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "replace-box";
+      box.value = song.key;
+      replace.append(box, document.createTextNode(T("Substituir a música da biblioteca (o áudio dela fica)")));
+      take.addEventListener("change", () => { box.disabled = !take.checked; });
+      item.append(note, replace);
+    }
+    return item;
+  }
+
+  function openDialog(title, intro, action, rows, go) {
+    dialogTitle.textContent = title;
+    dialogIntro.textContent = intro;
+    dialogGo.textContent = action;
+    dialogList.replaceChildren(...rows);
+    onGo = go;
+    dialog.showModal();
+  }
+
+  const checked = (selector) => [...dialogList.querySelectorAll(selector)].filter((box) => box.checked && !box.disabled).map((box) => box.value);
+  function checkAll(on) {
+    for (const box of dialogList.querySelectorAll("input.take")) {
+      box.checked = on;
+      box.dispatchEvent(new Event("change"));
+    }
+  }
+  document.getElementById("transfer-all").addEventListener("click", () => checkAll(true));
+  document.getElementById("transfer-none").addEventListener("click", () => checkAll(false));
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+  dialogGo.addEventListener("click", async () => {
+    if (!onGo) return;
+    dialogGo.disabled = true;
+    try {
+      if (await onGo()) dialog.close();
+    } finally {
+      dialogGo.disabled = false;
+    }
+  });
+
+  function download(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  exportButton.addEventListener("click", () => {
+    if (!songs.length) {
+      setStatus(T("A biblioteca está vazia: não há músicas para exportar."));
+      return;
+    }
+    openDialog(
+      T("Exportar músicas"),
+      T("Escolha as músicas a guardar num ficheiro ZIP, para importar na biblioteca de outro computador. O áudio (MP3) não vai; vão o GP5, a capa e as definições de cada música (início do compasso 1 no áudio, tempo, vídeo do YouTube)."),
+      T("Exportar"),
+      songs.map((song) => row(song, null)),
+      async () => {
+        const keys = new Set(checked("input.take"));
+        const chosen = songs.filter((song) => keys.has(song.key));
+        if (!chosen.length) return false;
+        try {
+          const response = await request("/api/library/export", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ songs: chosen.map((song) => ({ id: song.id, settings: readSettings(song.title, song.artist) })) }),
+          });
+          const date = new Date().toISOString().slice(0, 10);
+          download(await response.blob(), `biblioteca-pdf-to-gp5-${date}.zip`);
+          setStatus(chosen.length === 1 ? T("1 música exportada.") : T("{n} músicas exportadas.", { n: chosen.length }));
+          return true;
+        } catch (error) {
+          setStatus(T("Não foi possível exportar: {error}", { error: error.message }));
+          return true;
+        }
+      },
+    );
+  });
+
+  importButton.addEventListener("click", () => importFile.click());
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files && importFile.files[0];
+    importFile.value = "";
+    if (!file) return;
+    const send = (choices) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (choices) form.append("choices", JSON.stringify(choices));
+      return request("/api/library/import", { method: "POST", body: form }).then((response) => response.json());
+    };
+    let found;
+    try {
+      ({ songs: found } = await send(null));
+    } catch (error) {
+      setStatus(T("Não foi possível ler o ficheiro: {error}", { error: error.message }));
+      return;
+    }
+    const existing = found.filter((song) => song.existing).length;
+    openDialog(
+      T("Importar músicas"),
+      existing
+        ? T("{n} música(s) do ficheiro já existem nesta biblioteca: marque \"Substituir\" nas que quer trocar pela do ficheiro; as outras ficam como estão.", { n: existing })
+        : T("Escolha as músicas a juntar à biblioteca."),
+      T("Importar"),
+      found.map((song) => row(song, song.existing)),
+      async () => {
+        const chosen = checked("input.take");
+        if (!chosen.length) return false;
+        try {
+          const done = await send({ chosen, replace: checked("input.replace-box") });
+          for (const song of done.imported) writeSettings(song.title, song.artist, song.settings);
+          const added = done.imported.filter((song) => !song.replaced).length;
+          const replaced = done.imported.length - added;
+          setStatus(T("Importação: {added} nova(s), {replaced} substituída(s), {kept} mantida(s) como estavam.", {
+            added, replaced, kept: done.skipped.length,
+          }));
+        } catch (error) {
+          setStatus(T("Não foi possível importar: {error}", { error: error.message }));
+        }
+        refresh();
+        return true;
+      },
+    );
+  });
+
   search.addEventListener("input", render);
   ready = start();
+  ready.then(() => {
+    // Only with the library folder on this computer (the server makes and reads the ZIP).
+    exportButton.hidden = folder === null;
+    importButton.hidden = folder === null;
+  });
   refresh();
 
   // Switching the language reloads the page: the song open then (already in the library, saved
