@@ -43,6 +43,25 @@ connection. CONFIRMED by the user. So the app creates the PDF on the phone (LIKE
 cached by an earlier export cannot be fully excluded). If so, no UG server produces that
 file, and no web or Windows client can download it: there is no request to reproduce.
 
+**Update (user's Network capture and console probe, Windows, Chrome):**
+
+- Network, filter `pdf`, after loading, scrolling and Print → Cancel: the only rows are
+  `data:image/png;base64,…` addresses, type png, status 200, size "(memory cache)", all
+  started by the site script `8780.123b904….js`. They are pictures made inside the page by
+  the site's script, not requests to a server, and none is a PDF. The word "pdf" most likely
+  matched by chance inside the base64 text. CONFIRMED.
+- Probe: `{"pdf":[],"kinds":{"canvas":2,"svg":1},"svgShapes":70,"pictures":["canvas ","canvas "]}`.
+  No PDF resource; two large `<canvas>` elements; one large SVG with only 70 shapes, far too
+  few for a full tab. CONFIRMED.
+- Reading: the page draws the notation on `<canvas>` with its own script. For Print, the
+  script turns the canvas into PNG pictures (`data:image/png`), which Chrome puts in the PDF.
+  This matches the 990 px PNG systems of section 2.2. LIKELY. To make it CONFIRMED:
+  Elements → Ctrl+Shift+C → click a fret number → the highlighted element is `<canvas>`.
+
+**Answer: no.** The website gives no vector PDF (no PDF request; the notation reaches the
+page only as canvas pixels). The Android file is built inside the app (works offline), so no
+server or web feature can deliver it to Windows. The legitimate routes are in section 7.
+
 ## 2. Evidence
 
 ### 2.1 The Android PDF (reference)
@@ -216,22 +235,33 @@ Only meaningful if 4.2 shows SVG, or 4.1 shows a PDF request.
   download (`page.expect_download()`), so the request is made by the site's own code in
   the user's session.
 
-## 7. If the website has no vector path
+## 7. Remaining routes (none implemented)
 
-In the order the user set:
-
-1. **Android backend.** Only if its export turns out to be a plain server request that a
-   logged-in user's client may legitimately make. Today the only known API needs the app's
-   signing secret, which is excluded.
-2. **MuseScore regeneration** from tab data the user can legitimately get (e.g. a Guitar
-   Pro file they may download, or their own conversion). This is the last fallback. It
-   gives a vector PDF in the same engraving style, but not the UG file.
+1. **The real file, from the official app.** CONFIRMED to work on the phone. The app's own
+   share/export can send the PDF to Windows (Google Drive, e-mail, USB). The only way to get
+   the *identical* file on a Windows machine without the phone is to run the official
+   Android app there, in an Android emulator (e.g. the Android Studio emulator with a Play
+   Store image), logged in with the user's own account. Whether the UG app runs and
+   exports in an emulator is UNKNOWN; it may refuse devices that fail Google's integrity
+   checks, and such a refusal must not be worked around.
+2. **Capture the canvas drawing in the user's own browser.** The page's script draws the
+   engraving with canvas drawing calls (lines, curves, text in the music fonts). A recorder
+   placed in the page, in the user's own logged-in session, could replay those calls into
+   SVG/PDF. That would be vector, in the same engraving, but not byte-identical to the
+   Android file. Feasibility UNKNOWN: it depends on whether the script draws with vector
+   canvas calls or pastes ready-made pictures. It does not touch authentication or cookies,
+   but it goes against UG's choice of raster-only printing and may break UG's terms of use.
+   The user must check the terms and decide before any work starts.
+3. **Android backend.** Ruled out: the export works offline, so there is no server request
+   to reproduce. The known mobile API needs the app's signing secret, which is excluded.
+4. **MuseScore regeneration** from tab data the user can legitimately get. This is the last
+   fallback: a vector PDF in the same style, but not the UG file.
 
 ## 8. Not verified (summary)
 
-- Whether any tab page request returns `application/pdf`.
-- How the page draws notation: SVG, canvas or `<img>`.
-- The source and URL of the 990 px system pictures.
+- That the notation canvas is the one under the fret numbers (the probe found two canvases).
+- Whether the page script draws the canvas with vector calls or pastes pictures (route 2).
+- Whether the official UG app runs and exports inside an Android emulator (route 1).
 - Print behaviour for tab 2157405 specifically.
 - Whether the "Download PDF" of text tabs is vector.
 - Whether the offline Android export could have reused a copy cached by an earlier export.
