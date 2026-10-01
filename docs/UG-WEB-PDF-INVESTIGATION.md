@@ -38,6 +38,11 @@ If the notation on screen is SVG, the user's own logged-in browser can print it 
 PDF (section 6). That PDF would be vector, but it would not be byte-identical to the Android
 file.
 
+**Update (user test, airplane mode):** the Android app exports the PDF with no network
+connection. CONFIRMED by the user. So the app creates the PDF on the phone (LIKELY; a copy
+cached by an earlier export cannot be fully excluded). If so, no UG server produces that
+file, and no web or Windows client can download it: there is no request to reproduce.
+
 ## 2. Evidence
 
 ### 2.1 The Android PDF (reference)
@@ -119,9 +124,9 @@ Read only as search excerpts, so all LIKELY.
 | 5 | Same PDF-generation system as Android? | No, different writer: Android uses a custom writer with vectors in MuseScore units, the web uses Chrome Skia with PNG pictures (CONFIRMED). The engraving engine behind the pictures looks the same (LIKELY). | CONFIRMED / LIKELY |
 | 6 | Does it work for Official/Pro tabs? | Print works for Official tabs, but the output is raster: the user's Official tab gave PNG systems. Print for tab 2157405 was not captured (UNKNOWN). | CONFIRMED / UNKNOWN |
 | 7 | What authentication is required? | A UG account with a Pro subscription to view and print Official tabs. The web session is cookie-based. | LIKELY |
-| 8 | Can a legitimate Windows client reproduce the request? | No vector-PDF web request is known to reproduce. The Android export request is unknown, and the known mobile API needs app-impersonation signing, which is excluded. | LIKELY / UNKNOWN |
+| 8 | Can a legitimate Windows client reproduce the request? | No vector-PDF web request is known to reproduce. The Android export works offline, so it makes no request to reproduce (CONFIRMED offline; on-phone generation LIKELY). The known mobile API needs app-impersonation signing, which is excluded. | CONFIRMED / LIKELY / UNKNOWN |
 | 9 | Can browser automation reproduce it? | It can reproduce Print in the user's own session (Playwright, persistent profile, manual login). The result is vector only if the page draws the notation as SVG (UNKNOWN). | LIKELY / UNKNOWN |
-| 10 | If not, what exact obstacle? | The website delivers the engraving to the browser as pixels (CONFIRMED for the printed output; screen rendering UNKNOWN). The vector PDF exists only behind the app's export, whose request is unknown and whose API requires impersonating the app. | CONFIRMED / LIKELY / UNKNOWN |
+| 10 | If not, what exact obstacle? | The website delivers the engraving to the browser as pixels (CONFIRMED for the printed output; screen rendering UNKNOWN). The vector PDF is built inside the Android app on the phone (works offline), so no server holds it. | CONFIRMED / LIKELY / UNKNOWN |
 
 ## 4. What the user needs to capture (Windows, Chrome or Edge)
 
@@ -162,21 +167,24 @@ reference tab 2157405; the Official "You're A God" tab is a second choice.
 ### 4.3 Automatic summary (optional)
 
 1. Open **F12 → Console** on the tab page.
-2. Paste the contents of `tools/ug_web_probe.js` and press Enter. If Chrome refuses to
-   paste, type `allow pasting` first.
-3. It copies a JSON summary to the clipboard. Paste it in the chat.
-4. Run it once after loading the page, and once after clicking Print (then Cancel).
+2. Open `tools/ug_web_probe.js` in a text editor, copy the **whole text** and paste it into
+   the Console, then press Enter. Typing the file name does nothing: the Console runs code,
+   not files. If Chrome refuses to paste, type `allow pasting` first.
+3. It copies one short line of JSON to the clipboard. Paste it in the chat. It lists:
+   - `pdf`: requests with "pdf" in the address or type;
+   - `kinds`: how many large `svg`/`canvas`/`img`/`iframe` elements the page has;
+   - `svgShapes`: how many text/path shapes those SVGs hold (many → vector notation);
+   - `pictures`: up to five picture addresses, without query strings.
+4. Run it after scrolling to the end of the tab and clicking Print → Cancel.
 
 The script only reads what the page already loaded. It strips query strings from URLs, does
-not read cookies and sends nothing.
+not read cookies and sends nothing. The browser keeps only about 250 resource entries, so
+the Network screenshot (filter `pdf`) is the authoritative check for PDF requests.
 
 ### 4.4 The Android side (optional, for question 5)
 
-- If the app's export can be repeated, note whether the app downloads the PDF (is a network
-  connection needed?) or creates it offline. Airplane-mode test: open the tab once online,
-  switch to airplane mode, then export.
-  - If the export works offline, the app generates the PDF on the phone. Then there is no
-    server PDF endpoint to look for at all.
+- Done: the export works in airplane mode (CONFIRMED by the user). The PDF is built on the
+  phone (LIKELY), so there is no server PDF endpoint to look for.
 - Do **not** intercept the app's TLS traffic or extract keys from the app. Both are out of
   scope.
 
@@ -226,5 +234,5 @@ In the order the user set:
 - The source and URL of the 990 px system pictures.
 - Print behaviour for tab 2157405 specifically.
 - Whether the "Download PDF" of text tabs is vector.
-- Whether the Android app builds the PDF on the phone or downloads it.
+- Whether the offline Android export could have reused a copy cached by an earlier export.
 - The content of forum thread t=2724947.
