@@ -498,3 +498,20 @@ def test_sideways_music_glyph_is_placed_at_its_origin():
     }
     assert _x_span(turned) == (235.0, 257.0)
     assert _x_span({**turned, "text": "A"}) == (347.2, 447.2)  # rotated text keeps its box
+
+
+def test_tie_arcs_reaching_parenthesized_notes():
+    from app.extract.engraved_tab import _StaffLine, _tie_arrivals
+    from app.model import TabEvent
+
+    staff = [_StaffLine(y=100 + 7 * i, x0=50, x1=500) for i in range(6)]
+    tied = TabEvent(x=200, string=4, fret=2, parenthesized=True)
+    ghost = TabEvent(x=300, string=4, fret=2, parenthesized=True)
+    first_on_line = TabEvent(x=60, string=3, fret=4, parenthesized=True)
+    events = [TabEvent(x=120, string=4, fret=2), tied, ghost, first_on_line]
+    curves = [
+        Segment(125, 195, 117, 119),  # arc from the note at 120 to the one at 200
+        Segment(52, 56, 112, 112),  # stub of a tie cut at the line's start
+    ]
+    _tie_arrivals(events, staff, curves, 7.0)
+    assert (tied.tie_arc, ghost.tie_arc, first_on_line.tie_arc) == (True, False, True)

@@ -94,6 +94,7 @@ def _to_notes(events: list[TabEvent]) -> list[ScoreNote]:
             fret=e.fret if e.fret is not None else 0,
             dead=e.dead,
             parenthesized=e.parenthesized,
+            tie_arc=e.tie_arc,
             vibrato=e.vibrato,
             let_ring=e.let_ring,
             palm_mute=e.palm_mute,
@@ -451,17 +452,22 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
     * a parenthesised fret repeating the previous fret on the string is a tie
       (the note sustains; editors print tied notes in parentheses, and tools
       such as Rocksmith importers turn ties into sustain); a parenthesised
-      fret that differs from the previous one is a ghost note;
+      fret that differs from the previous one is a ghost note. A tie continues
+      only a note sounding in the beat just before. Where the tab draws ties as
+      arcs (MuseScore), a parenthesised note no arc reaches is a new note — a
+      ghost note — even on the same fret;
     * a bend is held on a tied note unless the bend was released; a bend drawn on a tied note
       after an unbent one starts there.
     """
     last: dict[int, ScoreNote] = {}
+    sounding: set[int] = set()  # strings with a note in the beat just before
     for measure in measures:
         for beat in measure.beats:
             for note in beat.notes:
                 prev = last.get(note.string)
                 if note.parenthesized:
-                    if prev is not None and not prev.dead and prev.fret == note.fret:
+                    held = prev is not None and not prev.dead and prev.fret == note.fret and note.string in sounding
+                    if held and note.tie_arc is not False:
                         note.tie = True
                     else:
                         note.ghost = True
@@ -477,6 +483,7 @@ def resolve_links(measures: list[ScoreMeasure]) -> None:
                     else:
                         prev.slide = True
                 last[note.string] = note
+            sounding = {note.string for note in beat.notes}
 
 
 def build_measures(

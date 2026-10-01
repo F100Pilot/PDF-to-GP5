@@ -102,6 +102,40 @@ def _is_parenthesized(x0: float, x1: float, top: float, bottom: float, curves: l
     return left and right
 
 
+# MuseScore's fonts. Its tab draws every tie as an arc and puts ghost notes in parentheses, so a
+# parenthesised note no arc reaches is a ghost note even when it repeats the fret.
+_ARC_EDITOR_FONTS = ("Leland", "Edwin", "Bravura")
+
+
+def _draws_tie_arcs(page: Page, events_by_staff: list[list[TabEvent]]) -> bool:
+    """Whether the page's tab shows ties as arcs: written by MuseScore, or an arc reaches some
+    parenthesised note on it."""
+    return any(c.font.startswith(_ARC_EDITOR_FONTS) for c in page.chars) or any(
+        e.tie_arc for events in events_by_staff for e in events
+    )
+
+
+def _tie_arrivals(events: list[TabEvent], staff: list[_StaffLine], curves: list[Segment], spacing: float) -> None:
+    """Mark each parenthesised note with whether a tie arc arrives at it: a flat curve along its
+    string that ends just before it and starts after the string's previous note. On the string's
+    first note of a line, a tie from the line above is only a short stub from the line's start."""
+    for event in events:
+        if not event.parenthesized:
+            continue
+        y = staff[event.string - 1].y
+        before = [e.x for e in events if e.string == event.string and e.x < event.x - 0.5 * spacing]
+        start = max(before, default=staff[0].x0 - spacing) - 1.5 * spacing
+        stub = not before  # the arc may be cut at the line's start
+        event.tie_arc = any(
+            c.bottom - c.top < 0.8 * spacing
+            and (c.x1 - c.x0 > spacing or (stub and c.x1 - c.x0 > 0.2 * spacing and c.x0 <= staff[0].x0 + 2 * spacing))
+            and abs((c.top + c.bottom) / 2 - y) <= 1.3 * spacing
+            and event.x - 2.5 * spacing <= c.x1 <= event.x + 0.3 * spacing
+            and c.x0 >= start
+            for c in curves
+        )
+
+
 def _numbers_on_staff(
     chars: list[Char], staff: list[_StaffLine], spacing: float, curves: list[Segment]
 ) -> list[TabEvent]:
@@ -658,6 +692,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
     for staff in staves:
         spacing = (staff[-1].y - staff[0].y) / (len(staff) - 1)
         events = _numbers_on_staff(page.chars, staff, spacing, page.curves)
+        _tie_arrivals(events, staff, page.curves, spacing)
         _apply_legato_marks(page.chars, staff, spacing, events)
         top, bottom = staff[0].y, staff[-1].y
         x0, x1 = staff[0].x0, staff[0].x1
@@ -721,4 +756,8 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
         systems.append(system)
         placed.append((system, staff, spacing))
     _apply_effect_ranges(page, placed)
+    if not _draws_tie_arcs(page, [system.events for system in systems]):
+        for system in systems:  # ties are not drawn as arcs here: the missing arc says nothing
+            for event in system.events:
+                event.tie_arc = None
     return systems

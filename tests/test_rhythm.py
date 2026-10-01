@@ -138,6 +138,30 @@ def test_parentheses_are_ties_when_repeating_the_fret_else_ghost():
     assert marked[3].ghost and not marked[3].tie
 
 
+def _parenthesized(events):
+    measures = build_measures([_system(events, [0.0, 16.0], end=16.0)], RhythmOptions(mode="spacing"), [])
+    return [n for b in measures[0].beats for n in b.notes if n.parenthesized]
+
+
+def test_tie_needs_the_string_sounding_in_the_beat_before():
+    # Jet Lag, bars 78-81: the E string rests while G/D/A play, then comes back in parentheses
+    events = [
+        TabEvent(x=1, string=6, fret=0),
+        TabEvent(x=5, string=5, fret=2),
+        TabEvent(x=9, string=6, fret=0, parenthesized=True),
+    ]
+    (again,) = _parenthesized(events)
+    assert again.ghost and not again.tie
+
+
+@pytest.mark.parametrize(("arc", "tied"), [(True, True), (None, True), (False, False)])
+def test_where_ties_are_arcs_a_parenthesized_note_without_one_is_a_ghost_note(arc, tied):
+    # MuseScore: (2)(2) with no arc between them are two notes, not one held note
+    events = [TabEvent(x=2, string=4, fret=2), TabEvent(x=10, string=4, fret=2, parenthesized=True, tie_arc=arc)]
+    (second,) = _parenthesized(events)
+    assert (second.tie, second.ghost) == (tied, not tied)
+
+
 def test_parenthesized_repeat_of_a_bent_note_holds_the_bend():
     events = [
         TabEvent(x=2, string=2, fret=15, bend_semitones=2),

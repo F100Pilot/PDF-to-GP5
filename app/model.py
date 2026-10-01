@@ -32,6 +32,9 @@ class TabEvent:
     # Printed in parentheses: a tie (sustain) when it repeats the previous fret on
     # the string, otherwise a ghost note (resolved once notes are in playing order).
     parenthesized: bool = False
+    # For a parenthesised note on a page whose tab draws ties as arcs: whether an arc arrives at
+    # it (a tie) or not (a ghost note, whatever the fret). None where ties are not drawn as arcs.
+    tie_arc: bool | None = None
     vibrato: bool = False
     bend_semitones: int = 0
     bend_release: bool = False
@@ -125,6 +128,7 @@ class ScoreNote:
     stroke: str | None = None
     velocity: int | None = None
     parenthesized: bool = False  # unresolved: becomes tie or ghost
+    tie_arc: bool | None = None  # see TabEvent.tie_arc
     link: Link | None = None  # unresolved link to previous note
 
 

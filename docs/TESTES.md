@@ -18,11 +18,12 @@ Correm na sessão do Claude, sem ninguém a ver, e não precisam de rede.
 
 | O quê | Como | Última vez | Resultado |
 |---|---|---|---|
-| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-10-01, 0.7.0 + OCR | 479 passam (inclui `test_i18n.py`: nenhum texto sem tradução; `test_changelog.py`: as Novidades em inglês com as mesmas entradas; `test_raster.py`: tab em imagem PNG/JPEG/WebP, de 850 a 5000 px, recorte de uma pauta, PDF só com imagens, limites, telemetria do ONNX Runtime desligada; título, artista e BPM lidos de uma imagem; compasso 3/4, 6/8, 12/8, 4/4 e mudança a meio, de 1000 a 2600 px) |
+| Testes (`pytest`) | `.venv/bin/python -m pytest` | 2026-10-01, 0.7.0 + OCR | 484 passam (inclui `test_i18n.py`: nenhum texto sem tradução; `test_changelog.py`: as Novidades em inglês com as mesmas entradas; `test_raster.py`: tab em imagem PNG/JPEG/WebP, de 850 a 5000 px, recorte de uma pauta, PDF só com imagens, limites, telemetria do ONNX Runtime desligada; título, artista e BPM lidos de uma imagem; compasso 3/4, 6/8, 12/8, 4/4 e mudança a meio, de 1000 a 2600 px) |
 | Estilo (`ruff`) | `.venv/bin/ruff check .` e `ruff format --check .` | 2026-10-01, 0.7.0 + OCR | Sem erros |
 | OCR nos 12 PDFs desenhados como imagem | Cada página renderizada e lida por OCR, comparada nota a nota com a leitura do PDF vetorial | 2026-10-01 | 99,9 % das notas encontradas, 99,1 % com o traste certo, ~2 % de notas a mais |
 | Título, artista e BPM de imagens | Página 1 dos 13 PDFs como PNG a 1000, 1300, 1600 e 2600 px, comparada com a leitura do PDF | 2026-10-01 | 52 de 52 iguais (no print do UG: "Youre A God", "Vertical Horizon", 97, Mib, 4/4 — também no PDF original, com o título e o artista em texto) |
 | Compasso de imagens | Todas as páginas dos 13 PDFs como imagem, comparadas com a leitura do PDF | 2026-10-01 | 13 de 13 com o 4/4 certo, nenhum compasso a mais (antes da leitura só como dígitos: "4" lido como "L" ou como carácter chinês) |
+| Ligaduras vs. notas entre parêntesis | Os 13 PDFs, nota a nota, antes e depois da correção | 2026-10-01 | Mudam só notas entre parêntesis sem arco (Jet Lag 18, Happen To Me Guitar 1/Pro 38, Guitar 2/3 37 — semicolcheias em palm mute —, Guitar 4 2, September 1, Hotel California Pro 1): passam de ligadura a ghost note; conferido no PDF |
 | Os 12 PDFs vetoriais não mudam com o OCR | GP5 de cada um antes e depois | 2026-10-01 | Iguais byte a byte (nenhuma página é lida por OCR) |
 | GP5 igual ao alphaTab | Skill `gp-alphatab-check`, nos 12 PDFs e no `September.gp` | 2026-09-30, 0.7.0 | Tudo igual, incluindo o `.gp` exportado pelo alphaTab |
 | RockForge igual ao alphaTab | Skill `rockforge-alphatab-check`, nos 12 PDFs | 2026-09-30, 0.7.0 (RockForge d0e6c11) | Tudo igual, incluindo a forma dos bends |
@@ -81,6 +82,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 | 10 | **Idioma** | Mudar para English no fundo do menu lateral e usar a aplicação (converter, tocar, áudio, biblioteca) | Tudo em inglês, incluindo os avisos da conversão, os erros e as Novidades; voltar a Português repõe tudo |
 | 11 | **Novidades da 0.7.0** | Abrir a aplicação depois de atualizar | Aparece o quadro das Novidades da versão 0.7.0 uma vez; depois de fechado não volta a aparecer |
 | 12 | **Prints (OCR)** | Depois do `start`, que instala o OCR (~210 MB): converter um print PNG/JPG de uma tab (Songsterr, Ultimate Guitar, Guitar Pro) e um PDF só com imagens | As notas batem com o print (conferir algumas linhas); o ritmo é aproximado; aparece o aviso. Se falhar, enviar o print |
+| 13 | **Ligaduras e ghost notes** | Converter o PDF da Jet Lag e abrir no RockForge, compassos 77–90 | Cada acorde entre parêntesis toca de novo (77, 79, 81…) e só continua no compasso seguinte (78, 80, 82…); o Mi solto não soa nos compassos 79–80 |
 
 ## Confirmado por ti
 

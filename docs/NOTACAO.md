@@ -73,7 +73,7 @@ Colunas:
 |---|---|---|---|---|---|
 | Traste (0–29) e acordes | ✅ | ✅ | ✅ | Happen To Me | |
 | Nota morta `x` | ✅ | ✅ | ✅ | — | |
-| Nota entre parêntesis `(0)` | ✅ | ✅ | ✅ | Happen To Me | Mesmo traste que a nota anterior → ligadura (sustain; no GP o traste não se repete na tab). Traste diferente → ghost note |
+| Nota entre parêntesis `(0)` | ✅ | ✅ | ✅ | Happen To Me | Mesmo traste que a nota que soa na corda no tempo anterior → ligadura (sustain; no GP o traste não se repete na tab). Traste diferente, ou a corda calada no tempo anterior → ghost note. Nos PDFs do MuseScore (ligaduras desenhadas como arcos, também cortadas no início da linha) só há ligadura quando um arco chega à nota: `(2)(2)` sem arco são duas notas |
 | Nota fantasma (ghost) | ✅ | ✅ | ✅ | — | Parêntesis com traste diferente do anterior |
 | Acento `>` | ⬜ | ⬜ | ✅ | — | |
 | Acento forte `^` (marcato) | ⬜ | ⬜ | ✅ | — | |
