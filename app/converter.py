@@ -106,10 +106,12 @@ def _read(pdf: bytes, options: ConversionOptions) -> tuple[list[Page], dict[str,
 # Shown once per track read from a picture.
 def _image_warning() -> str:
     return tr(
-        "Tablatura lida de uma imagem (OCR): confira as notas. O ritmo é estimado pelo espaçamento das notas; "
-        "bends, slides, ligaduras e outras técnicas não são lidos.",
-        "Tablature read from an image (OCR): check the notes. The rhythm is estimated from the spacing of the "
-        "notes; bends, slides, ties and other techniques are not read.",
+        "Tablatura lida de uma imagem (OCR): confira as notas. O ritmo é lido das hastes, barras e pausas quando "
+        "estão desenhadas, e senão estimado pelo espaçamento das notas; bends, slides, ligaduras e outras técnicas "
+        "não são lidos.",
+        "Tablature read from an image (OCR): check the notes. The rhythm is read from the stems, beams and rests "
+        "where they are drawn, and otherwise estimated from the spacing of the notes; bends, slides, ties and other "
+        "techniques are not read.",
     )
 
 

@@ -160,3 +160,12 @@ def test_lone_note_on_stemless_line_is_a_whole_note_when_part_has_rhythm():
     measures = build_measures([notated, stemless], RhythmOptions(), [], None, stats)
     assert (stats.notated, stats.estimated) == (2, 0)
     assert [b.units for b in measures[1].beats] == [32]
+
+
+def test_stems_of_the_staff_above_are_not_taken():
+    """Staves printed close together: the stems hanging from the staff above end two spaces or
+    more over this one. They are more than this staff's own, yet its own (starting 2/3 of a space
+    under it) are its rhythm."""
+    above = [Segment(x, x, TOP - 45, TOP - 25) for x in (30, 60, 90)]  # their ends 2.5 spaces up
+    marks = _read(segments=[*above, _stem(40), _stem(80)])
+    assert [m.x for m in marks] == [40, 80]

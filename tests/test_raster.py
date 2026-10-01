@@ -7,7 +7,7 @@ from PIL import Image
 
 from app.converter import ConversionError, ConversionOptions, convert, inspect
 from app.extract.raster_tab import _TEMPO_MARK, _join_lines, image_kind
-from tests.pdf_factory import engraved_tab_pdf, image_pdf, tab_png
+from tests.pdf_factory import engraved_tab_pdf, image_pdf, rhythm_tab_pdf, tab_png
 
 STAVES = [
     [[(1, 0), (2, 12)], [(3, 5), (6, 3)]],
@@ -250,3 +250,36 @@ def test_digit_read_as_a_letter_is_read_again():
     assert all(_misread_digit(text) for text in ["d", "a", "D", "的", "自", "·", "K"])
     # the TAB clef, an accent, a rest, a slide's stroke: not digits
     assert not any(_misread_digit(text) for text in ["T", "A", "B", "y", "Y", "!", "-", "/", ""])
+
+
+RHYTHM = [
+    [("4", 1, 0), ("8", 2, 1), ("8", 2, 3), ("8.", 3, 2), ("16", 3, 4), ("4", 4, 5)],
+    [("r2",), ("4", 1, 3), ("4", 2, 3)],
+    [("16", 1, 1), ("16", 1, 2), ("16", 1, 3), ("16", 1, 4), ("8", 2, 1), ("8", 2, 2), ("4", 3, 0), ("4", 3, 2)],
+]
+
+
+@pytest.mark.parametrize("width", [1300, 2000])
+def test_rhythm_drawn_under_the_tab_is_read_from_the_picture(width):
+    # stems, beams, a partial beam, a dot and a half rest, as in a print of "tab with stems"
+    import guitarpro as gp
+
+    result = convert(tab_png(rhythm_tab_pdf(RHYTHM), width=width), ConversionOptions())
+    song = gp.parse(io.BytesIO(result.gp5))
+    beats = [
+        [(b.duration.value, b.duration.isDotted, b.status.name == "rest") for b in m.voices[0].beats]
+        for m in song.tracks[0].measures
+    ]
+    assert beats == [
+        [
+            (4, False, False),
+            (8, False, False),
+            (8, False, False),
+            (8, True, False),
+            (16, False, False),
+            (4, False, False),
+        ],
+        [(2, False, True), (4, False, False), (4, False, False)],
+        [(16, False, False)] * 4 + [(8, False, False)] * 2 + [(4, False, False)] * 2,
+    ]
+    assert result.report["tracks"][0]["rhythm_from_notation"] == 3

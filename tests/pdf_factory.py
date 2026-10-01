@@ -135,6 +135,67 @@ def engraved_tab_pdf(
     return buffer.getvalue()
 
 
+def rhythm_tab_pdf(measures: list[list[tuple]], strings: int = 6) -> bytes:
+    """One tab staff with rhythm drawn under it, as MuseScore prints "tab with stems".
+
+    Each measure is a list of ("4" | "8" | "8." | "16", string, fret) notes and ("r2",) half
+    rests, one slot each. Stems start 2/3 of a space under the staff and end 2.54 spaces under
+    it; 8ths and 16ths next to each other are beamed (a lone 16th gets a partial beam towards
+    the note before it); a dotted note has its dot right of the stem; a half rest is a block
+    sitting on the middle line.
+    """
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    spacing, x0, x1, top = 7.0, 60.0, 540.0, A4[1] - 120
+    bottom = top - (strings - 1) * spacing
+    stem_top, stem_end = bottom - 0.67 * spacing, bottom - 2.54 * spacing
+    beam = 0.35 * spacing
+    width = (x1 - x0) / len(measures)
+    for s in range(strings):
+        pdf.line(x0, top - s * spacing, x1, top - s * spacing)
+    for m in range(len(measures) + 1):
+        pdf.line(x0 + m * width, top, x0 + m * width, bottom)
+    for m, items in enumerate(measures):
+        step = width / (len(items) + 1)
+        xs = [x0 + m * width + step * (k + 0.5) + 4 for k in range(len(items))]
+        group: list[int] = []  # beamed notes in a row
+        for k, item in enumerate(items + [("end",)]):
+            beamed = item[0] in ("8", "8.", "16")
+            if not beamed and len(group) >= 2:
+                pdf.rect(xs[group[0]], stem_end, xs[group[-1]] - xs[group[0]], beam, stroke=0, fill=1)
+                for i, j in enumerate(group):
+                    if items[j][0] != "16":
+                        continue
+                    nxt = i + 1 < len(group) and items[group[i + 1]][0] == "16"
+                    prev = i > 0 and items[group[i - 1]][0] == "16"
+                    if nxt:
+                        pdf.rect(xs[j], stem_end + 2 * beam, xs[group[i + 1]] - xs[j], beam, stroke=0, fill=1)
+                    elif not prev:
+                        pdf.rect(xs[j] - 1.2 * spacing, stem_end + 2 * beam, 1.2 * spacing, beam, stroke=0, fill=1)
+            group = group + [k] if beamed else []
+            if item[0] == "end":
+                break
+            if item[0] == "r2":
+                middle = top - (strings // 2 - 1) * spacing
+                pdf.rect(xs[k] - 0.45 * spacing, middle, 0.9 * spacing, 0.42 * spacing, stroke=0, fill=1)
+                continue
+            duration, string, fret = item
+            y = top - (string - 1) * spacing
+            pdf.setFillColorRGB(1, 1, 1)
+            half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.6
+            pdf.rect(xs[k] - half, y - 3, 2 * half, 6, stroke=0, fill=1)
+            pdf.setFillColorRGB(0, 0, 0)
+            pdf.setFont("Helvetica", 7)
+            pdf.drawCentredString(xs[k], y - 2.5, str(fret))
+            pdf.setLineWidth(0.6)
+            pdf.line(xs[k], stem_top, xs[k], stem_end)
+            pdf.setLineWidth(1)
+            if duration.endswith("."):
+                pdf.circle(xs[k] + 0.5 * spacing, (stem_top + stem_end) / 2, 0.15 * spacing, stroke=0, fill=1)
+    pdf.save()
+    return buffer.getvalue()
+
+
 def blank_pdf() -> bytes:
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)

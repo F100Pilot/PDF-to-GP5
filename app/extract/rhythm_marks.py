@@ -38,7 +38,8 @@ def _near(char: Char, y: float, tolerance: float) -> bool:
 
 
 def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[Segment]:
-    """Stems below the staff (or above it, if that side has more), all ending on one line.
+    """Stems below the staff (or above it, if that side has more, or if those below are a
+    neighbouring staff's), all ending on one line.
 
     Half-note stems are shorter but share the far end with the others; requiring
     that common end keeps out unrelated ticks (e.g. the end of a "P.M." line).
@@ -60,6 +61,14 @@ def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing:
         return [s for s in found if abs((s.bottom if below else s.top) - common) <= 0.3 * spacing]
 
     below, above = candidates(True), candidates(False)
+    if below and above:
+        # Staves printed close together: the stems hanging from the staff above can reach this
+        # one, their ends two spaces or more away. A staff's own stems start within 2/3 of a
+        # space of it (5/3 for a half note's).
+        far_below = median(s.top - bottom for s in below) >= 2 * spacing
+        far_above = median(top - s.bottom for s in above) >= 2 * spacing
+        if far_below != far_above:
+            return above if far_below else below
     return below if len(below) >= len(above) else above
 
 

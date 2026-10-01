@@ -7,6 +7,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Added
+- Tabs in images: the rhythm drawn with the tab (stems, 8th and 16th beams, partial beams, flags, dots and rests on the staff) is now read, as in a vector PDF; only bars whose marks do not add up keep the rhythm estimated from the spacing. In the 13 test PDFs drawn as images, bars with the same rhythm as the PDF go from 66 % to 96.5 % (Jet Lag: 100 %); in the web print of an Ultimate Guitar Official tab ("You're A God"), all 24 bars with notes use the drawn rhythm.
 - Tabs in images (OCR, experimental): PNG, JPEG or WebP prints/screenshots, and PDFs that are only images (a print saved as PDF, a scan), are now converted. The string lines and bar lines are found in the image and the numbers read by a text-recognition model that runs on the computer (RapidOCR); nothing leaves the computer (ONNX Runtime's telemetry is turned off); the rhythm is estimated from the spacing and the report asks you to check the notes (bends, slides, ties and other techniques are not read). In a PDF, only the pages with no text or engraved tab are read this way. In the report, the format shows as "image (OCR)". Limits: 15 pages read by OCR per file (`MAX_IMAGE_PAGES`) and 40 megapixels per image (`MAX_IMAGE_MEGAPIXELS`).
 
 - Tabs in images: the title, artist, BPM ("♩ = 97") and tuning are read from the text above the first staff, and fill in the form as with a PDF. In a PDF that is only images, when page 1 has no text of its own.
@@ -19,6 +20,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- Rhythm of staves printed close together: a staff could take the stems of the staff above (ending less than 3 spaces from it) when those outnumbered its own.
 - Tabs in images (OCR), tested with Jet Lag (Simple Plan) drawn as an image and compared bar by bar with the PDF — from 108 to 119 matching bars out of 119:
   - Notes in parentheses: the parentheses were read as "1" ("(2)" became 12 or 21); they are now recognised by their shape and by the chord (when the other notes in the column are in parentheses) and the note becomes a ghost note or a tie, as in a PDF.
   - Rests drawn on the staff are no longer read as "1".

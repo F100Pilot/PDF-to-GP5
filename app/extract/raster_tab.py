@@ -340,6 +340,14 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
     signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
     numbers = _bar_numbers(gray, dark, groups, bars, spacing, k) if frets else []
     page = Page(number, width * k, height * k, chars + signatures + numbers, segments)
+    if frets:
+        stems, shapes, flags = _rhythm(dark, groups, spacing, k)
+        page.segments.extend(stems)
+        page.curves.extend(shapes)
+        rests, rest_dots, misread = _rests(dark, glyph, groups, spacing, k, chars)
+        page.chars = [c for c in page.chars if not any(c is m for m in misread)]
+        page.chars.extend(flags + rests)
+        page.curves.extend(rest_dots)
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -434,6 +442,247 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
                     bx, _, bw, _, _ = bracket
                     chars.append(Char(symbol, bx * k, (bx + bw) * k, gy0 * k, gy1 * k))
     return chars
+
+
+# SMuFL flags by how many there are on a stem (8th, 16th, 32nd), as music fonts write them.
+_FLAGS = {1: "\ue241", 2: "\ue243", 3: "\ue245"}
+
+
+def _rhythm(dark, groups, spacing: float, k: float) -> tuple[list[Segment], list[Segment], list[Char]]:
+    """Rhythm drawn with the tab ("tab with stems"), as the shapes a vector PDF has: stems as
+    vertical segments; beams and augmentation dots as filled shapes; flags as their music-font
+    glyphs. The reader of printed rhythm (rhythm_marks) then works as for a PDF; a bar its marks
+    do not add up for (a tuplet, a rest not recognised) keeps the rhythm estimated from the
+    spacing."""
+    cv2, np = _cv()
+    height = dark.shape[0]
+    ink = dark.astype(np.uint8)
+    tall = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, round(spacing / 2))))
+    stems: list[Segment] = []
+    shapes: list[Segment] = []
+    flags: list[Char] = []
+    tops = sorted(round(group[0][0]) for group in groups)
+    bottoms = sorted(round(group[-1][0]) for group in groups)
+    for group in groups:
+        top, bottom = round(group[0][0]), round(group[-1][0])
+        x0, x1 = min(line[3] for line in group), max(line[4] for line in group) + 1
+        below_end = min([t for t in tops if t > bottom] + [height])
+        above_start = max([b for b in bottoms if b < top] + [0])
+        # the rhythm zone under the staff (or over it): up to 4.5 spaces away, short of a neighbour
+        for y0, y1, below in (
+            (bottom + 2, min(round(bottom + 4.5 * spacing), below_end - round(spacing)), True),
+            (max(round(top - 4.5 * spacing), above_start + round(spacing)), top - 1, False),
+        ):
+            if y1 - y0 < spacing:
+                continue
+            zone = ink[y0:y1, x0:x1]
+            lines = tall[y0:y1, x0:x1]
+            count, _, stats, _ = cv2.connectedComponentsWithStats(lines, connectivity=8)
+            found = []  # (x, top, bottom) in zone pixels
+            for sx, sy, sw, sh, _ in stats[1:count]:
+                # a stem starts (under the staff) about 2/3 of a space from it, or 5/3 for a half
+                # note's shorter one; letters of lyrics further away have strokes as tall
+                # (its width counts the columns as tall as the stem: a flag adds shorter ones)
+                near = sy if below else (y1 - y0) - (sy + sh)
+                heights = lines[sy : sy + sh, sx : sx + sw].sum(axis=0)
+                thick = int((heights >= 0.6 * heights.max()).sum())
+                if not (thick <= max(3, 0.35 * spacing) and 0.8 * spacing <= sh <= 4 * spacing and near <= 2 * spacing):
+                    continue
+                column = sx + int(heights.argmax())
+                if _alone(zone, column, sy, sy + sh, below, spacing):
+                    found.append((column, sy, sy + sh))
+            if not found:
+                continue
+            rest = zone.copy()
+            for column, a, b in found:
+                rest[a:b, max(0, column - 2) : column + 3] = 0
+            count, labels, stats, _ = cv2.connectedComponentsWithStats(rest, connectivity=8)
+            for index, (bx, by, bw, bh, area) in enumerate(stats[1:count], start=1):
+                fill = area / (bw * bh)
+                # (a partial beam, the stub of a 16th beside an 8th, is shorter but touches a stem)
+                touching = any(bx - 4 <= c <= bx + bw + 3 for c, _, _ in found)
+                wide = bw >= 0.5 * spacing or (touching and bw >= 0.3 * spacing)
+                if wide and 0.12 * spacing <= bh <= 1.2 * spacing and fill >= 0.6:
+                    # a beam, or two or three beams run together: one shape per band of full rows
+                    rows = (labels[by : by + bh, bx : bx + bw] == index).mean(axis=1) >= 0.5
+                    edges = np.flatnonzero(np.diff(np.concatenate(([0], rows.astype(np.int8), [0]))))
+                    # back to the stems it was cut from (a partial beam is only that long)
+                    left = min([c for c, _, _ in found if bx - 4 <= c <= bx] + [bx])
+                    right = max([c + 1 for c, _, _ in found if bx + bw <= c <= bx + bw + 3] + [bx + bw])
+                    for a, b in zip(edges[::2], edges[1::2], strict=True):
+                        if b - a >= 0.12 * spacing:
+                            # as thick as the reader expects: a small print draws it 2 px thick
+                            middle, half = y0 + by + (a + b) / 2, min(max(b - a, 0.25 * spacing), 0.4 * spacing) / 2
+                            shapes.append(
+                                Segment((x0 + left) * k, (x0 + right) * k, (middle - half) * k, (middle + half) * k)
+                            )
+                elif (
+                    0.12 * spacing <= bw <= 0.4 * spacing
+                    and 0.12 * spacing <= bh <= 0.4 * spacing
+                    and fill >= 0.5
+                    and any(c + 3 <= bx <= c + 1.2 * spacing and a <= by + bh / 2 <= b for c, a, b in found)
+                ):
+                    # an augmentation dot: right of a stem, beside it (not a stray bit of
+                    # lyrics punctuation under it)
+                    shapes.append(_dot(x0 + bx + bw / 2, y0 + by + bh / 2, spacing, k))
+                else:
+                    flag = _flag_count(labels[by : by + bh, bx : bx + bw] == index, bx, by, found, below, spacing)
+                    if flag:
+                        column, end = flag[1], flag[2]
+                        flags.append(
+                            Char(
+                                _FLAGS[flag[0]],
+                                (x0 + column) * k,
+                                (x0 + column + spacing) * k,
+                                (y0 + end - spacing / 2) * k,
+                                (y0 + end + spacing / 2) * k,
+                            )
+                        )
+            for c, a, b in found:
+                stem = Segment((x0 + c) * k, (x0 + c) * k, (y0 + a) * k, (y0 + b) * k)
+                # staves close together: the zone under one and the zone over the next overlap
+                if not any(abs(o.x0 - stem.x0) <= k and o.top < stem.bottom and stem.top < o.bottom for o in stems):
+                    stems.append(stem)
+    return stems, shapes, flags
+
+
+# Rests drawn on a tab staff, by their size in staff spaces (width, height), as MuseScore draws
+# them (and the Ultimate Guitar prints made with it), with their SMuFL glyphs.
+_RESTS = (
+    ("\ue4e5", (0.5, 0.82), (1.7, 2.3)),  # quarter: a narrow zigzag
+    ("\ue4e7", (0.85, 1.1), (1.65, 2.1)),  # 16th: two hooks
+    ("\ue4e6", (0.65, 0.95), (1.0, 1.45)),  # 8th: one hook
+)
+
+
+def _rests(dark, glyph, groups, spacing: float, k: float, frets: list[Char]):
+    """Rests on the tab staves, as their music-font glyphs (the reader of printed rhythm counts
+    them); the dots just right of them as small filled shapes; and the fret numbers that were a
+    piece of a rest (an 8th rest's tail read as "1"). The staff lines cut a rest into pieces:
+    they are joined again across the lines. A shape of no known size is left out (its bar keeps
+    the rhythm estimated from the spacing)."""
+    cv2, np = _cv()
+    joined = cv2.morphologyEx(
+        glyph.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+    )
+    count, _, stats, _ = cv2.connectedComponentsWithStats(joined, connectivity=8)
+    boxes = [(c.x0 / k, c.x1 / k, c.top / k, c.bottom / k) for c in frets]
+    out: list[Char] = []
+    dots: list[Segment] = []
+    misread: list[Char] = []
+    small = [
+        (bx, by, bw, bh)
+        for bx, by, bw, bh, area in stats[1:count]
+        if 0.12 * spacing <= bw <= 0.4 * spacing and 0.12 * spacing <= bh <= 0.4 * spacing and area >= 0.5 * bw * bh
+    ]
+    for group in groups:
+        top, bottom = group[0][0], group[-1][0]
+        ys = [line[0] for line in group]
+        x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
+        middle = (top + bottom) / 2
+        for bx, by, bw, bh, area in stats[1:count]:
+            if not (x0 < bx and bx + bw < x1 and top - spacing < by and by + bh < bottom + spacing):
+                continue
+            if abs(by + bh / 2 - middle) > 1.2 * spacing:
+                continue
+            inside = [i for i, box in enumerate(boxes) if _overlap((bx, bx + bw, by, by + bh), box) > 0.3]
+            # a fret number, or numbers of a chord joined across the lines; but a "1" far
+            # shorter than the shape is the tail of a rest the recogniser read (a rest just
+            # touching a number is still a rest; a 3 with a tie's arc on it is still a 3)
+            piece = (
+                len(inside) == 1
+                and frets[inside[0]].text == "1"
+                and boxes[inside[0]][3] - boxes[inside[0]][2] <= 0.7 * bh
+            )
+            if inside and not piece:
+                continue
+            w, h = bw / spacing, bh / spacing
+            text = next((t for t, (w0, w1), (h0, h1) in _RESTS if w0 <= w <= w1 and h0 <= h <= h1), None)
+            # (the line it touches went with the staff lines: its fill is measured with them)
+            if (
+                text is None
+                and 0.7 <= w <= 1.15
+                and 0.2 <= h <= 0.65  # (the line under it went with the staff lines)
+                and dark[by : by + bh, bx : bx + bw].mean() >= 0.8
+            ):
+                # a filled block: a half rest sits on a line, a whole rest hangs from one
+                on = any(abs(by + bh - y) <= 2 for y in ys)
+                under = any(abs(by - y) <= 2 for y in ys)
+                text = "\ue4e4" if on and not under else "\ue4e3" if under and not on else None
+            if text:
+                out.append(Char(text, bx * k, (bx + bw) * k, by * k, (by + bh) * k))
+                misread.extend(frets[i] for i in inside)
+                dots.extend(
+                    _dot(dx + dw / 2, dy + dh / 2, spacing, k)
+                    for dx, dy, dw, dh in small
+                    if bx + bw < dx <= bx + bw + spacing
+                    and by - 0.6 * spacing <= dy + dh / 2 <= by + bh + 0.6 * spacing
+                )
+    return out, dots, misread
+
+
+def _dot(x: float, y: float, spacing: float, k: float) -> Segment:
+    """An augmentation dot centred at (x, y) pixels, a fifth of a space across: anti-aliasing
+    makes its blob look bigger than the dot the reader of printed rhythm expects."""
+    r = spacing / 10
+    return Segment((x - r) * k, (x + r) * k, (y - r) * k, (y + r) * k)
+
+
+def _overlap(a, b) -> float:
+    """Area shared by boxes (x0, x1, top, bottom), as a share of the smaller one."""
+    w = min(a[1], b[1]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[2], b[2])
+    if w <= 0 or h <= 0:
+        return 0.0
+    return w * h / max(1e-9, min((a[1] - a[0]) * (a[3] - a[2]), (b[1] - b[0]) * (b[3] - b[2])))
+
+
+def _alone(zone, column: int, a: int, b: int, below: bool, spacing: float) -> bool:
+    """A stem stands alone: beside its half nearer the staff (a flag is on the other half) the
+    columns two and three pixels off are nearly empty, unlike a letter's upright stroke with its
+    bowl (a "d", a "b"). Rows where a beam leaves the stem (ink running half a space along
+    either side) are left out."""
+    _, np = _cv()
+    margin, reach = round(spacing / 4), round(spacing / 2)
+    sides = [c for c in (column - 3, column - 2, column + 2, column + 3) if 0 <= c < zone.shape[1]]
+    if not sides:
+        return True
+    half = (a + b) // 2
+    start, stop = (a + margin, half) if below else (half, b - margin)
+    rows = [
+        r
+        for r in range(start, max(start + 1, stop))
+        if not zone[r, max(0, column - 1 - reach) : column - 1].all()
+        and not zone[r, column + 2 : column + 2 + reach].all()
+    ]
+    return not rows or zone[np.ix_(rows, sides)].mean() < 0.15
+
+
+def _flag_count(mask, bx: int, by: int, stems, below: bool, spacing: float):
+    """(flags, stem x, stem end) when the shape ``mask`` (at bx, by in the zone) is the flag of
+    a stem: it is joined to the stem near its far end (the bottom of a stem under the staff), and
+    reaches right of it. The flags are counted where they cross a column a third of a space
+    right of the stem."""
+    _, np = _cv()
+    h, w = mask.shape
+    for column, a, b in stems:
+        if not column - 1 <= bx <= column + 3 or w < 0.3 * spacing or not 0.4 * spacing <= h <= 2.5 * spacing:
+            continue
+        end = b if below else a
+        # joined to the stem (the stem's own columns were taken out: its next one), beside the
+        # stem's last space, not a letter of the lyrics just past its end
+        attach = column + 3 - bx
+        if not 0 <= attach < w:
+            continue
+        joined = by + np.flatnonzero(mask[:, attach])
+        if not any(a <= y <= b and abs(y - end) <= spacing for y in joined):
+            continue
+        if by - spacing <= end <= by + h + spacing:
+            probe = min(w - 1, column + round(spacing / 3) - bx)
+            crossings = np.flatnonzero(np.diff(np.concatenate(([0], mask[:, probe].astype(np.int8), [0]))) == 1)
+            if 1 <= len(crossings) <= 3:
+                return len(crossings), column, end
+    return None
 
 
 def _alike(upper, lower, spacing: float) -> bool:

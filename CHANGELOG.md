@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Tabs em imagem: o ritmo desenhado com a tab (hastes, barras de colcheia e semicolcheia, meias-barras, bandeiras, pontos e pausas na pauta) passa a ser lido, como num PDF vetorial; só os compassos em que as marcas não somam certo ficam com o ritmo estimado pelo espaçamento. Nos 13 PDFs de teste desenhados como imagem, os compassos com o ritmo igual ao do PDF passam de 66 % para 96,5 % (Jet Lag: 100 %); no print da web de uma tab Official do Ultimate Guitar ("You're A God"), os 24 compassos com notas usam o ritmo desenhado.
 - Tabs em imagem (OCR, experimental): prints/screenshots PNG, JPEG ou WebP, e PDFs só com imagens (um print guardado como PDF, uma digitalização), passam a ser convertidos. As linhas das cordas e as barras de compasso são detetadas na imagem e os números lidos por um modelo de reconhecimento de texto que corre no computador (RapidOCR); nada sai do computador (a telemetria do ONNX Runtime fica desligada); o ritmo é estimado pelo espaçamento e o relatório avisa para conferir as notas (bends, slides, ligaduras e outras técnicas não são lidos). Num PDF, só as páginas sem tab em texto nem gravada são lidas assim. No relatório, o formato aparece como "imagem (OCR)". Limites: 15 páginas por OCR por ficheiro (`MAX_IMAGE_PAGES`) e 40 megapíxeis por imagem (`MAX_IMAGE_MEGAPIXELS`).
 
 - Tabs em imagem: o título, o artista, o BPM ("♩ = 97") e a afinação são lidos do texto por cima da primeira pauta, e preenchem o formulário como num PDF. Num PDF só com imagens, quando a página 1 não tem texto próprio.
@@ -19,6 +20,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido
+- Ritmo de pautas impressas muito juntas: uma pauta podia ficar com as hastes da pauta de cima (que chegam a menos de 3 espaços dela) quando estas eram mais do que as suas.
 - Tabs em imagem (OCR), testadas com a Jet Lag (Simple Plan) desenhada como imagem e comparada compasso a compasso com o PDF — de 108 para 119 compassos iguais em 119:
   - Notas entre parêntesis: os parêntesis eram lidos como "1" ("(2)" virava 12 ou 21); passam a ser reconhecidos pela forma e pelo acorde (se as outras notas da coluna estão entre parêntesis) e a nota fica ghost note ou ligadura, como num PDF.
   - Pausas desenhadas na pauta deixam de ser lidas como "1".
