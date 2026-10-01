@@ -1,11 +1,14 @@
 @echo off
 setlocal
 rem ===================================================================
-rem  PDF -> GP5 : arranque no PC de CASA
-rem  - sem ambiente virtual: dependencias instaladas no Python do utilizador (--user)
+rem  PDF -> GP5 : arranque (PC sem restricoes)
+rem  - ambiente virtual proprio em .venv, na pasta do projeto: as dependencias
+rem    (PyGuitarPro, NumPy do OCR...) nao se misturam com as de outras
+rem    aplicacoes Python do PC, como o RockForge
 rem  Passos: git pull, instalar dependencias, abrir o browser, iniciar o servidor.
 rem ===================================================================
 
+set "VENV=%~dp0.venv"
 set "HOST=127.0.0.1"
 set "PORT=8021"
 
@@ -37,10 +40,12 @@ if errorlevel 1 (
 :prepare
 
 echo.
-echo [2/3] A instalar/atualizar as dependencias...
-%PY% --version >nul 2>nul
-if errorlevel 1 goto :no_python
-%PY% -m pip install --user --disable-pip-version-check --no-warn-script-location -q -r requirements.txt
+echo [2/3] A preparar o ambiente Python em "%VENV%" ...
+if not exist "%VENV%\Scripts\python.exe" (
+    %PY% -m venv "%VENV%"
+    if errorlevel 1 goto :no_python
+)
+"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt
 if errorlevel 1 goto :pip_failed
 
 echo.
@@ -61,7 +66,7 @@ goto :run_server
 echo       Chrome nao encontrado: a abrir o browser predefinido.
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
 :run_server
-%PY% -m app --host %HOST% --port %PORT% --close-with-browser
+"%VENV%\Scripts\python.exe" -m app --host %HOST% --port %PORT% --close-with-browser
 if errorlevel 1 goto :server_failed
 rem Servidor encerrado normalmente (pagina fechada): fechar a janela.
 goto :eof

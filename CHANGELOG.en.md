@@ -16,6 +16,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- `start.bat` (formerly `start-casa.bat`) installed the dependencies into the PC's shared Python (`pip install --user`) and changed versions other apps need: on the same PC as RockForge, PyGuitarPro went down to 0.9.3 (RockForge asks for 0.10 or later) and OCR brought NumPy 2 (RockForge asks for below 2). It now uses its own virtual environment, in `.venv` in the project folder, like `start_env.bat`.
 - A written tuning with the notes run together ("Tuning: D♯ G♯ C♯ F♯A♯ D♯", as in an Ultimate Guitar print saved as PDF): it was ignored and the track stayed in standard tuning.
 
 ## [0.7.0] - 2026-09-30
