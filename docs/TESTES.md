@@ -76,7 +76,7 @@ som e sem diálogos do sistema, por isso não substitui o teste à mão.
 | 6 | **Guardar o MP3 na pasta das partituras** | Chrome/Edge: escolher os PDFs, obter o MP3 de um endereço e "Guardar o MP3 na pasta das partituras" | O diálogo abre nessa pasta com o nome preenchido |
 | 7 | **URL → MP3 do YouTube** | No painel do áudio, colar um link do YouTube no campo do endereço | O MP3 é obtido; se faltar o Deno/Node.js, a página diz o que falta |
 | 8 | **Pesquisa automática do vídeo** | Com a chave do YouTube configurada (`docs/CHAVE_YOUTUBE.md`) | O vídeo da música é encontrado sozinho |
-| 9 | **Arranque no Windows** | `start-casa.bat` e `start-trabalho.bat` | A aplicação abre em `http://127.0.0.1:8021` |
+| 9 | **Arranque no Windows** | `start.bat` e `start_env.bat` | A aplicação abre em `http://127.0.0.1:8021` |
 | 10 | **Idioma** | Mudar para English no fundo do menu lateral e usar a aplicação (converter, tocar, áudio, biblioteca) | Tudo em inglês, incluindo os avisos da conversão, os erros e as Novidades; voltar a Português repõe tudo |
 | 11 | **Novidades da 0.7.0** | Abrir a aplicação depois de atualizar | Aparece o quadro das Novidades da versão 0.7.0 uma vez; depois de fechado não volta a aparecer |
 | 12 | **Prints (OCR)** | Depois do `start`, que instala o OCR (~210 MB): converter um print PNG/JPG de uma tab (Songsterr, Ultimate Guitar, Guitar Pro) e um PDF só com imagens | As notas batem com o print (conferir algumas linhas); o ritmo é aproximado; aparece o aviso. Se falhar, enviar o print |

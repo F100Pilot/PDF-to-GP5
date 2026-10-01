@@ -12,6 +12,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Tabs em imagem: o título, o artista, o BPM ("♩ = 97") e a afinação são lidos do texto por cima da primeira pauta, e preenchem o formulário como num PDF. Num PDF só com imagens, quando a página 1 não tem texto próprio.
 
 ### Alterado
+- Scripts de arranque para Windows com nomes novos: `start-casa.bat` passa a `start.bat` e `start-trabalho.bat` passa a `start_env.bat` (o que usa o ambiente virtual).
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido

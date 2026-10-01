@@ -12,6 +12,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - Tabs in images: the title, artist, BPM ("♩ = 97") and tuning are read from the text above the first staff, and fill in the form as with a PDF. In a PDF that is only images, when page 1 has no text of its own.
 
 ### Changed
+- Windows startup scripts renamed: `start-casa.bat` is now `start.bat` and `start-trabalho.bat` is now `start_env.bat` (the one with the virtual environment).
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed

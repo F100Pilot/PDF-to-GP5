@@ -374,7 +374,7 @@ def test_job_refused_when_not_downloadable_leaves_nothing(client, fake_ytdlp):
 
 
 def test_a_youtube_videos_audio_on_this_computer_becomes_an_mp3(fake_ytdlp):
-    """The page opened at http://127.0.0.1 on the computer the server runs on (start-casa.bat)."""
+    """The page opened at http://127.0.0.1 on the computer the server runs on (start.bat)."""
     local = TestClient(app, base_url="http://127.0.0.1:8020", client=("127.0.0.1", 50000))
     fake_ytdlp["info"] = {"title": "Song", "license": "Standard YouTube License", "duration": 1.0}
     job_id = local.post("/api/audio/jobs", json={"url": "abcDEF12345", "bitrate": 192, "authorized": True}).json()["id"]

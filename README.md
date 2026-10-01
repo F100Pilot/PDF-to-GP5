@@ -51,8 +51,8 @@ Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependê
 
 | Script | Para | Python |
 |---|---|---|
-| `start-trabalho.bat` | PC com restrições (sem administrador, projeto no OneDrive) | Ambiente virtual em `%USERPROFILE%\venvs\pdf-to-gp5`, criado na primeira execução |
-| `start-casa.bat` | PC sem restrições | Sem ambiente virtual: dependências instaladas com `pip install --user` |
+| `start.bat` | PC sem restrições | Sem ambiente virtual: dependências instaladas com `pip install --user` |
+| `start_env.bat` | PC com restrições (sem administrador, projeto no OneDrive) | Ambiente virtual em `%USERPROFILE%\venvs\pdf-to-gp5`, criado na primeira execução |
 
 Basta fazer duplo clique no script: a aplicação abre no Chrome (no Brave o vídeo do YouTube não toca dentro da página); sem Chrome instalado, abre no browser predefinido. Porta e endereço podem ser alterados nas variáveis `PORT` e `HOST` no topo de cada ficheiro.
 
