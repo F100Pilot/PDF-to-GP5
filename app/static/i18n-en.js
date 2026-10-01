@@ -142,7 +142,7 @@
  "Estado do servidor": "Server status",
  "Estado do servidor e informação da aplicação.": "Server status and app information.",
  "Este browser não tem WebGL (aceleração gráfica) ativo: a pista 3D não está disponível.": "This browser has no WebGL (graphics acceleration) enabled: the 3D highway is not available.",
- "Arraste para mover a vista; roda do rato para aproximar ou afastar; duplo clique repõe a vista.": "Drag to move the view; mouse wheel to zoom in or out; double click puts the view back.",
+ "Arraste para rodar a vista (até 120° em cada eixo); Ctrl + arrastar roda sobre o eixo da vista; Shift ou botão direito + arrastar move a vista; roda do rato aproxima ou afasta; duplo clique repõe a vista.": "Drag to turn the view (up to 120° on each axis); Ctrl + drag turns it about the line of sight; Shift or right button + drag moves the view; mouse wheel zooms in or out; double click puts the view back.",
  "estimado": "estimated",
  "executar ·": "run ·",
  "Expandir o painel do áudio": "Expand the audio panel",

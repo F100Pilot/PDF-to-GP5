@@ -36,9 +36,11 @@
   const cameraPosition = { x: 0, y: 0, z: 0 };
   const cameraTarget = { x: 0, y: 0, z: 0 };
   let side = 0; // -1 = from the left … 1 = from the right (diagonal view)
-  // Moved and zoomed with the mouse over the highway: an offset across the screen (highway
-  // units) and a lens zoom; a double click puts the view back.
-  const view = { x: 0, y: 0, zoom: 1 };
+  // Turned, moved and zoomed with the mouse over the highway: turns around the strings at the
+  // strike line (yaw, pitch) and about the line of sight (roll), up to 60° each way (120° on each
+  // axis); an offset across the screen (highway units); a lens zoom. A double click puts it back.
+  const view = { x: 0, y: 0, zoom: 1, yaw: 0, pitch: 0, roll: 0 };
+  const MAX_TURN = Math.PI / 3;
   const MIN_ZOOM = 0.5;
   const MAX_ZOOM = 4;
 
@@ -266,7 +268,8 @@
   // picture itself: the progress bar keeps its click.
   function dragToMove(canvas) {
     canvas.classList.add("hw-canvas");
-    canvas.title = T("Arraste para mover a vista; roda do rato para aproximar ou afastar; duplo clique repõe a vista.");
+    canvas.title = T("Arraste para rodar a vista (até 120° em cada eixo); Ctrl + arrastar roda sobre o eixo da vista; Shift ou botão direito + arrastar move a vista; roda do rato aproxima ou afasta; duplo clique repõe a vista.");
+    const turn = (angle) => Math.min(MAX_TURN, Math.max(-MAX_TURN, angle));
     let drag = null;
     // Highway units per pixel at the strings (the strike line), so they follow the mouse.
     const perPixel = () => {
@@ -275,16 +278,27 @@
       return visible / Math.max(canvas.clientHeight, 1);
     };
     canvas.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      if (event.button !== 0 && event.button !== 2) return;
+      const mode = event.button === 2 || event.shiftKey ? "move" : event.ctrlKey || event.altKey ? "roll" : "turn";
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, mode };
       canvas.setPointerCapture(event.pointerId);
       canvas.classList.add("dragging");
     });
     canvas.addEventListener("pointermove", (event) => {
       if (!drag || event.pointerId !== drag.id || !stage) return;
-      const unit = perPixel();
-      view.x -= (event.clientX - drag.x) * unit;
-      view.y += (event.clientY - drag.y) * unit;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (drag.mode === "move") {
+        const unit = perPixel();
+        view.x -= dx * unit;
+        view.y += dy * unit;
+      } else if (drag.mode === "roll") {
+        view.roll = turn(view.roll + (dx / Math.max(canvas.clientWidth, 1)) * 2 * MAX_TURN);
+      } else {
+        // across the whole picture: the full 120°
+        view.yaw = turn(view.yaw - (dx / Math.max(canvas.clientWidth, 1)) * 2 * MAX_TURN);
+        view.pitch = turn(view.pitch + (dy / Math.max(canvas.clientHeight, 1)) * 2 * MAX_TURN);
+      }
       drag.x = event.clientX;
       drag.y = event.clientY;
     });
@@ -295,6 +309,7 @@
     };
     canvas.addEventListener("pointerup", end);
     canvas.addEventListener("pointercancel", end);
+    canvas.addEventListener("contextmenu", (event) => event.preventDefault()); // right button: move
     canvas.addEventListener("wheel", (event) => {
       event.preventDefault(); // zoom the highway, not scroll the page
       if (!stage) return;
@@ -308,9 +323,7 @@
       view.y -= (event.clientY - box.top - box.height / 2) * shift;
     }, { passive: false });
     canvas.addEventListener("dblclick", () => {
-      view.x = 0;
-      view.y = 0;
-      view.zoom = 1;
+      Object.assign(view, { x: 0, y: 0, zoom: 1, yaw: 0, pitch: 0, roll: 0 });
     });
   }
 
@@ -1271,7 +1284,23 @@
     cameraTarget.z = blend(-20, TOP_Z - 0.01);
     stage.camera.up.set(0, 1 - top, -top).normalize(); // from above: upcoming notes at the top
     stage.camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-    stage.camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+    const target = new THREE.Vector3(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+    if (view.yaw || view.pitch) {
+      // Turned with the mouse: camera, the point it looks at and its up all turn around the
+      // strings at the strike line, sideways (about the vertical) and up/down (about the
+      // camera's own left-right axis).
+      const pivot = new THREE.Vector3(stage.cameraX, midY, 0);
+      const forward = target.clone().sub(stage.camera.position);
+      const across = forward.cross(stage.camera.up).normalize();
+      const turnBy = new THREE.Quaternion()
+        .setFromAxisAngle(new THREE.Vector3(0, 1, 0), view.yaw)
+        .multiply(new THREE.Quaternion().setFromAxisAngle(across, view.pitch));
+      stage.camera.position.sub(pivot).applyQuaternion(turnBy).add(pivot);
+      target.sub(pivot).applyQuaternion(turnBy).add(pivot);
+      stage.camera.up.applyQuaternion(turnBy);
+    }
+    stage.camera.lookAt(target);
+    if (view.roll) stage.camera.rotateZ(view.roll);
     if (view.x || view.y) {
       // The view moved with the mouse: camera and the point it looks at shift together, across
       // the screen, so the angle stays the same.
