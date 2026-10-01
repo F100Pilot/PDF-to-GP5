@@ -27,6 +27,7 @@ from .pdf_reader import Char, Page, PdfReadError, Segment
 _TARGET_SPACING = 16.0
 _OUTPUT_SPACING = 7.0
 _DARK = 200  # gray level: thin anti-aliased lines are mid-grey
+_CORE = 128  # gray level of the darkest pixels, the cores of strokes
 _MAX_RENDER_SIDE = 6000  # pixels, after rescaling
 _FIRST_WIDTH = 1300  # pixels across at the first look (see _normalized)
 
@@ -277,6 +278,13 @@ def _stacked(blobs) -> bool:
     return False
 
 
+def _misread_digit(text: str) -> bool:
+    """A free reading with no digit that may still be one: a Latin letter, or a character of
+    another script (the model reads Chinese). Not the TAB clef's capitals, an accent read as "A",
+    nor a rest read as "y"."""
+    return any((ch.isalpha() or not ch.isascii()) and ch not in "TABYy" for ch in text)
+
+
 def _clean(text: str) -> str:
     """Fret text only: letters the recogniser confuses with digits are mapped back (the model also
     reads Chinese, and a lone round 0 can come out as the ideographic full stop)."""
@@ -302,6 +310,11 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
     # crossing the line (the middle of a 2 or a 5) is kept
     run = cv2.getStructuringElement(cv2.MORPH_RECT, (max(8, int(spacing * 0.9)), 1))
     long_runs = cv2.morphologyEx(dark.astype(np.uint8), cv2.MORPH_OPEN, run).astype(bool)
+    # in a small print the gap behind a number is one faint pixel, so the line's run goes on
+    # through the digit's stroke (the top of a 6's loop, the bar of a 4). Among the darkest
+    # pixels that gap still breaks the run: a short run of them is the digit's, kept.
+    core = gray < _CORE
+    long_runs &= ~core | cv2.morphologyEx(core.astype(np.uint8), cv2.MORPH_OPEN, run).astype(bool)
     bars: list[list[float]] = []  # bar line x per staff, in pixels
     for group in groups:
         bars.append([])
@@ -353,6 +366,7 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
     cv2, np = _cv()
     count, _, stats, _ = cv2.connectedComponentsWithStats(glyph.astype(np.uint8), connectivity=8)
     line_ys = [line[0] for group in groups for line in group]
+    line_rows = {line[0]: (line[1], line[2]) for group in groups for line in group}
     candidates = []  # digit-sized blobs centred on a staff line: (x, y, w, h, line y)
     for x, y, w, h, area in _split_chords(stats[1:count], line_ys, spacing):
         # a digit is taller than wide (a wide blob is a rest or a beam)
@@ -379,7 +393,10 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
         pixels = glyph[gy0:gy1, gx0:gx1].copy()
         # where the gap behind the number is a pixel or two, the end of the staff line stays
         # stuck to it: in the line's rows, keep only what lies under the number's own width
-        band = slice(max(0, int(blobs[0][4] - 2.5) - gy0), max(0, int(blobs[0][4] + 2.5) + 1 - gy0))
+        # (the line's own rows and one more each side: a stroke just beside the line, like the bar
+        # of a 4 in a small print, belongs to the digit)
+        first, last = line_rows[blobs[0][4]]
+        band = slice(max(0, first - 1 - gy0), max(0, last + 2 - gy0))
         outside = pixels.copy()
         outside[band] = False
         cols = np.where(outside.any(axis=0))[0]
@@ -397,6 +414,12 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
     chars: list[Char] = []
     if crops:
         results = _recognize(crops)  # free reading, then _clean: better than digits only here
+        # a digit read as a letter or a Chinese character ("d" for 0, "的" for 9): read again as
+        # digits only. Not a mark read as ASCII punctuation (a slide's stroke) or as one of the
+        # letters _misread_digit leaves out, which digits only would turn into a 1 or a 7.
+        again = [i for i, text in enumerate(results) if not _clean(text) and _misread_digit(text)]
+        for i, text in zip(again, _read_digits([crops[i] for i in again]), strict=True):
+            results[i] = text
         for (gx0, gx1, gy0, gy1), (left, right), text in zip(boxes, brackets, results, strict=True):
             text = _clean(text)
             if left or right:

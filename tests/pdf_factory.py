@@ -38,6 +38,7 @@ def engraved_tab_pdf(
     knockout: bool = False,
     heading: tuple[str, str, int] | None = None,
     signatures: list[tuple[int, int, int, int]] | None = None,
+    gap: float = 0.6,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -48,7 +49,8 @@ def engraved_tab_pdf(
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to. Staff lines are drawn one
     segment per measure, right to left, as some editors do. ``knockout`` blanks
-    the line behind each number, as editors do on screen and in print.
+    the line behind each number, as editors do on screen and in print, ``gap`` points
+    beyond the digits on each side.
     ``heading`` is (title, artist, BPM): title and artist centred at the top and
     a tempo mark (a drawn quarter note, "= BPM") above the first staff.
     ``signatures`` are (staff, measure, numerator, denominator): a time signature
@@ -90,7 +92,7 @@ def engraved_tab_pdf(
                 y = top - (string - 1) * spacing
                 x = start + step * (k + 0.5) + 4
                 if knockout:  # the gap also takes the parentheses, as editors draw them
-                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + (2.4 if "(" in flags else 0.6)
+                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + (2.4 if "(" in flags else gap)
                     pdf.setFillColorRGB(1, 1, 1)
                     pdf.rect(x - half, y - 3, 2 * half, 6, stroke=0, fill=1)
                     pdf.setFillColorRGB(0, 0, 0)

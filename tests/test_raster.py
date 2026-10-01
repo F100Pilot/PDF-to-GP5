@@ -233,3 +233,20 @@ def test_chord_digits_touching_are_cut_apart():
     single = (40, 109, 10, 14, 90)
     pieces = list(_split_chords([touching, single], lines, 16.0))
     assert [(y, h) for _, y, _, h, _ in pieces] == [(109, 15), (124, 15), (109, 14)]
+
+
+@pytest.mark.parametrize("width", [1190, 1300])
+def test_digits_close_to_the_line_in_a_small_print(width):
+    # a web print scaled down: the gap behind each number is a fraction of a pixel, so the line
+    # touches the bar of a 4 and the top of a 6's loop
+    staves = [[[(1, 4), (2, 6), (3, 4), (4, 6)], [(5, 6), (6, 4), (3, 14), (2, 16)]]]
+    picture = tab_png(engraved_tab_pdf(staves, knockout=True, gap=0.15), width=width)
+    assert _frets(convert(picture, ConversionOptions()).gp5) == _expected(staves)
+
+
+def test_digit_read_as_a_letter_is_read_again():
+    from app.extract.raster_tab import _misread_digit
+
+    assert all(_misread_digit(text) for text in ["d", "a", "D", "的", "自", "·", "K"])
+    # the TAB clef, an accent, a rest, a slide's stroke: not digits
+    assert not any(_misread_digit(text) for text in ["T", "A", "B", "y", "Y", "!", "-", "/", ""])
