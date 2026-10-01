@@ -435,7 +435,8 @@
 
   // Open a stored song: its result and score, then its audio once the score is loaded (the audio
   // settings are remembered per song and must apply to this one).
-  async function openSong(key) {
+  // `keepPage`: stay on the page shown (reopened after a language switch), not go to Tocar.
+  async function openSong(key, keepPage = false) {
     await ready;
     const song = await loadSong(key).catch(() => null);
     if (!song) {
@@ -449,7 +450,7 @@
         setTimeout(resolve, 60000);
       });
       window.App.openSong(new Uint8Array(song.gp5), song.filename, song.report, true, song.pdfHandle || null);
-      window.location.hash = "#/tocar";
+      if (!keepPage) window.location.hash = "#/tocar";
       if (song.audio) {
         await loaded;
         await window.AudioSync.useFile(song.audio);
@@ -510,6 +511,21 @@
   search.addEventListener("input", render);
   ready = start();
   refresh();
+
+  // Switching the language reloads the page: the song open then (already in the library, saved
+  // when it was converted) is opened again, on the same page.
+  const REOPEN_KEY = "pdf-to-gp5.reopen";
+  window.addEventListener("lang-reload", () => {
+    try {
+      if (currentKey) sessionStorage.setItem(REOPEN_KEY, currentKey);
+    } catch { /* storage unavailable */ }
+  });
+  let reopen = null;
+  try {
+    reopen = sessionStorage.getItem(REOPEN_KEY);
+    sessionStorage.removeItem(REOPEN_KEY);
+  } catch { /* storage unavailable */ }
+  if (reopen) openSong(reopen, true);
 
   window.Library = {
     songs: () => songs.map(({ key, title, artist }) => ({ key, title, artist })),

@@ -363,6 +363,8 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
   .form-side { position: sticky; top: 16px; }
 }
 #track-results { margin-top: 16px; }
+.hw-canvas { cursor: grab; touch-action: none; }
+.hw-canvas.dragging { cursor: grabbing; }
 .highway { position: relative; height: min(72vh, 780px); min-height: 320px; border-radius: 8px; overflow: hidden; background: #0b0d14; }
 .hw-hud {
   position: absolute;

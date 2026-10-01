@@ -36,6 +36,11 @@
   const cameraPosition = { x: 0, y: 0, z: 0 };
   const cameraTarget = { x: 0, y: 0, z: 0 };
   let side = 0; // -1 = from the left … 1 = from the right (diagonal view)
+  // Moved and zoomed with the mouse over the highway: an offset across the screen (highway
+  // units) and a lens zoom; a double click puts the view back.
+  const view = { x: 0, y: 0, zoom: 1 };
+  const MIN_ZOOM = 0.5;
+  const MAX_ZOOM = 4;
 
   function loadThree() {
     if (THREE) return Promise.resolve(THREE);
@@ -182,6 +187,7 @@
     const lyricsLine = document.createElement("div");
     lyricsLine.className = "hw-lyrics";
     host.replaceChildren(renderer.domElement, hud, lyricsLine);
+    dragToMove(renderer.domElement);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0b0d14);
@@ -255,6 +261,58 @@
   // beside each peg in the string colour ("E A D G B e"). Local x: nut at 0, pegs and names left.
   const PEG_X = -0.6;
   const NAME_X = -1.15;
+
+  // Drag to move the view, wheel to zoom in and out, double click to put it back. Only on the
+  // picture itself: the progress bar keeps its click.
+  function dragToMove(canvas) {
+    canvas.classList.add("hw-canvas");
+    canvas.title = T("Arraste para mover a vista; roda do rato para aproximar ou afastar; duplo clique repõe a vista.");
+    let drag = null;
+    // Highway units per pixel at the strings (the strike line), so they follow the mouse.
+    const perPixel = () => {
+      const distance = Math.hypot(cameraPosition.y, cameraPosition.z) || 1;
+      const visible = (2 * distance * Math.tan((stage.camera.fov * Math.PI) / 360)) / view.zoom;
+      return visible / Math.max(canvas.clientHeight, 1);
+    };
+    canvas.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.classList.add("dragging");
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.id || !stage) return;
+      const unit = perPixel();
+      view.x -= (event.clientX - drag.x) * unit;
+      view.y += (event.clientY - drag.y) * unit;
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+    });
+    const end = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag = null;
+      canvas.classList.remove("dragging");
+    };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault(); // zoom the highway, not scroll the page
+      if (!stage) return;
+      const steps = event.deltaMode === 0 ? event.deltaY / 100 : event.deltaY / 3; // pixels or lines
+      const before = perPixel();
+      view.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * Math.exp(-0.15 * steps)));
+      // Towards the mouse, as on a map: the point under it stays under it.
+      const box = canvas.getBoundingClientRect();
+      const shift = before - perPixel();
+      view.x += (event.clientX - box.left - box.width / 2) * shift;
+      view.y -= (event.clientY - box.top - box.height / 2) * shift;
+    }, { passive: false });
+    canvas.addEventListener("dblclick", () => {
+      view.x = 0;
+      view.y = 0;
+      view.zoom = 1;
+    });
+  }
 
   function buildHeadstock(tuning, count) {
     if (stage.headstock) {
@@ -1214,6 +1272,18 @@
     stage.camera.up.set(0, 1 - top, -top).normalize(); // from above: upcoming notes at the top
     stage.camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
     stage.camera.lookAt(cameraTarget.x, cameraTarget.y, cameraTarget.z);
+    if (view.x || view.y) {
+      // The view moved with the mouse: camera and the point it looks at shift together, across
+      // the screen, so the angle stays the same.
+      stage.camera.updateMatrixWorld();
+      const right = new THREE.Vector3().setFromMatrixColumn(stage.camera.matrixWorld, 0).multiplyScalar(view.x);
+      const up = new THREE.Vector3().setFromMatrixColumn(stage.camera.matrixWorld, 1).multiplyScalar(view.y);
+      stage.camera.position.add(right).add(up);
+    }
+    if (stage.camera.zoom !== view.zoom) {
+      stage.camera.zoom = view.zoom;
+      stage.camera.updateProjectionMatrix();
+    }
     stage.scene.fog.near = blend(stage.fogNear, stage.fogNear + TOP_HEIGHT);
     stage.scene.fog.far = blend(stage.fogFar, stage.fogFar + TOP_HEIGHT);
     updateHud(tick);

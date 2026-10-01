@@ -15,7 +15,8 @@
 //   (whitespace collapsed) is a key. `translate="no"` on an element skips it.
 // - Every same-origin fetch carries X-App-Lang, so the server answers in the
 //   same language (app/i18n.py).
-// - Switching reloads the page: everything built at load is built again.
+// - Switching reloads the page: everything built at load is built again. Pages keep what
+//   they need across it on the "lang-reload" event (the library reopens the open song).
 /* exported T, setLang, LANG */
 "use strict";
 
@@ -108,6 +109,7 @@ function setLang(lang) {
   try {
     localStorage.setItem(LANG_KEY, lang);
   } catch {}
+  window.dispatchEvent(new Event("lang-reload"));
   location.reload();
 }
 
@@ -125,7 +127,7 @@ function setLang(lang) {
 })();
 
 // The language pickers (rail: codes; Definições: names). A switch reloads the
-// page, so a conversion or playback in progress stops: that is expected.
+// page, so a conversion or playback in progress stops; the open song is reopened.
 function wireLangSelects() {
   for (const sel of document.querySelectorAll("select[data-lang-select]")) {
     const short = sel.dataset.langSelect === "short";
