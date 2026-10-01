@@ -55,8 +55,10 @@ file, and no web or Windows client can download it: there is no request to repro
   few for a full tab. CONFIRMED.
 - Reading: the page draws the notation on `<canvas>` with its own script. For Print, the
   script turns the canvas into PNG pictures (`data:image/png`), which Chrome puts in the PDF.
-  This matches the 990 px PNG systems of section 2.2. LIKELY. To make it CONFIRMED:
-  Elements → Ctrl+Shift+C → click a fret number → the highlighted element is `<canvas>`.
+  This matches the 990 px PNG systems of section 2.2. LIKELY for the print step.
+- Elements → Ctrl+Shift+C → click a fret number highlights
+  `<canvas id="xtz_canvas" width="970" height="932">`. The fret numbers are canvas pixels.
+  CONFIRMED.
 
 **Answer: no.** The website gives no vector PDF (no PDF request; the notation reaches the
 page only as canvas pixels). The Android file is built inside the app (works offline), so no
@@ -259,7 +261,6 @@ Only meaningful if 4.2 shows SVG, or 4.1 shows a PDF request.
 
 ## 8. Not verified (summary)
 
-- That the notation canvas is the one under the fret numbers (the probe found two canvases).
 - Whether the page script draws the canvas with vector calls or pastes pictures (route 2).
 - Whether the official UG app runs and exports inside an Android emulator (route 1).
 - Print behaviour for tab 2157405 specifically.
