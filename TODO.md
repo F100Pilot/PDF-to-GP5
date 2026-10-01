@@ -12,7 +12,8 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 - [ ] **Fase 1: tab em texto numa imagem** (`e|--0--3h5--|`): não tem linhas das cordas desenhadas, por isso a fase 2 não a encontra. Precisa da deteção de texto do RapidOCR (posição de cada carácter) e da leitura de tab em texto atual.
 - [ ] **Fase 3: técnicas e ritmo desenhados numa imagem** (hastes, bends, slides, ligaduras, vibrato): trabalho muito grande, qualidade incerta.
 - [ ] **Vários prints na mesma track**: hoje uma imagem é uma track; vários prints da mesma parte têm de ir num PDF.
-- [ ] **Título, artista e BPM de uma imagem**: hoje não são lidos (só números).
+- [x] **Título, artista e BPM de uma imagem**: lidos do texto por cima da primeira pauta (deteção + reconhecimento de texto do RapidOCR), com a afinação.
+- [ ] **Compasso de uma imagem** (os números grandes no início da pauta): hoje fica o 4/4 por defeito.
 
 ## Ligação ao RockForge
 

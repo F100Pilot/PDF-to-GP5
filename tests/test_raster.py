@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from app.converter import ConversionError, ConversionOptions, convert, inspect
-from app.extract.raster_tab import image_kind
+from app.extract.raster_tab import _TEMPO_MARK, _join_lines, image_kind
 from tests.pdf_factory import engraved_tab_pdf, image_pdf, tab_png
 
 STAVES = [
@@ -15,9 +15,10 @@ STAVES = [
 ]
 
 
-def _picture(width: int = 1300, image_format: str = "PNG", staves=STAVES) -> bytes:
+def _picture(width: int = 1300, image_format: str = "PNG", staves=STAVES, heading=None) -> bytes:
     # editors blank the staff line behind each number; the reader relies on that gap
-    return tab_png(engraved_tab_pdf(staves, knockout=True), width=width, image_format=image_format)
+    pdf = engraved_tab_pdf(staves, knockout=True, heading=heading)
+    return tab_png(pdf, width=width, image_format=image_format)
 
 
 def _frets(gp5: bytes) -> list[tuple[int, int]]:
@@ -113,3 +114,36 @@ def test_onnx_runtime_telemetry_is_off():
 
     _recognizer()
     assert os.environ["ORT_DISABLE_TELEMETRY"] == "1"
+
+
+HEADING = ("Riff Song", "The Band", 96)
+
+
+@pytest.mark.parametrize("width", [1000, 1300, 2000])
+def test_title_artist_and_tempo_are_read_from_the_picture(width):
+    report = convert(_picture(width, heading=HEADING), ConversionOptions()).report
+    assert (report["title"], report["artist"], report["tempo"]) == HEADING
+    assert report["auto"]["title"] and report["auto"]["artist"] and report["auto"]["tempo"]
+
+
+def test_title_artist_and_tempo_of_a_pdf_of_pictures():
+    report = convert(image_pdf([_picture(heading=HEADING)]), ConversionOptions()).report
+    assert (report["title"], report["artist"], report["tempo"]) == HEADING
+
+
+def test_inspect_reads_the_heading_of_a_picture():
+    detected = inspect(_picture(heading=HEADING), ConversionOptions())
+    assert (detected["title"], detected["artist"], detected["tempo"]) == HEADING
+
+
+def test_tempo_mark_as_the_recogniser_reads_it():
+    for read in ("：97", "J=97", "= 97", "♩ = 97", "」：97"):
+        assert _TEMPO_MARK.sub("= ", read) == "= 97", read
+    assert _TEMPO_MARK.sub("= ", "Tuning: E A D G B E").startswith("Tuning")
+    assert _TEMPO_MARK.sub("= ", "Verse 1") == "Verse 1"
+
+
+def test_boxes_cut_on_one_line_are_joined():
+    note, number, far = (100, 50, 118, 70), (122, 51, 150, 69), (400, 50, 450, 70)
+    assert sorted(_join_lines([number, far, note])) == [(100, 50, 150, 70), far]
+    assert _join_lines([(100, 50, 150, 70), (100, 90, 150, 110)]) == [(100, 50, 150, 70), (100, 90, 150, 110)]

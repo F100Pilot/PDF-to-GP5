@@ -132,13 +132,15 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
     systems: list[TabSystem] = []
     if image_kind(pdf):
         try:
-            picture = read_image(pdf, options.max_image_pixels)
+            picture, heading = read_image(pdf, options.max_image_pixels)
         except PdfReadError as exc:
             raise ConversionError(str(exc)) from exc
-        pages, info = [], {}  # nothing but fret numbers is read from a picture: no title, no tempo
         systems.extend(_image_systems(picture))
+        # title, artist, tempo and tuning come from the text above the first staff
+        metadata_pages, info = [heading] if heading else [], {}
     else:
         pages, info = _read(pdf, options)
+        metadata_pages = pages
         pictures: list[int] = []  # pages with neither text nor engraved tab, but an image: OCR
         for index, page in enumerate(pages):
             ascii_systems, page_warnings = extract_ascii_systems(page)
@@ -149,10 +151,15 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
                 pictures.append(index)
         _check_picture_count(len(pictures), options)
         for index in pictures:
+            # page 1 with no text of its own: its heading is read from the picture
+            wants_heading = index == 0 and not pages[0].chars
             try:
-                systems.extend(_image_systems(read_pdf_page(pdf, index)))
+                picture, heading = read_pdf_page(pdf, index, heading=wants_heading)
             except PdfReadError as exc:
                 raise ConversionError(str(exc)) from exc
+            systems.extend(_image_systems(picture))
+            if heading:
+                metadata_pages = [heading, *pages[1:]]
         systems.sort(key=lambda system: system.page)  # pictures read last; stable within a page
     if not systems:
         raise ConversionError(
@@ -167,8 +174,8 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions) -> _ParsedPdf:
         )
     if any(s.source == "image" for s in systems):
         warnings.append(_image_warning())
-    metadata = detect_metadata(pages, info)
-    return _ParsedPdf(systems, metadata, detect_part_name(pages, metadata), warnings)
+    metadata = detect_metadata(metadata_pages, info)
+    return _ParsedPdf(systems, metadata, detect_part_name(metadata_pages, metadata), warnings)
 
 
 def _merge_metadata(items: list[SongMetadata]) -> SongMetadata:

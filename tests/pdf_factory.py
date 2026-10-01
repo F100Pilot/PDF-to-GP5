@@ -36,6 +36,7 @@ def engraved_tab_pdf(
     measure_number_noise: int = 0,
     ranges: list[tuple[int, str, float, float]] | None = None,
     knockout: bool = False,
+    heading: tuple[str, str, int] | None = None,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -47,6 +48,8 @@ def engraved_tab_pdf(
     staff followed by a dashed line up to x_to. Staff lines are drawn one
     segment per measure, right to left, as some editors do. ``knockout`` blanks
     the line behind each number, as editors do on screen and in print.
+    ``heading`` is (title, artist, BPM): title and artist centred at the top and
+    a tempo mark (a drawn quarter note, "= BPM") above the first staff.
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -54,6 +57,16 @@ def engraved_tab_pdf(
     pdf = canvas.Canvas(buffer, pagesize=A4)
     spacing = 7.0
     x0 = 60.0
+    if heading:
+        title, artist, bpm = heading
+        pdf.setFont("Helvetica", 22)
+        pdf.drawCentredString(A4[0] / 2, A4[1] - 45, title)
+        pdf.setFont("Helvetica", 12)
+        pdf.drawCentredString(A4[0] / 2, A4[1] - 63, artist)
+        pdf.ellipse(x0, A4[1] - 88, x0 + 4.5, A4[1] - 84.5, stroke=0, fill=1)  # quarter note head
+        pdf.line(x0 + 4.2, A4[1] - 86, x0 + 4.2, A4[1] - 76)  # and stem
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(x0 + 8, A4[1] - 88, f"= {bpm}")
     for index, measures in enumerate(staves):
         top = A4[1] - 100 - index * 90
         x1 = x0 + (widths[index] if widths else 480.0)

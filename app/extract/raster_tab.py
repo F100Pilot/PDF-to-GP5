@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import itertools
 import os
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -55,24 +56,43 @@ _RECOGNIZER = None
 
 
 def _recognizer():
-    """The text recogniser alone (no text detection or orientation models), loaded once."""
+    """The text recogniser (reads one line of text from its picture), loaded once."""
     global _RECOGNIZER
     if _RECOGNIZER is None:
         # ONNX Runtime sends usage telemetry to Microsoft from a background thread unless this is
         # set before it is imported; nothing leaves the computer
         os.environ["ORT_DISABLE_TELEMETRY"] = "1"
         try:
-            import rapidocr_onnxruntime
             from rapidocr_onnxruntime.ch_ppocr_rec import TextRecognizer
-            from rapidocr_onnxruntime.utils import read_yaml
         except ImportError as exc:
             raise _missing() from exc
-        root = Path(rapidocr_onnxruntime.__file__).parent
-        config = read_yaml(str(root / "config.yaml"))["Rec"]
-        config["model_path"] = str(root / config["model_path"])
-        config["intra_op_num_threads"] = config["inter_op_num_threads"] = 1
-        _RECOGNIZER = TextRecognizer(config)
+        _RECOGNIZER = TextRecognizer(_model_config("Rec"))
     return _RECOGNIZER
+
+
+_DETECTOR = None
+
+
+def _detector():
+    """The text detector (boxes around lines of text), loaded once: only for the page heading."""
+    global _DETECTOR
+    if _DETECTOR is None:
+        _recognizer()  # same package checks and telemetry switch
+        from rapidocr_onnxruntime.ch_ppocr_det import TextDetector
+
+        _DETECTOR = TextDetector(_model_config("Det"))
+    return _DETECTOR
+
+
+def _model_config(section: str) -> dict:
+    import rapidocr_onnxruntime
+    from rapidocr_onnxruntime.utils import read_yaml
+
+    root = Path(rapidocr_onnxruntime.__file__).parent
+    config = read_yaml(str(root / "config.yaml"))[section]
+    config["model_path"] = str(root / config["model_path"])
+    config["intra_op_num_threads"] = config["inter_op_num_threads"] = 1
+    return config
 
 
 def _cv():
@@ -202,12 +222,12 @@ def _clean(text: str) -> str:
     return "".join(ch for ch in text if ch.isdigit() or ch in "()xX")
 
 
-def _read_page(gray, number: int) -> Page:
+def _read_page(gray, number: int, heading: bool = False) -> tuple[Page, Page | None]:
     cv2, np = _cv()
     dark, groups, spacing = _find_staves(gray, cv2, np)
     height, width = gray.shape
     if not groups:
-        return Page(number, float(width), float(height), [], [])
+        return Page(number, float(width), float(height), [], []), None
     k = _OUTPUT_SPACING / spacing
     segments: list[Segment] = []
     on_line = np.zeros_like(dark)
@@ -280,10 +300,110 @@ def _read_page(gray, number: int) -> Page:
             step = (gx1 - gx0) / len(text) if text else 0
             for j, ch in enumerate(text):  # one character per digit, the box split evenly
                 chars.append(Char(ch, (gx0 + j * step) * k, (gx0 + (j + 1) * step) * k, gy0 * k, gy1 * k))
-    return Page(number, width * k, height * k, chars, segments)
+    page = Page(number, width * k, height * k, chars, segments)
+    return page, (_heading(gray, groups, spacing, k, number) if heading else None)
 
 
-def _normalized(render: Callable[[float], object], width: float, height: float, number: int) -> Page:
+# A tempo mark read from a picture: the note glyph is lost or read as a letter, and "=" can come
+# out as a (full-width) colon — "♩ = 97" is read as "：97" or "J=97".
+_TEMPO_MARK = re.compile(r"^\s*[^\w\s]?[Jjd」]?\s*[=：:＝﹦]\s*(?=\d{2,3}\b)")
+
+
+def _join_lines(rects: list[tuple[int, int, int, int]]) -> list[tuple[int, int, int, int]]:
+    """Join boxes on the same line that almost touch: the detector can cut a tempo mark in two
+    ("♩ =" and "97"), and the number alone does not say it is a tempo."""
+    out: list[list[int]] = []
+    for x0, y0, x1, y1 in sorted(rects):
+        for box in out:
+            overlap = min(y1, box[3]) - max(y0, box[1])
+            height = min(y1 - y0, box[3] - box[1])
+            # side by side (touching or a small gap apart) and on the same line
+            if overlap > 0.7 * height and -0.3 * height <= x0 - box[2] <= 0.6 * height:
+                box[:] = [min(box[0], x0), min(box[1], y0), max(box[2], x1), max(box[3], y1)]
+                break
+        else:
+            out.append([x0, y0, x1, y1])
+    return [(a, b, c, d) for a, b, c, d in out]
+
+
+def _with_spaces(text: str, info, crop, np) -> str:
+    """Put back the spaces between words that the recogniser (trained mostly on Chinese text)
+    often leaves out ("VerticalHorizon"): one at each wide blank gap in the picture, between the
+    two characters the recogniser placed on either side of it — never inside a number."""
+    columns = [col for word in info[2] for col in word]
+    ink = crop < 160
+    rows = np.where(ink.any(axis=1))[0]
+    cols = np.where(ink.any(axis=0))[0]
+    if len(columns) != len(text) or len(rows) < 2 or len(cols) < 2:
+        return text
+    height = rows[-1] - rows[0] + 1
+    gaps = [(a + b) / 2 for a, b in itertools.pairwise(cols) if b - a - 1 > 0.25 * height]
+    xs = [col / max(info[0], 1) * crop.shape[1] for col in columns]  # each character's x in the crop
+    cuts = set()
+    for gap in gaps:
+        cut = next((i for i in range(1, len(text)) if xs[i - 1] < gap < xs[i]), None)
+        if cut and " " not in text[cut - 1 : cut + 1] and not (text[cut - 1].isdigit() and text[cut].isdigit()):
+            cuts.add(cut)
+    return "".join(f" {ch}" if i in cuts else ch for i, ch in enumerate(text))
+
+
+def _read_line(region, rect, np) -> tuple[str, float]:
+    """One detected line of text, with its spaces. A number alone ("97") may be a tempo mark whose
+    "♩ =" the detector left out: it is read again with the picture widened to the left, and the
+    wider reading kept only if an "=" shows up before the number."""
+    x0, y0, x1, y1 = rect
+    crops = [region[y0:y1, x0:x1]]
+    (text, score, info), *_ = _recognizer()(crops, return_word_box=True)[0]
+    if re.fullmatch(r"\s*\d{2,3}\s*", text):
+        wider = region[y0:y1, max(0, x0 - 2 * (y1 - y0)) : x1]
+        (again, again_score, again_info), *_ = _recognizer()([wider], return_word_box=True)[0]
+        if _TEMPO_MARK.match(again):
+            crops, text, score, info = [wider], again, again_score, again_info
+    return _with_spaces(text, info, crops[0][:, :, 0], np).strip(), score
+
+
+def _heading(gray, groups, spacing: float, k: float, number: int) -> Page:
+    """The text above the first staff (title, artist, tempo mark, tuning…) as a page of characters
+    in the same units as the tab page, for the metadata reader. Each line the detector finds is
+    read whole and split evenly into characters; spaces are left as gaps."""
+    cv2, np = _cv()
+    bottom = int(min(group[0][0] for group in groups) - 0.6 * spacing)
+    chars: list[Char] = []
+    if bottom > 4:
+        region = cv2.cvtColor(np.ascontiguousarray(gray[:bottom]), cv2.COLOR_GRAY2BGR)
+        detector = _detector()
+        # the detector enlarges the picture until its short side is 736 px, which small text needs;
+        # a thin strip above the staff would be blown up tenfold and take seconds: at most 2600 px
+        detector.limit_side_len = int(min(736, min(region.shape[:2]) * 2600 / max(region.shape[:2])))
+        boxes, _ = detector(region)
+        rects = []
+        for box in boxes if boxes is not None else []:
+            x0, y0 = np.maximum(box.min(axis=0), 0).astype(int)
+            x1, y1 = box.max(axis=0).astype(int) + 1
+            if x1 - x0 >= 4 and y1 - y0 >= 4:
+                rects.append((int(x0), int(y0), int(x1), int(y1)))
+        for x0, y0, x1, y1 in _join_lines(rects):
+            text, score = _read_line(region, (x0, y0, x1, y1), np)
+            text = _TEMPO_MARK.sub("= ", text)
+            # a tempo mark is measured on its number: the note's stem would make it as tall as a title
+            left = x0 + (x1 - x0) // 2 if text.startswith("= ") else x0
+            ink = np.where((region[y0:y1, left:x1, 0] < 160).any(axis=1))[0]
+            if not text or score < 0.5 or not len(ink):
+                continue
+            # the height of the ink, not of the detector's box (padded): the metadata reader
+            # tells the title by its size
+            top, bottom = y0 + int(ink[0]), y0 + int(ink[-1]) + 1
+            step = (x1 - x0) / len(text)
+            for j, ch in enumerate(text):
+                if not ch.isspace():
+                    chars.append(Char(ch, (x0 + j * step) * k, (x0 + (j + 1) * step) * k, top * k, bottom * k))
+    height, width = gray.shape
+    return Page(number, width * k, height * k, chars, [])
+
+
+def _normalized(
+    render: Callable[[float], object], width: float, height: float, number: int, heading: bool
+) -> tuple[Page, Page | None]:
     """Read the picture at the scale where its staff spacing is the tuned one. It is first looked at
     about 1300 px wide (a whole page of tab then has about that spacing), then at other sizes if no
     staff is found there (a crop of one staff, a huge photo): a staff line is at most 3 px thick, so
@@ -301,13 +421,13 @@ def _normalized(render: Callable[[float], object], width: float, height: float, 
         if groups:
             break
     else:
-        return Page(number, float(width), float(height), [], [])  # no staff at any size
+        return Page(number, float(width), float(height), [], []), None  # no staff at any size
     factor = _TARGET_SPACING / spacing
     if not 0.85 <= factor <= 1.2:
         better = min(scale * factor, limit)
         if abs(better / scale - 1) > 0.05:
             gray = render(better)
-    return _read_page(gray, number)
+    return _read_page(gray, number, heading)
 
 
 def decode_image(data: bytes, max_pixels: int):
@@ -341,8 +461,8 @@ def decode_image(data: bytes, max_pixels: int):
         ) from exc
 
 
-def read_image(data: bytes, max_pixels: int) -> Page:
-    """One page from an image upload."""
+def read_image(data: bytes, max_pixels: int) -> tuple[Page, Page | None]:
+    """The tab page of an image upload, and the text above its first staff (see ``_heading``)."""
     cv2, _ = _cv()
     original = decode_image(data, max_pixels)
 
@@ -352,12 +472,13 @@ def read_image(data: bytes, max_pixels: int) -> Page:
         method = cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC
         return cv2.resize(original, None, fx=scale, fy=scale, interpolation=method)
 
-    return _normalized(render, original.shape[1], original.shape[0], 1)
+    return _normalized(render, original.shape[1], original.shape[0], 1, heading=True)
 
 
-def read_pdf_page(data: bytes, index: int) -> Page:
-    """Page ``index`` (0-based) of a PDF, rendered and read as a picture. Coordinates are in the
-    picture's own units (staff spacing 7), not the PDF's points."""
+def read_pdf_page(data: bytes, index: int, heading: bool = False) -> tuple[Page, Page | None]:
+    """Page ``index`` (0-based) of a PDF, rendered and read as a picture, and with ``heading`` the
+    text above its first staff. Coordinates are in the picture's own units (staff spacing 7), not
+    the PDF's points."""
     _, np = _cv()
     import pypdfium2 as pdfium
 
@@ -376,6 +497,6 @@ def read_pdf_page(data: bytes, index: int) -> Page:
             # the digits differently and reads worse
             return np.asarray(page.render(scale=scale).to_pil().convert("L"))
 
-        return _normalized(render, width, height, index + 1)
+        return _normalized(render, width, height, index + 1, heading)
     finally:
         document.close()

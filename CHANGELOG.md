@@ -9,6 +9,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 ### Adicionado
 - Tabs em imagem (OCR, experimental): prints/screenshots PNG, JPEG ou WebP, e PDFs só com imagens (um print guardado como PDF, uma digitalização), passam a ser convertidos. As linhas das cordas e as barras de compasso são detetadas na imagem e os números lidos por um modelo de reconhecimento de texto que corre no computador (RapidOCR); nada sai do computador (a telemetria do ONNX Runtime fica desligada); o ritmo é estimado pelo espaçamento e o relatório avisa para conferir as notas (bends, slides, ligaduras e outras técnicas não são lidos). Num PDF, só as páginas sem tab em texto nem gravada são lidas assim. No relatório, o formato aparece como "imagem (OCR)". Limites: 15 páginas por OCR por ficheiro (`MAX_IMAGE_PAGES`) e 40 megapíxeis por imagem (`MAX_IMAGE_MEGAPIXELS`).
 
+- Tabs em imagem: o título, o artista, o BPM ("♩ = 97") e a afinação são lidos do texto por cima da primeira pauta, e preenchem o formulário como num PDF. Num PDF só com imagens, quando a página 1 não tem texto próprio.
+
 ### Alterado
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
