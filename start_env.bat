@@ -41,6 +41,10 @@ if not exist "%VENV%\Scripts\python.exe" (
 )
 "%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt
 if errorlevel 1 goto :pip_failed
+rem O OCR (tabs em imagem) a parte: o pacote diz que so aceita Python ate 3.12, mas funciona nos
+rem mais recentes. Se falhar, a aplicacao corre na mesma, sem ler imagens.
+"%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check -q --no-deps --ignore-requires-python -r requirements-ocr.txt
+if errorlevel 1 echo AVISO: nao foi possivel instalar o OCR; as tabs em imagem nao vao ser lidas.
 
 echo.
 netstat -an | find ":%PORT% " | find "LISTENING" >nul

@@ -1,4 +1,5 @@
 -r requirements.txt
+# and: pip install --no-deps --ignore-requires-python -r requirements-ocr.txt
 pytest==9.1.1
 httpx2==2.13.1
 reportlab==5.0.1

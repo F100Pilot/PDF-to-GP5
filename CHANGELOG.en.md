@@ -22,6 +22,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- Installing on Python 3.13 or later (for example the Microsoft Store one) failed with "No matching distribution found for rapidocr-onnxruntime", because the OCR package declares Python up to 3.12 only. It works on later versions (the whole test suite passes on 3.13), so it is now installed apart (`requirements-ocr.txt`, with `--no-deps --ignore-requires-python`), with its dependencies in `requirements.txt`. If that step fails, the app still starts, without reading images.
 - Switching the language with a converted song open wiped everything (the page reloads): the song is reopened from the library, on the same page. The report's warnings written by the server stay in the language the conversion was made in.
 - Rhythm of staves printed close together: a staff could take the stems of the staff above (ending less than 3 spaces from it) when those outnumbered its own.
 - Tabs in images (OCR), tested with Jet Lag (Simple Plan) drawn as an image and compared bar by bar with the PDF — from 108 to 119 matching bars out of 119:

@@ -1,0 +1,5 @@
+# Installed after requirements.txt with:
+#   pip install --no-deps --ignore-requires-python -r requirements-ocr.txt
+# The package declares Python <3.13 only, but runs on 3.13 and later; its dependencies are in
+# requirements.txt.
+rapidocr-onnxruntime==1.4.4

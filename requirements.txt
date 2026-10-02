@@ -7,5 +7,15 @@ PyGuitarPro==0.9.3
 starlette==1.7.0
 yt-dlp[default]==2026.8.19
 imageio-ffmpeg==0.6.0
-# Tab images (OCR): text recogniser on ONNX Runtime; brings OpenCV and NumPy
-rapidocr-onnxruntime==1.4.4
+# Tab images (OCR): RapidOCR's text recogniser on ONNX Runtime. Its package declares Python <3.13
+# only, yet runs on newer ones (the whole test suite passes on 3.13), so it is installed apart from
+# this file: requirements-ocr.txt, with --no-deps --ignore-requires-python. Its dependencies:
+onnxruntime>=1.7.0
+opencv-python>=4.5.1.48
+numpy>=1.19.5,<3.0.0
+pyclipper>=1.2.0
+Shapely>=1.7.1,!=2.0.4
+PyYAML
+Pillow
+six>=1.15.0
+tqdm

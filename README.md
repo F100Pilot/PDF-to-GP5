@@ -64,11 +64,14 @@ Para parar, basta fechar a página da aplicação no browser: o servidor encerra
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install --no-deps --ignore-requires-python -r requirements-ocr.txt  # OCR (ver abaixo)
 .venv/bin/uvicorn app.main:app --port 8021 --workers 1
 # http://localhost:8021
 ```
 
 Uso pessoal no próprio PC: `python -m app --port 8021 --close-with-browser` arranca o mesmo servidor e encerra-o quando a última página da aplicação é fechada (é o que os scripts de arranque usam). Sem `--close-with-browser` (ou com `uvicorn` diretamente) o servidor só para com Ctrl+C e ignora os avisos de presença das páginas.
+
+O OCR das tabs em imagem (RapidOCR) instala-se à parte, com `requirements-ocr.txt`: o pacote declara que só aceita Python até 3.12, mas funciona nos mais recentes (os testes todos passam no 3.13), por isso é instalado com `--no-deps --ignore-requires-python`; as dependências dele estão no `requirements.txt`. Os scripts de arranque fazem os dois passos; se o do OCR falhar, a aplicação corre na mesma, sem ler imagens.
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
@@ -191,6 +194,7 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 
 ```bash
 .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pip install --no-deps --ignore-requires-python -r requirements-ocr.txt
 .venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests
 .venv/bin/pytest -q
 .venv/bin/pip-audit -r requirements.txt

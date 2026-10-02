@@ -22,6 +22,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido
+- Instalação em Python 3.13 ou mais recente (por exemplo o da Microsoft Store): falhava com "No matching distribution found for rapidocr-onnxruntime", porque o pacote do OCR declara que só aceita Python até 3.12. Funciona nas versões mais recentes (os testes todos passam no 3.13), por isso passa a ser instalado à parte (`requirements-ocr.txt`, com `--no-deps --ignore-requires-python`), com as dependências dele no `requirements.txt`. Se esse passo falhar, a aplicação arranca na mesma, sem ler imagens.
 - Mudar de idioma com uma música convertida aberta apagava tudo (a página recarrega): a música é reaberta da biblioteca, na mesma página. Os avisos do relatório escritos pelo servidor ficam no idioma em que a conversão foi feita.
 - Ritmo de pautas impressas muito juntas: uma pauta podia ficar com as hastes da pauta de cima (que chegam a menos de 3 espaços dela) quando estas eram mais do que as suas.
 - Tabs em imagem (OCR), testadas com a Jet Lag (Simple Plan) desenhada como imagem e comparada compasso a compasso com o PDF — de 108 para 119 compassos iguais em 119:
