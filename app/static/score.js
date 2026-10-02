@@ -533,8 +533,76 @@
     if (api && !playButton.disabled) api.stop();
   }
 
+  const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]; // i18n-skip: note names
+
+  // A Guitar Pro file opened as it is (.gp, .gpx, .gp5, .gp4, .gp3): read by alphaTab, and summed
+  // up in the shape of a conversion report, so the result, the library and the rest of the page
+  // treat it like a converted song. Throws when alphaTab cannot read it.
+  async function describe(bytes, filename) {
+    await loadAlphaTab();
+    const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    const bars = score.masterBars;
+    const signature = (bar) => `${bar.timeSignatureNumerator}/${bar.timeSignatureDenominator}`;
+    const changes = [];
+    bars.forEach((bar, index) => {
+      if (index > 0 && signature(bar) !== signature(bars[index - 1])) {
+        changes.push({ bar: index + 1, time_signature: signature(bar) });
+      }
+    });
+    const tempos = [];
+    bars.forEach((bar, index) => {
+      for (const automation of bar.tempoAutomations || []) {
+        if (index > 0 || automation.ratioPosition > 0) tempos.push({ bar: index + 1, tempo: Math.round(automation.value) });
+      }
+    });
+    let total = 0;
+    const tracks = score.tracks.map((track) => {
+      const staff = track.staves[0];
+      let notes = 0;
+      for (const bar of staff.bars) {
+        for (const voice of bar.voices) for (const beat of voice.beats) notes += beat.isRest ? 0 : beat.notes.length;
+      }
+      total += notes;
+      const tuning = staff.isPercussion ? [] : [...staff.tuning].reverse(); // low string first
+      return {
+        name: track.name || T("Track {n}", { n: track.index + 1 }),
+        filename,
+        measures: staff.bars.length,
+        notes,
+        strings: tuning.length,
+        tuning: tuning.map((midi) => NOTE_NAMES[midi % 12]).join(" ") || "—",
+        instrument: "—",
+        rhythm_from_notation: staff.bars.length,
+        rhythm_estimated: 0,
+        sources: ["guitarpro"],
+        systems_detail: [],
+        preview: "",
+        warnings: [],
+      };
+    });
+    return {
+      title: score.title || "",
+      artist: score.artist || "",
+      tempo: score.tempo,
+      time_signature: bars.length ? signature(bars[0]) : "4/4",
+      time_signature_changes: changes,
+      tempo_changes: tempos,
+      navigation: [],
+      repeats: bars.filter((bar) => bar.isRepeatStart).length,
+      auto: {},
+      measures: bars.length,
+      notes: total,
+      sections: bars.filter((bar) => bar.section).map((bar) => bar.section.text),
+      lyrics: null,
+      timed_lyrics: [],
+      warnings: [],
+      tracks,
+      source: "guitarpro",
+    };
+  }
+
   window.ScoreView = {
-    show, hide, exportGp, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
+    show, hide, exportGp, describe, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
     stop, stepBar, toggleLoop, setView,
     tempoFactor: () => tempoFactor,
     ready: () => Boolean(api) && !playButton.disabled,

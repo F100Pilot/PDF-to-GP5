@@ -14,8 +14,9 @@
   const timeSignature = document.getElementById("time_signature");
   const tracksBox = document.getElementById("tracks-box");
   const trackList = document.getElementById("tracks");
-  // Files the converter reads: PDFs and pictures of tabs (OCR).
-  const ACCEPTED = /\.(?:pdf|png|jpe?g|webp)$/i;
+  // Files the converter reads: PDFs and pictures of tabs (OCR). A Guitar Pro file is opened as it is.
+  const ACCEPTED = /\.(?:pdf|png|jpe?g|webp|gp|gpx|gp[345])$/i;
+  const GUITAR_PRO = /\.(?:gp|gpx|gp[345])$/i;
   const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
   const DROP_HINT = T("Arraste os PDFs ou imagens da música (um por track) ou clique para escolher");
   let objectUrl = null;
@@ -274,6 +275,29 @@
     return payload;
   }
 
+  // A Guitar Pro file (.gp, .gpx, .gp5, .gp4, .gp3) needs no conversion: it opens like a converted
+  // song — result, score, 3D highway, audio and the library.
+  async function openGuitarPro(file, handle) {
+    inspection += 1; // drop the answers of any PDFs still being inspected
+    tracks = [];
+    renderTracks();
+    meta.hidden = true;
+    inspectStatus.hidden = true;
+    setInspecting(false);
+    if (file.size > maxTotalBytes) {
+      showStatus(T("{name} excede {mb} MB.", { name: file.name, mb: maxTotalBytes / 1024 / 1024 }), true);
+      return;
+    }
+    showStatus(T("A abrir {name}…", { name: file.name }), false);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const report = await window.ScoreView.describe(bytes, file.name);
+      openSong(bytes, file.name, report, false, handle);
+    } catch {
+      showStatus(T("Não foi possível abrir {name}: não é um ficheiro Guitar Pro que o leitor conheça.", { name: file.name }), true);
+    }
+  }
+
   // Converting while PDFs are still being inspected would compete for the same server slots.
   function setInspecting(active) {
     inspecting = active;
@@ -284,6 +308,14 @@
     selectionHandle = handle;
     const files = [...fileList].filter((f) => ACCEPTED.test(f.name) || ACCEPTED_TYPES.includes(f.type));
     const token = ++inspection;
+    if (files.some((f) => GUITAR_PRO.test(f.name))) {
+      if (files.length > 1) {
+        showStatus(T("Um ficheiro Guitar Pro abre-se sozinho, sem conversão: escolha só esse ficheiro."), true);
+        return;
+      }
+      openGuitarPro(files[0], handle);
+      return;
+    }
     result.hidden = true;
     status.hidden = true;
     // Any new selection replaces the previous one, even when it is rejected below.
@@ -362,6 +394,9 @@
         types: [{
           description: T("PDF ou imagem"),
           accept: { "application/pdf": [".pdf"], "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"], "image/webp": [".webp"] },
+        }, {
+          description: "Guitar Pro",
+          accept: { "application/x-guitar-pro": [".gp", ".gpx", ".gp5", ".gp4", ".gp3"] },
         }],
       });
       const files = await Promise.all(handles.map((handle) => handle.getFile()));
@@ -416,7 +451,7 @@
       [T("Ficheiro"), track.filename || "—"], [T("Compassos"), track.measures], [T("Notas"), track.notes],
       [T("Cordas"), track.strings], [T("Afinação"), TUNING_LABELS[track.tuning] || track.tuning],
       [T("Som"), INSTRUMENT_LABELS[track.instrument] || track.instrument], [T("Ritmo"), rhythm],
-      [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : s === "image" ? T("imagem (OCR)") : T("gravada"))).join(", ")],
+      [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : s === "image" ? T("imagem (OCR)") : s === "guitarpro" ? "Guitar Pro" : T("gravada"))).join(", ")],
     ]));
     const table = document.createElement("table");
     table.className = "systems";
@@ -439,11 +474,13 @@
       tbody.appendChild(tr);
     });
     table.append(thead, tbody);
-    const systems = document.createElement("details");
-    const systemsTitle = document.createElement("summary");
-    systemsTitle.textContent = T("Linhas de tab detetadas");
-    systems.append(systemsTitle, table);
-    details.append(systems);
+    if (track.systems_detail.length) { // none for a Guitar Pro file opened as it is
+      const systems = document.createElement("details");
+      const systemsTitle = document.createElement("summary");
+      systemsTitle.textContent = T("Linhas de tab detetadas");
+      systems.append(systemsTitle, table);
+      details.append(systems);
+    }
     // The plain-text preview is for proofreading a tab read from text; an engraved tab has the score.
     if (track.sources.every((source) => source === "ascii")) {
       const preview = document.createElement("pre");
@@ -505,6 +542,8 @@
     objectUrl = URL.createObjectURL(new Blob([gp5], { type: "application/octet-stream" }));
     download.href = objectUrl;
     download.download = filename;
+    const extension = (/\.(gp|gpx|gp[345])$/i.exec(filename) || [null, "gp5"])[1].toLowerCase();
+    download.textContent = T("Descarregar .{ext}", { ext: extension });
     renderResult(report);
     status.hidden = true;
     result.hidden = false;

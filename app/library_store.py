@@ -25,7 +25,7 @@ from pathlib import Path
 from .i18n import tr
 
 META = "musica.json"
-MAX_GP5_BYTES = 5 * 1024 * 1024
+MAX_GP5_BYTES = 40 * 1024 * 1024  # a .gp opened from Guitar Pro can carry its audio
 MAX_COVER_BYTES = 5 * 1024 * 1024
 MAX_META_BYTES = 4 * 1024 * 1024
 GP5_SIGNATURE = b"\x18FICHIER GUITAR PRO"
@@ -45,6 +45,19 @@ def safe_name(text: str, fallback: str, limit: int = 80) -> str:
     if not name or name.split(".", 1)[0].lower() in _RESERVED:
         return fallback
     return name
+
+
+def guitar_pro_extension(data: bytes) -> str | None:
+    """The extension of a Guitar Pro file, from its first bytes: .gp5/.gp4/.gp3 (their header
+    names the version), .gpx (Guitar Pro 6) or .gp (Guitar Pro 7/8, a ZIP); None for anything else."""
+    if data.startswith(GP5_SIGNATURE):
+        match = re.match(rb"\x18FICHIER GUITAR PRO v([345])\.", data)
+        return f".gp{match.group(1).decode()}" if match else None
+    if data[:4] in (b"BCFZ", b"BCFS"):
+        return ".gpx"
+    if data.startswith(b"PK\x03\x04"):
+        return ".gp"
+    return None
 
 
 def audio_type(data: bytes) -> str | None:
@@ -208,8 +221,11 @@ class LibraryStore:
         key = _text(meta.get("key"), 500)
         if not key:
             raise LibraryError(tr("Música sem identificação.", "Song without an identifier."))
-        if not gp5.startswith(GP5_SIGNATURE) or len(gp5) > MAX_GP5_BYTES:
-            raise LibraryError(tr("O ficheiro não é um GP5 válido.", "The file is not a valid GP5."))
+        extension = guitar_pro_extension(gp5)
+        if extension is None or len(gp5) > MAX_GP5_BYTES:
+            raise LibraryError(
+                tr("O ficheiro não é um ficheiro Guitar Pro válido.", "The file is not a valid Guitar Pro file.")
+            )
         report = meta.get("report")
         if not isinstance(report, dict) or len(json.dumps(report)) > MAX_META_BYTES:
             raise LibraryError(tr("Relatório da conversão inválido.", "Invalid conversion report."))
@@ -222,7 +238,8 @@ class LibraryStore:
             folder = self._folder_of_key(key) or self._new_folder(artist, title or filename)
             previous = self._meta(folder) or {}
             files = dict(previous.get("files") or {})
-            gp5_name = safe_name(filename.removesuffix(".gp5") or title, "musica") + ".gp5"
+            stem = re.sub(r"\.(?:gp[345x]?)$", "", filename, flags=re.IGNORECASE)
+            gp5_name = safe_name(stem or title, "musica") + extension
             if files.get("gp5") and files["gp5"] != gp5_name:
                 (folder / files["gp5"]).unlink(missing_ok=True)
             _write(folder / gp5_name, gp5)

@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Abrir um ficheiro Guitar Pro (.gp, .gpx, .gp5, .gp4, .gp3) para tocar, sem converter: na mesma zona dos PDFs, abre logo com o resumo, a partitura, a pista 3D, o áudio e o vídeo, e fica na biblioteca no seu formato (também na exportação para outro computador).
 - Barra de progresso ao analisar cada ficheiro e ao converter (com a percentagem): o servidor conta as páginas lidas, e as lidas por OCR pesam mais.
 - PDFs do Songsterr impressos com "Microsoft Print to PDF" (o texto vem desenhado como contornos, não como texto): as páginas passam a ser lidas por OCR. Na "Nightfall" (Varia): título, artista, BPM, compasso, afinação (C G D# A# F A#, das letras à esquerda da pauta), nome da parte ("Rhythm Guitar", da linha "Track: …"), os 104 compassos e o ritmo desenhado em 82 dos 91 compassos com notas.
 - Título e artista de uma página web impressa em PDF, a partir do título do PDF ("… Tab by Varia | Songsterr…", "… by Artista @ Ultimate-Guitar.Com"), em vez do autor do PDF, que aí é o utilizador do computador.

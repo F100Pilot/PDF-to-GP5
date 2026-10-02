@@ -7,6 +7,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Added
+- Open a Guitar Pro file (.gp, .gpx, .gp5, .gp4, .gp3) to play it, without converting: in the same place as the PDFs, it opens right away with the summary, the score, the 3D highway, the audio and the video, and is kept in the library in its own format (also when exported to another computer).
 - Progress bar while each file is analysed and while converting (with the percentage): the server counts the pages read, those read by OCR weighing more.
 - Songsterr PDFs printed with "Microsoft Print to PDF" (the text comes drawn as outlines, not as text): their pages are now read by OCR. In "Nightfall" (Varia): title, artist, BPM, time signature, tuning (C G D# A# F A#, from the letters left of the staff), part name ("Rhythm Guitar", from the "Track: …" line), all 104 bars and the drawn rhythm in 82 of the 91 bars with notes.
 - Title and artist of a web page printed to PDF, from the PDF's title ("… Tab by Varia | Songsterr…", "… by Artist @ Ultimate-Guitar.Com"), instead of the PDF's author, which there is the computer's user.

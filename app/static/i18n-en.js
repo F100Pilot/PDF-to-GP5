@@ -332,7 +332,6 @@
  "Só pauta": "Staff only",
  "Só tab": "Tab only",
  "Tablaturas em PDF (texto ou exportadas de editores) ou em imagem → ficheiro Guitar Pro. Os ficheiros são processados em memória e não são guardados.": "Tablature PDFs (text or exported from editors) or images → Guitar Pro file. Files are processed in memory and are not stored.",
- "Tabs de editor (MuseScore, Guitar Pro) ou tabs em texto": "Tabs from an editor (MuseScore, Guitar Pro) or text-based tabs",
  "Tabs para Guitar Pro": "Tabs for Guitar Pro",
  "Tema": "Theme",
  "Tema: claro": "Theme: light",
@@ -439,5 +438,10 @@
  "Não foi possível instalar (sem ligação ao servidor).": "Could not install (no connection to the server).",
  "Tabs em imagem (OCR)": "Tabs in images (OCR)",
  "Progresso da análise": "Analysis progress",
- "Progresso da conversão": "Conversion progress"
+ "Progresso da conversão": "Conversion progress",
+ "A abrir {name}…": "Opening {name}…",
+ "Descarregar .{ext}": "Download .{ext}",
+ "Não foi possível abrir {name}: não é um ficheiro Guitar Pro que o leitor conheça.": "Could not open {name}: it is not a Guitar Pro file the reader knows.",
+ "Tabs de editor (MuseScore, Guitar Pro) ou tabs em texto · um ficheiro Guitar Pro (.gp, .gp5…) abre logo, para tocar": "Tabs from an editor (MuseScore, Guitar Pro) or text-based tabs · a Guitar Pro file (.gp, .gp5…) opens right away, to play",
+ "Um ficheiro Guitar Pro abre-se sozinho, sem conversão: escolha só esse ficheiro.": "A Guitar Pro file opens on its own, with no conversion: choose only that file."
 };

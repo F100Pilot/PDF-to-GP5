@@ -227,3 +227,22 @@ def test_settings_are_cleaned():
 def test_export_and_import_only_on_this_computer(store):
     remote = TestClient(main.app, base_url="http://127.0.0.1:8021", client=("203.0.113.9", 50000))
     assert remote.post("/api/library/export", json={"songs": [{"id": "x"}]}).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("data", "name"),
+    [
+        (b"PK\x03\x04" + b"\x00" * 64, "September.gp"),  # Guitar Pro 7/8: a ZIP
+        (b"BCFZ" + b"\x00" * 64, "September.gpx"),  # Guitar Pro 6
+        (b"\x18FICHIER GUITAR PRO v4.06" + b"\x00" * 64, "September.gp4"),
+    ],
+)
+def test_a_guitar_pro_file_opened_as_it_is_keeps_its_format(store, local, data, name):
+    response = _save(local, gp5=data, filename=name, title="September", artist="Daughtry")
+    assert response.status_code == 200
+    assert (store.root / "Daughtry - September" / name).read_bytes() == data
+    assert local.get(f"/api/library/{response.json()['id']}/gp5").content == data
+
+
+def test_other_files_are_not_kept(store, local):
+    assert _save(local, gp5=b"%PDF-1.7 not a tab").status_code == 422
