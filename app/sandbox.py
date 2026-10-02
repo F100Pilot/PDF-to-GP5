@@ -209,12 +209,17 @@ def run_isolated(
     memory_mb: int,
     job: str = "convert",
     on_progress: Callable[[int], None] | None = None,
+    total_s: int | None = None,
 ) -> ConversionResult:
     """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5.
 
     ``pdfs`` is one PDF per track (inspect uses the first). ``on_progress`` gets the percent of
-    the job done, as the child reports it.
+    the job done, as the child reports it. ``timeout_s`` is how long the child may go without
+    news (each progress report, a page read, gives it that time again: a slower computer reading
+    many pages by OCR is not cut off while it advances); ``total_s`` caps the whole job
+    (default: ``timeout_s``).
     """
+    total_s = max(timeout_s, total_s if total_s is not None else timeout_s)
     if job not in ("convert", "inspect"):
         raise ValueError(f"unknown job {job!r}")
     if isinstance(pdfs, bytes):
@@ -222,7 +227,7 @@ def run_isolated(
     receiver, sender = _CTX.Pipe(duplex=False)
     process = _CTX.Process(
         target=_worker,
-        args=(sender, pdfs, options, memory_mb, job, max(1, int(timeout_s)) + 5, i18n.current()),
+        args=(sender, pdfs, options, memory_mb, job, max(1, int(total_s)) + 5, i18n.current()),
         daemon=True,
     )
     try:
@@ -233,10 +238,11 @@ def run_isolated(
         raise ConversionUnavailable() from exc
     sender.close()
     windows_job = _windows_job(process, memory_mb)
-    deadline = time.monotonic() + timeout_s
+    started = time.monotonic()
+    deadline = started + timeout_s
     try:
         while True:
-            remaining = deadline - time.monotonic()
+            remaining = min(deadline, started + total_s) - time.monotonic()
             if remaining <= 0 or not receiver.poll(remaining):
                 raise ConversionTimeout()
             try:
@@ -246,6 +252,7 @@ def run_isolated(
             percent = _progress_of(raw)
             if percent is None:
                 break  # the result (or the error)
+            deadline = time.monotonic() + timeout_s  # it is advancing
             if on_progress is not None:
                 on_progress(percent)
     finally:

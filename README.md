@@ -163,12 +163,12 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 | `MAX_IMAGE_PAGES` (páginas lidas por OCR, por ficheiro) | 15 |
 | `MAX_IMAGE_MEGAPIXELS` (por imagem) | 40 |
 | `MAX_EVENTS` | 50000 |
-| `CONVERSION_TIMEOUT_S` | 120 |
+| `CONVERSION_TIMEOUT_S` (sem avançar: cada página lida dá este tempo outra vez) | 120 |
 | `WORKER_MEMORY_MB` | 2048 (o OCR precisa de ~1,5 GB de espaço de endereços) |
 | `MAX_CONCURRENT_CONVERSIONS` | 2 |
 | `RATE_LIMIT_PER_MINUTE` | 20 |
 | `INSPECT_RATE_LIMIT_PER_MINUTE` | 60 |
-| `MAX_JOB_TIMEOUT_S` (pedido inteiro) | 300 |
+| `MAX_JOB_TIMEOUT_S` (pedido inteiro, mesmo a avançar) | 900 |
 | `MAX_MEASURES` | 2000 |
 | `ALLOWED_HOSTS` (separados por vírgula) | `127.0.0.1,localhost,[::1]` |
 | `YOUTUBE_API_KEY` (ou ficheiro `youtube_api_key.txt`) | — (pesquisa automática do vídeo desligada) |

@@ -255,12 +255,33 @@ def test_sandbox_reports_progress_of_a_pdf_of_pictures():
     assert seen == sorted(seen) and seen[0] < 50 and seen[-1] >= 95  # per page read, in order
 
 
+def test_a_job_that_advances_is_not_cut_off(monkeypatch):
+    # each progress report (a page read) gives the child the idle time again; the cap still holds
+    from app import sandbox
+
+    def slow_worker(conn, pdfs, options, memory_mb, job, cpu_seconds, lang="pt"):
+        import time as t
+
+        for percent in range(0, 100, 25):
+            sandbox._reply(conn, status="progress", percent=percent)
+            t.sleep(0.6)
+        sandbox._reply(conn, status="ok", gp5="", report={"notes": 0})
+        conn.close()
+
+    monkeypatch.setattr(sandbox, "_worker", slow_worker)
+    monkeypatch.setattr(sandbox, "_CTX", sandbox.mp.get_context("fork"))
+    result = run_isolated(b"x", ConversionOptions(), timeout_s=1, memory_mb=1024, total_s=10)
+    assert result.report == {"notes": 0}  # 2.4 s in all, never 1 s without news
+    with pytest.raises(ConversionTimeout):
+        run_isolated(b"x", ConversionOptions(), timeout_s=1, memory_mb=1024, total_s=1.5)
+
+
 def test_progress_is_polled_by_the_id_the_page_sends(client, monkeypatch):
     from app import main
 
     seen = []
 
-    def fake_run(pdfs, options, timeout, memory, job, on_progress):
+    def fake_run(pdfs, options, timeout, memory, job, on_progress, total):
         on_progress(40)
         seen.append(client.get("/api/progress/0123abcd-0000-4000-8000-00000000abcd").json())
         return run_isolated(pdfs, options, timeout, memory, job)

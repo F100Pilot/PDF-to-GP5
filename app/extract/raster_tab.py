@@ -654,12 +654,20 @@ def _rests(dark, glyph, groups, spacing: float, k: float, frets: list[Char]):
         for bx, by, bw, bh, area in stats[1:count]
         if 0.12 * spacing <= bw <= 0.4 * spacing and 0.12 * spacing <= bh <= 0.4 * spacing and area >= 0.5 * bw * bh
     ]
+    # only shapes of a rest's size (the widest and tallest kinds below): a page has thousands
+    sizes = stats[1:count]
+    shapes = sizes[
+        (sizes[:, 2] >= 0.5 * spacing)
+        & (sizes[:, 2] <= 1.15 * spacing)
+        & (sizes[:, 3] >= 0.2 * spacing)
+        & (sizes[:, 3] <= 2.3 * spacing)
+    ].tolist()
     for group in groups:
         top, bottom = group[0][0], group[-1][0]
         ys = [line[0] for line in group]
         x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
         middle = (top + bottom) / 2
-        for bx, by, bw, bh, area in stats[1:count]:
+        for bx, by, bw, bh, area in shapes:
             if not (x0 < bx and bx + bw < x1 and top - spacing < by and by + bh < bottom + spacing):
                 continue
             if abs(by + bh / 2 - middle) > 1.2 * spacing:

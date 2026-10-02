@@ -472,7 +472,8 @@ async def _run_job(
         )
     # One budget per request, however many PDFs it carries, so a slow upload
     # cannot hold a worker slot for minutes.
-    timeout = min(settings.conversion_timeout_s * len(pdfs), settings.max_job_timeout_s)
+    # Cut off when a job stops advancing (no page read for that long), and in any case at the cap.
+    timeout = min(settings.conversion_timeout_s, settings.max_job_timeout_s)
     on_progress = None
     if progress_id is not None and len(_job_progress) < 100:
         _job_progress[progress_id] = 0
@@ -483,7 +484,14 @@ async def _run_job(
     async with _slots:
         try:
             return await run_in_threadpool(
-                run_isolated, pdfs, options, timeout, settings.worker_memory_mb, job, on_progress
+                run_isolated,
+                pdfs,
+                options,
+                timeout,
+                settings.worker_memory_mb,
+                job,
+                on_progress,
+                settings.max_job_timeout_s,
             )
         except ConversionUnavailable:
             raise HTTPException(

@@ -101,12 +101,14 @@ class Settings:
     max_image_pages: int = _int("MAX_IMAGE_PAGES", 15)  # pages read by OCR per file, about 1 s each
     max_image_pixels: int = _int("MAX_IMAGE_MEGAPIXELS", 40) * 1_000_000
     max_events: int = _int("MAX_EVENTS", 50_000)
-    conversion_timeout_s: int = _int("CONVERSION_TIMEOUT_S", 120)  # a PDF of pictures: ~3 s a page by OCR
+    conversion_timeout_s: int = _int("CONVERSION_TIMEOUT_S", 120)  # without progress (a page read)
     worker_memory_mb: int = _int("WORKER_MEMORY_MB", 2048)  # address space; OCR (onnxruntime) needs ~1.5 GB
     max_concurrent: int = _int("MAX_CONCURRENT_CONVERSIONS", 2)
     rate_limit_per_minute: int = _int("RATE_LIMIT_PER_MINUTE", 20)
     inspect_rate_limit_per_minute: int = _int("INSPECT_RATE_LIMIT_PER_MINUTE", 60)
-    max_job_timeout_s: int = _int("MAX_JOB_TIMEOUT_S", 300)  # whole request, however many PDFs
+    max_job_timeout_s: int = _int(
+        "MAX_JOB_TIMEOUT_S", 900
+    )  # whole job, however it advances  # whole request, however many PDFs
     max_measures: int = _int("MAX_MEASURES", 2000)
     # Host names the server answers to (blocks DNS rebinding); comma separated.
     allowed_hosts: tuple[str, ...] = tuple(
