@@ -288,11 +288,24 @@ def available() -> tuple[bool, str]:
 _JS_RUNTIMES = (("deno", ("deno",)), ("node", ("node",)), ("quickjs", ("qjs", "quickjs")), ("bun", ("bun",)))
 
 
+def _packaged_deno() -> str | None:
+    """Deno installed in the app's own Python environment (requirements.txt: the "deno" package),
+    which is not on the PATH when the app runs from its virtual environment."""
+    try:
+        from deno import find_deno_bin
+
+        return find_deno_bin()
+    except (ImportError, OSError):
+        return None
+
+
 def js_runtimes() -> dict[str, dict]:
     """The JavaScript runtimes installed on this computer, as yt-dlp's ``js_runtimes`` option."""
     found: dict[str, dict] = {}
     for name, programs in _JS_RUNTIMES:
         path = next((p for p in map(shutil.which, programs) if p), None)
+        if name == "deno" and not path:
+            path = _packaged_deno()
         if path:
             found[name] = {"path": path}
     return found

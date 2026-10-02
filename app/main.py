@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
 import ipaddress
 import json
 import logging
@@ -24,12 +25,13 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import __revision__, __version__, audio_download, i18n, library_transfer
 from .changelog import load_releases, version_key
-from .config import settings, youtube_key_status
+from .config import save_youtube_key, settings, youtube_key_status
 from .converter import INSTRUMENTS, ConversionError, ConversionOptions, ConversionResult, TrackOptions
 from .cover import CoverError, find_cover
 from .extract.raster_tab import image_kind
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .i18n import LanguageMiddleware, tr
+from .installer import installation, ocr_ready
 from .library_store import LibraryError, LibraryStore
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
@@ -135,7 +137,7 @@ async def changelog() -> dict:
 
 
 @app.get("/api/health")
-async def health() -> dict:
+async def health(request: Request) -> dict:
     return {
         "status": "ok",
         "version": __version__,
@@ -149,7 +151,64 @@ async def health() -> dict:
         "audio_download_problem": audio_download.available()[1],
         "audio_youtube": audio_download.youtube_ready()[0],
         "audio_youtube_problem": audio_download.youtube_ready()[1],
+        "ocr": ocr_ready()[0],
+        "ocr_problem": ocr_ready()[1],
+        # What is missing can be installed (and the key saved) from the page on this computer.
+        "can_install": _used_on_this_computer(request),
     }
+
+
+def _this_computer(request: Request) -> None:
+    if not _used_on_this_computer(request):
+        raise HTTPException(
+            status_code=403,
+            detail=tr(
+                "Só é possível com a aplicação aberta no próprio computador.",
+                "Only possible with the app open on the computer itself.",
+            ),
+        )
+
+
+@app.post("/api/install", status_code=202)
+async def install_start(request: Request) -> dict:
+    """Install the app's missing Python packages (fixed commands, see installer.py)."""
+    _this_computer(request)
+    installation.start()
+    return installation.status()
+
+
+@app.get("/api/install")
+async def install_status(request: Request) -> dict:
+    _this_computer(request)
+    return installation.status()
+
+
+class YoutubeKey(BaseModel):
+    key: str = Field(min_length=1, max_length=200)
+
+
+@app.post("/api/youtube-key", status_code=204)
+async def youtube_key_save(request: Request, body: YoutubeKey) -> Response:
+    """Save the YouTube Data API key in youtube_api_key.txt; it is never sent back."""
+    global settings
+    _this_computer(request)
+    try:
+        saved = await run_in_threadpool(save_youtube_key, body.key)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=tr(f"Não foi possível gravar a chave: {exc.strerror}.", f"Could not save the key: {exc.strerror}."),
+        ) from exc
+    if not saved:
+        raise HTTPException(
+            status_code=422,
+            detail=tr(
+                "Isto não parece uma chave da API do YouTube (AIza…, só letras, números, - e _).",
+                "This does not look like a YouTube API key (AIza…, only letters, digits, - and _).",
+            ),
+        )
+    settings = dataclasses.replace(settings, youtube_api_key=youtube_key_status()[0])
+    return Response(status_code=204)
 
 
 @app.get("/api/video-search")

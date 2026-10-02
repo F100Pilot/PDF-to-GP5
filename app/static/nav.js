@@ -75,7 +75,12 @@
   const dotText = document.getElementById("server-text");
   const list = document.getElementById("health-list");
 
-  function row(name, ok, problem) {
+  // A missing piece shows how to fix it, when the page is open on the server's own computer:
+  // "Instalar" (the app's Python packages, as the start scripts install them) or, for automatic
+  // video search, a field to paste the YouTube key.
+  let installing = false;
+
+  function row(name, ok, problem, fix = null, canFix = false) {
     const item = document.createElement("li");
     const mark = document.createElement("span");
     mark.className = ok ? "dot ok" : "dot warn";
@@ -87,24 +92,134 @@
     state.className = "muted";
     state.textContent = ok ? T("disponível") : problem || T("indisponível");
     item.append(mark, label, state);
+    if (!ok && canFix && fix === "install") item.append(installButton());
+    if (!ok && canFix && fix === "key") item.append(...keyForm());
     return item;
   }
 
-  fetch("/api/health")
-    .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
-    .then((health) => {
-      dot.className = "dot ok";
-      dotText.textContent = T("Servidor ligado · {host}", { host: window.location.host });
-      list.replaceChildren(
-        row(T("Conversão de PDF"), true),
-        row(T("Áudio de um endereço (URL → MP3)"), health.audio_download, health.audio_download_problem),
-        row(T("Vídeos do YouTube no URL → MP3"), health.audio_youtube, health.audio_youtube_problem),
-        row(T("Pesquisa automática do vídeo"), health.video_search, health.video_search_problem),
-      );
-    })
-    .catch(() => {
-      dot.className = "dot warn";
-      dotText.textContent = T("Sem ligação ao servidor");
-      list.replaceChildren(row(T("Servidor"), false, T("sem resposta")));
+  const installNote = document.createElement("p");
+  installNote.className = "hint health-note";
+  installNote.setAttribute("role", "status");
+  installNote.hidden = true;
+  const installLog = document.createElement("pre");
+  installLog.className = "health-log";
+  installLog.hidden = true;
+
+  function installButton() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button secondary health-fix install-fix";
+    button.textContent = installing ? T("A instalar…") : T("Instalar");
+    button.disabled = installing;
+    button.title = T("Instala os pacotes que faltam no ambiente Python da aplicação (pip), como o start.bat faz; não precisa de administrador.");
+    button.addEventListener("click", startInstall);
+    return button;
+  }
+
+  async function startInstall() {
+    installing = true;
+    installLog.hidden = true;
+    installNote.hidden = false;
+    installNote.textContent = T("A instalar o que falta… pode demorar alguns minutos (o OCR e o Deno são grandes).");
+    for (const button of list.querySelectorAll(".install-fix")) {
+      button.disabled = true;
+      button.textContent = T("A instalar…");
+    }
+    try {
+      let status = await (await fetch("/api/install", { method: "POST" })).json();
+      while (status.state === "running") {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        status = await (await fetch("/api/install")).json();
+      }
+      installing = false;
+      if (status.state === "done") {
+        installNote.textContent = T("Instalação concluída.");
+      } else {
+        installNote.textContent = T("A instalação falhou (sem ligação à internet, ou um proxy da empresa?). Últimas linhas do pip:");
+        installLog.textContent = (status.log || []).join("\n");
+        installLog.hidden = false;
+      }
+    } catch {
+      installing = false;
+      installNote.textContent = T("Não foi possível instalar (sem ligação ao servidor).");
+    }
+    loadHealth();
+  }
+
+  function keyForm() {
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "button secondary health-fix";
+    open.textContent = T("Configurar chave");
+    const form = document.createElement("form");
+    form.className = "health-key";
+    form.hidden = true;
+    const input = document.createElement("input");
+    input.type = "password";
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.placeholder = "AIza…";
+    input.setAttribute("aria-label", T("Chave da API do YouTube"));
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "button";
+    save.textContent = T("Guardar");
+    const note = document.createElement("span");
+    note.className = "hint";
+    note.textContent = T("Chave da YouTube Data API v3, criada na Google Cloud Console (ver docs/CHAVE_YOUTUBE.md). Fica no ficheiro youtube_api_key.txt deste computador.");
+    form.append(input, save, note);
+    open.addEventListener("click", () => {
+      form.hidden = false;
+      open.hidden = true;
+      input.focus();
     });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      save.disabled = true;
+      try {
+        const response = await fetch("/api/youtube-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: input.value }),
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          note.textContent = typeof body.detail === "string" ? body.detail : T("Não foi possível guardar a chave.");
+          return;
+        }
+        input.value = "";
+        loadHealth();
+      } catch {
+        note.textContent = T("Não foi possível guardar a chave.");
+      } finally {
+        save.disabled = false;
+      }
+    });
+    return [open, form];
+  }
+
+  function loadHealth() {
+    return fetch("/api/health")
+      .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
+      .then((health) => {
+        dot.className = "dot ok";
+        dotText.textContent = T("Servidor ligado · {host}", { host: window.location.host });
+        const fix = health.can_install;
+        list.replaceChildren(
+          row(T("Conversão de PDF"), true),
+          row(T("Tabs em imagem (OCR)"), health.ocr, health.ocr_problem, "install", fix),
+          row(T("Áudio de um endereço (URL → MP3)"), health.audio_download, health.audio_download_problem, "install", fix),
+          row(T("Vídeos do YouTube no URL → MP3"), health.audio_youtube, health.audio_youtube_problem, "install", fix),
+          row(T("Pesquisa automática do vídeo"), health.video_search, health.video_search_problem, "key", fix),
+        );
+        list.after(installNote);
+        installNote.after(installLog);
+      })
+      .catch(() => {
+        dot.className = "dot warn";
+        dotText.textContent = T("Sem ligação ao servidor");
+        list.replaceChildren(row(T("Servidor"), false, T("sem resposta")));
+      });
+  }
+  loadHealth();
 })();

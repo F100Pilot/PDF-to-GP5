@@ -170,12 +170,15 @@ def test_resolve_source_rebuilds_youtube_addresses(public_dns):
 def test_js_runtimes_found_on_this_computer(monkeypatch):
     paths = {"node": "/usr/bin/node", "qjs": "/usr/bin/qjs"}
     monkeypatch.setattr(ad.shutil, "which", lambda name: paths.get(name))
+    monkeypatch.setattr(ad, "_packaged_deno", lambda: None)
     assert ad.js_runtimes() == {"node": {"path": "/usr/bin/node"}, "quickjs": {"path": "/usr/bin/qjs"}}
     options = ad._options(Path("/tmp"), lambda _: None)
     assert options["js_runtimes"] == ad.js_runtimes() and options["remote_components"] == []
     assert "cookiefile" not in options and "cookiesfrombrowser" not in options and "username" not in options
     monkeypatch.setattr(ad.shutil, "which", lambda name: None)
     assert ad.youtube_ready() == (False, "falta um runtime JavaScript para o YouTube (instale o Deno ou o Node.js)")
+    monkeypatch.setattr(ad, "_packaged_deno", lambda: "/venv/bin/deno")  # the "deno" package
+    assert ad.js_runtimes() == {"deno": {"path": "/venv/bin/deno"}}
 
 
 @pytest.mark.parametrize(

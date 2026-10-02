@@ -424,5 +424,18 @@
  "a da biblioteca": "the library's",
  "a do ficheiro": "the file's",
  "{n} música(s) do ficheiro já existem nesta biblioteca: marque \"Substituir\" nas que quer trocar pela do ficheiro; as outras ficam como estão.": "{n} song(s) in the file are already in this library: tick \"Replace\" on those to swap for the file's; the others stay as they are.",
- "{n} músicas exportadas.": "{n} songs exported."
+ "{n} músicas exportadas.": "{n} songs exported.",
+ "A instalar o que falta… pode demorar alguns minutos (o OCR e o Deno são grandes).": "Installing what is missing… this can take a few minutes (the OCR and Deno are large).",
+ "A instalar…": "Installing…",
+ "A instalação falhou (sem ligação à internet, ou um proxy da empresa?). Últimas linhas do pip:": "The installation failed (no internet connection, or a company proxy?). Last lines from pip:",
+ "Chave da API do YouTube": "YouTube API key",
+ "Chave da YouTube Data API v3, criada na Google Cloud Console (ver docs/CHAVE_YOUTUBE.md). Fica no ficheiro youtube_api_key.txt deste computador.": "A YouTube Data API v3 key, created in the Google Cloud Console (see docs/CHAVE_YOUTUBE.md). It is kept in the youtube_api_key.txt file on this computer.",
+ "Configurar chave": "Set up key",
+ "Guardar": "Save",
+ "Instala os pacotes que faltam no ambiente Python da aplicação (pip), como o start.bat faz; não precisa de administrador.": "Installs the missing packages in the app's Python environment (pip), as start.bat does; no administrator rights needed.",
+ "Instalar": "Install",
+ "Instalação concluída.": "Installation finished.",
+ "Não foi possível guardar a chave.": "Could not save the key.",
+ "Não foi possível instalar (sem ligação ao servidor).": "Could not install (no connection to the server).",
+ "Tabs em imagem (OCR)": "Tabs in images (OCR)"
 };

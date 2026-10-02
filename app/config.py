@@ -65,6 +65,18 @@ def _read_key_file() -> tuple[str, str]:
     return lines[0], ""
 
 
+def save_youtube_key(key: str) -> bool:
+    """Write the key to the key file (from the page, on the computer itself); False when it does
+    not look like a key."""
+    key = key.strip()
+    if not _KEY_FORMAT.fullmatch(key):
+        return False
+    temporary = YOUTUBE_KEY_FILE.with_name(YOUTUBE_KEY_FILE.name + ".tmp")
+    temporary.write_text(key + "\n", encoding="utf-8")
+    os.replace(temporary, YOUTUBE_KEY_FILE)
+    return True
+
+
 def youtube_key_status() -> tuple[str, str]:
     """(key, problem): the YouTube Data API key, or "" and why automatic video search is off."""
     value = os.environ.get("YOUTUBE_API_KEY", "").strip()

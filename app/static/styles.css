@@ -177,6 +177,13 @@ main:focus { outline: none; }
 .health-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; padding: 8px 12px; border-radius: 10px; background: var(--panel-2); }
 .health-name { flex: 1 1 16ch; }
 .health-list .muted { margin-left: auto; font-size: 0.875rem; }
+.health-list .health-fix { margin: 0; padding: 4px 12px; min-height: 0; font-size: 0.875rem; }
+.health-key { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.health-key input { flex: 1 1 24ch; min-width: 0; }
+.health-key .button { margin: 0; }
+.health-key .hint { flex: 1 1 100%; margin: 0; }
+.health-note { margin-top: 10px; }
+.health-log { margin: 8px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; border-radius: 8px; background: var(--panel-2); font-size: 0.75rem; white-space: pre-wrap; }
 
 .lead, .hint, footer { color: var(--muted); }
 .hint { font-size: 0.875rem; margin: 8px 0 0; }

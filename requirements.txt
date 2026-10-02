@@ -7,6 +7,9 @@ PyGuitarPro==0.9.3
 starlette==1.7.0
 yt-dlp[default]==2026.8.19
 imageio-ffmpeg==0.6.0
+# JavaScript runtime yt-dlp needs for YouTube: the official Deno build, installed in the app's own
+# environment (no administrator rights, no winget)
+deno==2.9.7
 # Tab images (OCR): RapidOCR's text recogniser on ONNX Runtime. Its package declares Python <3.13
 # only, yet runs on newer ones (the whole test suite passes on 3.13), so it is installed apart from
 # this file: requirements-ocr.txt, with --no-deps --ignore-requires-python. Its dependencies:
