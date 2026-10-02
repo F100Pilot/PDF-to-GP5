@@ -283,3 +283,33 @@ def test_rhythm_drawn_under_the_tab_is_read_from_the_picture(width):
         [(16, False, False)] * 4 + [(8, False, False)] * 2 + [(4, False, False)] * 2,
     ]
     assert result.report["tracks"][0]["rhythm_from_notation"] == 3
+
+
+def test_page_with_text_as_outlines_is_read_by_ocr(monkeypatch):
+    # "Microsoft Print to PDF" of a web page (Songsterr) draws the numbers and words as outlines:
+    # staff lines found, but no text. Such a page is read as a picture.
+    import dataclasses
+
+    from app import converter
+
+    real = converter.read_document
+
+    def without_text(data, max_pages):
+        pages, info = real(data, max_pages)
+        return [dataclasses.replace(page, chars=[]) for page in pages], info
+
+    monkeypatch.setattr(converter, "read_document", without_text)
+    result = convert(engraved_tab_pdf(STAVES, knockout=True), ConversionOptions())
+    assert _frets(result.gp5) == _expected()
+    assert result.report["tracks"][0]["sources"] == ["image"]
+
+
+def test_tuning_letters_left_of_the_staff_are_read():
+    from app.extract.engraved_tab import extract_engraved_systems
+    from app.extract.raster_tab import read_image
+    from tests.pdf_factory import labelled_tab_pdf
+
+    page, _ = read_image(tab_png(labelled_tab_pdf(["C", "G", "D#", "A#", "F", "A#"])), 40_000_000)
+    systems = extract_engraved_systems(page)
+    assert systems[0].labels == ["C", "G", "D#", "A#", "F", "A#"]
+    assert all(event.x > systems[0].start_x for event in systems[0].events)  # the F is no fret

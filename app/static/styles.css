@@ -241,6 +241,8 @@ button, .button {
 .button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; }
 button:disabled { opacity: 0.6; cursor: progress; }
+progress.job-progress { display: block; width: 100%; height: 8px; margin: 8px 0 0; accent-color: var(--accent); }
+.track-head progress.job-progress { display: inline-block; width: 120px; margin: 0; vertical-align: middle; }
 #status.error { color: var(--error); border-color: var(--error); }
 .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
 .summary div { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }

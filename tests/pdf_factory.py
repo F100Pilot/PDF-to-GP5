@@ -196,6 +196,29 @@ def rhythm_tab_pdf(measures: list[list[tuple]], strings: int = 6) -> bytes:
     return buffer.getvalue()
 
 
+def labelled_tab_pdf(labels: list[str]) -> bytes:
+    """One tab staff with the strings' notes written left of it (as Songsterr prints the tuning),
+    the lines starting just after them, and a few frets."""
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    spacing, x0, x1, top = 7.0, 70.0, 540.0, A4[1] - 120
+    for index, label in enumerate(labels):
+        y = top - index * spacing
+        pdf.line(x0, y, x1, y)
+        pdf.setFont("Helvetica", 6)
+        pdf.drawRightString(x0 - 4, y - 2.1, label)
+    pdf.line(x1, top, x1, top - (len(labels) - 1) * spacing)
+    pdf.setFont("Helvetica", 7)
+    for k, (string, fret) in enumerate([(1, 0), (3, 2), (5, 3), (6, 5)]):
+        x, y = x0 + 40 + 60 * k, top - (string - 1) * spacing
+        pdf.setFillColorRGB(1, 1, 1)
+        pdf.rect(x - 3, y - 3, 6, 6, stroke=0, fill=1)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawCentredString(x, y - 2.5, str(fret))
+    pdf.save()
+    return buffer.getvalue()
+
+
 def blank_pdf() -> bytes:
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)

@@ -7,6 +7,9 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Added
+- Progress bar while each file is analysed and while converting (with the percentage): the server counts the pages read, those read by OCR weighing more.
+- Songsterr PDFs printed with "Microsoft Print to PDF" (the text comes drawn as outlines, not as text): their pages are now read by OCR. In "Nightfall" (Varia): title, artist, BPM, time signature, tuning (C G D# A# F A#, from the letters left of the staff), part name ("Rhythm Guitar", from the "Track: …" line), all 104 bars and the drawn rhythm in 82 of the 91 bars with notes.
+- Title and artist of a web page printed to PDF, from the PDF's title ("… Tab by Varia | Songsterr…", "… by Artist @ Ultimate-Guitar.Com"), instead of the PDF's author, which there is the computer's user.
 - Settings → Server status: what is missing has a button to fix it. "Install" installs the missing Python packages (OCR, yt-dlp, FFmpeg, Deno) in the app's environment, as start.bat does, without administrator rights, and shows pip's error if it fails; "Set up key" saves the YouTube API key for automatic video search. New "Tabs in images (OCR)" row.
 - Deno (the JavaScript runtime YouTube needs) is now installed with the other dependencies (the official `deno` package from PyPI), without winget or administrator rights.
 - Library: export and import songs to the library on another computer. "Export…" lets you choose the songs and saves them in a ZIP with the GP5, the cover and each song's settings (where bar 1 starts in the audio, tempo, YouTube video), without the audio. "Import…" lets you choose the songs in the ZIP; those already there show both dates and which is newer, and are only replaced if you choose so (the audio already there stays).
@@ -24,6 +27,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- Tabs in images: staves where a chord covers every string (Songsterr), or where ties cover the start or end of the lines, were read with 4 or 5 strings and dropped; letters left of the staff were read as frets; a column of parentheses next to a bar line was read as a time signature change (8/8). Conversion time limit from 30 to 120 s per file (300 s in all): a 10-page PDF read by OCR takes about 40 s.
 - Installing on Python 3.13 or later (for example the Microsoft Store one) failed with "No matching distribution found for rapidocr-onnxruntime", because the OCR package declares Python up to 3.12 only. It works on later versions (the whole test suite passes on 3.13), so it is now installed apart (`requirements-ocr.txt`, with `--no-deps --ignore-requires-python`), with its dependencies in `requirements.txt`. If that step fails, the app still starts, without reading images.
 - Switching the language with a converted song open wiped everything (the page reloads): the song is reopened from the library, on the same page. The report's warnings written by the server stay in the language the conversion was made in.
 - Rhythm of staves printed close together: a staff could take the stems of the staff above (ending less than 3 spaces from it) when those outnumbered its own.

@@ -245,6 +245,36 @@ def test_sandbox_success_roundtrip():
     assert result.gp5.startswith(b"\x18FICHIER GUITAR PRO") and result.report["notes"] == 4
 
 
+def test_sandbox_reports_progress_of_a_pdf_of_pictures():
+    from tests.pdf_factory import engraved_tab_pdf, image_pdf, tab_png
+
+    page = tab_png(engraved_tab_pdf([[[(1, 0), (2, 3)]]], knockout=True))
+    seen = []
+    result = run_isolated(image_pdf([page, page]), ConversionOptions(), 60, 2048, on_progress=seen.append)
+    assert result.report["notes"] == 4
+    assert seen == sorted(seen) and seen[0] < 50 and seen[-1] >= 95  # per page read, in order
+
+
+def test_progress_is_polled_by_the_id_the_page_sends(client, monkeypatch):
+    from app import main
+
+    seen = []
+
+    def fake_run(pdfs, options, timeout, memory, job, on_progress):
+        on_progress(40)
+        seen.append(client.get("/api/progress/0123abcd-0000-4000-8000-00000000abcd").json())
+        return run_isolated(pdfs, options, timeout, memory, job)
+
+    monkeypatch.setattr(main, "run_isolated", fake_run)
+    response = client.post(
+        "/api/inspect",
+        files={"file": ("tab.pdf", ascii_tab_pdf([TAB]), "application/pdf")},
+        headers={"X-Progress-Id": "0123abcd-0000-4000-8000-00000000abcd"},
+    )
+    assert response.status_code == 200 and seen == [{"percent": 40}]
+    assert client.get("/api/progress/0123abcd-0000-4000-8000-00000000abcd").json() == {"percent": None}
+
+
 def test_empty_staves_do_not_vote_and_become_rests(client):
     from tests.pdf_factory import engraved_tab_pdf
 

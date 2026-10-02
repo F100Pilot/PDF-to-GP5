@@ -164,6 +164,31 @@ def _visual_title_artist(page: Page, lines: list[TextLine]) -> tuple[str | None,
     return line_text(title_line), artist
 
 
+# Titles of song pages printed to PDF from the web (the PDF keeps the page title; Windows'
+# "Print to PDF" turns the characters a file name cannot have, such as " and |, into _).
+_SITE_TITLES = (
+    # "_NIGHTFALL_ Tab by Varia _ Songsterr Tabs with Rhythm", "Song Bass Tab by Artist | Songsterr"
+    re.compile(
+        r"^[\s_\"'“”]*(?P<t>.+?)[\s_\"'“”]*\s+(?:\w+\s+)?(?:Tab|Tabs|Chords)\s+by\s+(?P<a>.+?)\s*[_|]\s*Songsterr",
+        re.IGNORECASE,
+    ),
+    # "OFFICIAL YOURE A GOD CHORDS & TABS by Vertical Horizon @ Ultimate-Guitar.Com"
+    re.compile(
+        r"^(?:OFFICIAL\s+)?(?P<t>.+?)\s+(?:CHORDS\s*&\s*TABS|CHORDS|TABS?|BASS\s+TABS?|PRO)\s+(?:\(ver\s*\d+\)\s+)?"
+        r"by\s+(?P<a>.+?)\s*@\s*Ultimate[- ]Guitar",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _site_title(text: str) -> tuple[str, str] | None:
+    for pattern in _SITE_TITLES:
+        match = pattern.search(text)
+        if match:
+            return match.group("t").strip(), match.group("a").strip()
+    return None
+
+
 def detect_metadata(pages: list[Page], info: dict[str, str] | None = None) -> SongMetadata:
     if not pages:
         return SongMetadata()
@@ -180,8 +205,12 @@ def detect_metadata(pages: list[Page], info: dict[str, str] | None = None) -> So
 
     visual_title, visual_artist = _visual_title_artist(page, lines)
     info = info or {}
-    title = labelled.get("title") or visual_title or info.get("Title")
-    artist = labelled.get("artist") or visual_artist or info.get("Author")
+    # A web page printed to PDF: its title names the song and the artist ("… Tab by Varia |
+    # Songsterr…"); the Author is then the computer's user, not the artist.
+    site = _site_title(info.get("Title") or "")
+    title = labelled.get("title") or visual_title or (site[0] if site else info.get("Title"))
+    artist = labelled.get("artist") or visual_artist or (site[1] if site else info.get("Author"))
+    title = title.strip().strip("\"'“”‘’«»_").strip() if title else title
     signature = _detect_time_signature(page)
     return SongMetadata(
         tuning_labels=_detect_tuning(texts),
@@ -200,6 +229,10 @@ _PART_NAME = re.compile(
 )
 
 
+# Songsterr's part line under the title: "Track: Rhythm Guitar (retranscribed) - Distortion Guitar".
+_TRACK_LINE = re.compile(r"^\s*Track\s*:\s*(?P<v>.+?)(?:\s*\(|\s+-\s+|$)", re.IGNORECASE)
+
+
 def detect_part_name(pages: list[Page], metadata: SongMetadata) -> str | None:
     """Instrument/part label printed near the top of page 1 (e.g. "Electric Guitar", "Bass")."""
     if not pages:
@@ -209,6 +242,9 @@ def detect_part_name(pages: list[Page], metadata: SongMetadata) -> str | None:
         if line.top > 0.3 * page.height:
             break
         text = line_text(line)
+        track = _TRACK_LINE.match(text)
+        if track and track.group("v").strip():
+            return track.group("v").strip()[:40]
         if text in (metadata.title, metadata.artist) or len(text) > 40:
             continue
         match = _PART_NAME.search(text)

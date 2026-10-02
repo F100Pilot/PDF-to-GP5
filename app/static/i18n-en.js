@@ -437,5 +437,7 @@
  "Instalação concluída.": "Installation finished.",
  "Não foi possível guardar a chave.": "Could not save the key.",
  "Não foi possível instalar (sem ligação ao servidor).": "Could not install (no connection to the server).",
- "Tabs em imagem (OCR)": "Tabs in images (OCR)"
+ "Tabs em imagem (OCR)": "Tabs in images (OCR)",
+ "Progresso da análise": "Analysis progress",
+ "Progresso da conversão": "Conversion progress"
 };

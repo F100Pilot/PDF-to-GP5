@@ -7,6 +7,7 @@ import dataclasses
 import itertools
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .extract.ascii_tab import extract_ascii_systems
@@ -88,12 +89,18 @@ class _ParsedPdf:
     warnings: list[str] = field(default_factory=list)
 
 
+def _drawn_lines(page: Page) -> bool:
+    """The page has lines drawn across it, enough for a staff."""
+    return sum(segment.is_horizontal for segment in page.segments) >= 4
+
+
 def _read(pdf: bytes, options: ConversionOptions) -> tuple[list[Page], dict[str, str]]:
     try:
         pages, info = read_document(pdf, options.max_pages)
     except PdfReadError as exc:
         raise ConversionError(str(exc)) from exc
-    if not any(page.chars or page.images for page in pages):
+    # text, pictures, or drawn staff lines (text printed as outlines is read by OCR, see _parse_pdf)
+    if not any(page.chars or page.images or _drawn_lines(page) for page in pages):
         raise ConversionError(
             tr(
                 "O PDF não contém texto nem imagens: não há tablatura para ler.",
@@ -104,6 +111,25 @@ def _read(pdf: bytes, options: ConversionOptions) -> tuple[list[Page], dict[str,
 
 
 # Shown once per track read from a picture.
+# Progress of the file being read (0…1), for the page's progress bar: set by the worker process
+# (sandbox.py), which passes it on to the server. None: nobody is listening.
+_progress: Callable[[float], None] | None = None
+
+
+def set_progress(callback: Callable[[float], None] | None) -> None:
+    global _progress
+    _progress = callback
+
+
+def _report(fraction: float) -> None:
+    if _progress is not None:
+        _progress(min(max(fraction, 0.0), 1.0))
+
+
+# A page read as a picture (OCR) takes about this many times as long as one read as text.
+_PICTURE_WEIGHT = 8
+
+
 def _image_warning() -> str:
     return tr(
         "Tablatura lida de uma imagem (OCR): confira as notas. O ritmo é lido das hastes, barras e pausas quando "
@@ -151,9 +177,11 @@ def _check_picture_count(count: int, options: ConversionOptions) -> None:
         )
 
 
-def _parse_pdf(pdf: bytes, options: ConversionOptions, frets: bool = True) -> _ParsedPdf:
+def _parse_pdf(
+    pdf: bytes, options: ConversionOptions, frets: bool = True, progress: Callable[[float], None] = _report
+) -> _ParsedPdf:
     """Tab systems, metadata and part name of one file. Without ``frets`` (inspect) pictures are
-    read only for their staves and heading."""
+    read only for their staves and heading. ``progress`` gets how much of the file is read (0…1)."""
     warnings: list[str] = []
     systems: list[TabSystem] = []
     heading = None  # the text read above the first staff of a PDF's page 1 when it is a picture
@@ -168,22 +196,30 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions, frets: bool = True) -> _P
     else:
         pages, info = _read(pdf, options)
         metadata_pages = pages
-        pictures: list[int] = []  # pages with neither text nor engraved tab, but an image: OCR
+        # Pages read as pictures (OCR): no tab with notes found in their text, and either an image
+        # (a print saved as PDF, a scan) or drawings with no text at all ("Microsoft Print to PDF"
+        # of a web page such as Songsterr writes the numbers and words as outlines, not text).
+        pictures: list[int] = []
         for index, page in enumerate(pages):
             ascii_systems, page_warnings = extract_ascii_systems(page)
             warnings.extend(page_warnings)
             found = ascii_systems or extract_engraved_systems(page)
-            systems.extend(found)
-            if not found and page.images:
+            outlines = not page.chars and _drawn_lines(page)
+            if not any(system.events for system in found) and (page.images or outlines):
                 pictures.append(index)
+            else:
+                systems.extend(found)
         _check_picture_count(len(pictures), options)
-        for index in pictures:
+        steps = len(pages) + _PICTURE_WEIGHT * len(pictures)
+        progress(len(pages) / steps if steps else 1.0)
+        for done, index in enumerate(pictures, start=1):
             try:
                 picture, page_heading = read_pdf_page(pdf, index, heading=index == 0, frets=frets)
             except PdfReadError as exc:
                 raise ConversionError(str(exc)) from exc
             systems.extend(_image_systems(picture))
             heading = heading or page_heading
+            progress((len(pages) + _PICTURE_WEIGHT * done) / steps)
         systems.sort(key=lambda system: system.page)  # pictures read last; stable within a page
     if not systems:
         raise ConversionError(
@@ -205,7 +241,8 @@ def _parse_pdf(pdf: bytes, options: ConversionOptions, frets: bool = True) -> _P
         # signature, drawn in the picture) comes from the text read in the picture, and only
         # then from the file's properties (a printed web page's title there is the page's)
         metadata = _fill_in(detect_metadata(metadata_pages, {}), detect_metadata([heading], info))
-    return _ParsedPdf(systems, metadata, detect_part_name(metadata_pages, metadata), warnings)
+    part = detect_part_name(metadata_pages, metadata) or (detect_part_name([heading], metadata) if heading else None)
+    return _ParsedPdf(systems, metadata, part, warnings)
 
 
 def _merge_metadata(items: list[SongMetadata]) -> SongMetadata:
@@ -756,7 +793,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
     parsed: list[_ParsedPdf] = []
     for index, pdf in enumerate(pdfs):
         try:
-            parsed.append(_parse_pdf(pdf, options))
+            # reading is nearly all the time; building the tracks takes the last 5 %
+            parsed.append(_parse_pdf(pdf, options, progress=lambda f, i=index: _report(0.95 * (i + f) / len(pdfs))))
         except ConversionError as exc:
             raise ConversionError(labelled(index, str(exc))) from exc
 

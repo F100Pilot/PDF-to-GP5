@@ -7,6 +7,9 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Barra de progresso ao analisar cada ficheiro e ao converter (com a percentagem): o servidor conta as páginas lidas, e as lidas por OCR pesam mais.
+- PDFs do Songsterr impressos com "Microsoft Print to PDF" (o texto vem desenhado como contornos, não como texto): as páginas passam a ser lidas por OCR. Na "Nightfall" (Varia): título, artista, BPM, compasso, afinação (C G D# A# F A#, das letras à esquerda da pauta), nome da parte ("Rhythm Guitar", da linha "Track: …"), os 104 compassos e o ritmo desenhado em 82 dos 91 compassos com notas.
+- Título e artista de uma página web impressa em PDF, a partir do título do PDF ("… Tab by Varia | Songsterr…", "… by Artista @ Ultimate-Guitar.Com"), em vez do autor do PDF, que aí é o utilizador do computador.
 - Definições → Estado do servidor: o que falta tem um botão para resolver. "Instalar" instala os pacotes Python em falta (OCR, yt-dlp, FFmpeg, Deno) no ambiente da aplicação, como o start.bat, sem administrador, e mostra o erro do pip se falhar; "Configurar chave" guarda a chave da API do YouTube para a pesquisa automática do vídeo. Nova linha "Tabs em imagem (OCR)".
 - O Deno (runtime JavaScript de que o YouTube precisa) passa a ser instalado com as outras dependências (pacote oficial `deno` do PyPI), sem winget nem administrador.
 - Biblioteca: exportar e importar músicas para a biblioteca de outro computador. "Exportar…" deixa escolher as músicas e guarda-as num ZIP com o GP5, a capa e as definições de cada música (início do compasso 1 no áudio, tempo, vídeo do YouTube), sem o áudio. "Importar…" deixa escolher as músicas do ZIP; as que já existem mostram as duas datas e qual é a mais recente, e só são substituídas se assim escolher (o áudio que já lá estava fica).
@@ -24,6 +27,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido
+- Tabs em imagem: pautas em que um acorde tapa todas as cordas (Songsterr) ou em que ligaduras tapam o início ou o fim das linhas eram lidas com 4 ou 5 cordas e ignoradas; letras à esquerda da pauta eram lidas como trastes; uma coluna de parêntesis junto a uma barra era lida como mudança de compasso (8/8). Tempo limite da conversão de 30 para 120 s por ficheiro (300 s no total): um PDF de 10 páginas lidas por OCR demora cerca de 40 s.
 - Instalação em Python 3.13 ou mais recente (por exemplo o da Microsoft Store): falhava com "No matching distribution found for rapidocr-onnxruntime", porque o pacote do OCR declara que só aceita Python até 3.12. Funciona nas versões mais recentes (os testes todos passam no 3.13), por isso passa a ser instalado à parte (`requirements-ocr.txt`, com `--no-deps --ignore-requires-python`), com as dependências dele no `requirements.txt`. Se esse passo falhar, a aplicação arranca na mesma, sem ler imagens.
 - Mudar de idioma com uma música convertida aberta apagava tudo (a página recarrega): a música é reaberta da biblioteca, na mesma página. Os avisos do relatório escritos pelo servidor ficam no idioma em que a conversão foi feita.
 - Ritmo de pautas impressas muito juntas: uma pauta podia ficar com as hastes da pauta de cima (que chegam a menos de 3 espaços dela) quando estas eram mais do que as suas.

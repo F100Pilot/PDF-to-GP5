@@ -515,3 +515,16 @@ def test_tie_arcs_reaching_parenthesized_notes():
     ]
     _tie_arrivals(events, staff, curves, 7.0)
     assert (tied.tie_arc, ghost.tie_arc, first_on_line.tie_arc) == (True, False, True)
+
+
+def test_song_and_artist_from_the_title_of_a_printed_web_page():
+    from app.extract.metadata import detect_metadata
+    from app.extract.pdf_reader import Page
+
+    page = Page(0, 595, 842, [], [])
+    info = {"Title": "_NIGHTFALL_ Tab by Varia _ Songsterr Tabs with Rhythm", "Author": "Paulo"}
+    meta = detect_metadata([page], info)
+    assert (meta.title, meta.artist) == ("NIGHTFALL", "Varia")  # not the computer's user
+    info = {"Title": "OFFICIAL YOURE A GOD CHORDS & TABS by Vertical Horizon @ Ultimate-Guitar.Com"}
+    assert detect_metadata([page], info).artist == "Vertical Horizon"
+    assert detect_metadata([page], {"Title": "My Song", "Author": "Me"}).artist == "Me"

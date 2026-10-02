@@ -171,7 +171,18 @@
       info.className = "hint";
       if (track.error) info.textContent = track.error;
       else if (track.info) info.textContent = T("{n} cordas · {tuning}", { n: track.info.strings, tuning: TUNING_LABELS[track.info.tuning] || track.info.tuning });
-      else info.textContent = T("A analisar…");
+      else {
+        info.textContent = T("A analisar…");
+        if (track.inspecting) { // the file being read now: its progress
+          const bar = document.createElement("progress");
+          bar.className = "job-progress";
+          bar.max = 100;
+          bar.value = track.progress || 0;
+          bar.setAttribute("aria-label", T("Progresso da análise"));
+          track.bar = bar;
+          info.append(" ", bar);
+        }
+      }
       const actions = document.createElement("span");
       actions.className = "track-actions";
       actions.append(
@@ -230,10 +241,34 @@
     return parts.filter((p) => !known.has(normalize(p))).join(" - ").slice(0, 40);
   }
 
-  async function inspectOne(file) {
+  // Progress of a job on the server, for the progress bars: the request carries a random id and
+  // the page polls /api/progress/{id} until it is answered. Returns the function that stops it.
+  function newProgressId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function watchProgress(id, onPercent) {
+    let stopped = false;
+    (async () => {
+      while (!stopped) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (stopped) break;
+        try {
+          const { percent } = await (await fetch(`/api/progress/${id}`)).json();
+          if (!stopped && typeof percent === "number") onPercent(percent);
+        } catch { /* the next poll may answer */ }
+      }
+    })();
+    return () => { stopped = true; };
+  }
+
+  async function inspectOne(file, onPercent) {
     const body = new FormData();
     body.append("file", file);
-    const response = await fetch("/api/inspect", { method: "POST", body });
+    const id = newProgressId();
+    const stop = watchProgress(id, onPercent);
+    const response = await fetch("/api/inspect", { method: "POST", body, headers: { "X-Progress-Id": id } }).finally(stop);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : T("Não foi possível analisar."));
     return payload;
@@ -276,8 +311,13 @@
     inspectStatus.textContent = T("A analisar os PDFs…");
     const detected = {};
     for (const track of [...tracks]) { // one at a time: the server limits concurrent jobs
+      track.inspecting = true;
+      renderTracks();
       try {
-        const info = await inspectOne(track.file);
+        const info = await inspectOne(track.file, (percent) => {
+          track.progress = percent;
+          if (track.bar) track.bar.value = percent;
+        });
         if (token !== inspection) return;
         track.info = info;
         if (!track.name && info.part_name) track.name = info.part_name;
@@ -288,6 +328,7 @@
         if (token !== inspection) return;
         track.error = error instanceof Error ? error.message : T("Não foi possível analisar.");
       }
+      track.inspecting = false;
       renderTracks();
     }
     if (token !== inspection) return;
@@ -516,9 +557,21 @@
     submit.disabled = true;
     result.hidden = true;
     if (window.ScoreView) window.ScoreView.hide();
-    showStatus(tracks.length > 1 ? T("A converter {n} tracks…", { n: tracks.length }) : T("A converter…"), false);
+    const working = tracks.length > 1 ? T("A converter {n} tracks…", { n: tracks.length }) : T("A converter…");
+    showStatus(working, false);
+    const bar = document.getElementById("convert-progress");
+    bar.value = 0;
+    bar.hidden = false;
+    const id = newProgressId();
+    const stop = watchProgress(id, (percent) => {
+      bar.value = percent;
+      status.textContent = `${working} ${percent} %`;
+    });
     try {
-      const response = await fetch("/api/convert", { method: "POST", body });
+      const response = await fetch("/api/convert", { method: "POST", body, headers: { "X-Progress-Id": id } }).finally(() => {
+        stop();
+        bar.hidden = true;
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(typeof payload.detail === "string" ? payload.detail : T("Pedido inválido."));

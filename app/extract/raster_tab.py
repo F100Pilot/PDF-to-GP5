@@ -114,8 +114,13 @@ def _staff_lines(dark, cv2, np) -> list[tuple[float, int, int, int, int]]:
     opened = cv2.morphologyEx(dark.astype(np.uint8), cv2.MORPH_OPEN, kernel)
     rows = opened.sum(axis=1)
     lines: list[list[int]] = []
+    long_piece = max(8, w // 100)  # longer than a stroke of a letter beside the staff (a tuning label)
     for y in np.where(rows >= w * 0.10)[0]:
         xs = np.where(opened[y])[0]
+        edges = np.flatnonzero(np.diff(np.concatenate(([0], opened[y].astype(np.int8), [0]))))
+        pieces = [(a, b) for a, b in zip(edges[::2], edges[1::2], strict=True) if b - a >= long_piece]
+        if pieces:  # the line starts at its first long piece (pieces between digits can be short)
+            xs = xs[xs >= pieces[0][0]]
         if rows[y] / (xs[-1] - xs[0] + 1) < 0.55:
             continue
         if lines and y - lines[-1][1] <= 1:
@@ -128,21 +133,49 @@ def _staff_lines(dark, cv2, np) -> list[tuple[float, int, int, int, int]]:
 
 
 def _complete(lines, dark, np):
-    """Add a line missing at the edge of an equally spaced group (covered by many digits),
-    testing the expected row with a looser rule."""
+    """Add lines missing at the edge of an equally spaced group (covered by many digits: a chord
+    on every string, as Songsterr prints), testing the expected row with a looser rule. Repeated
+    while it finds more, since several lines in a row can be missing."""
     if len(lines) < 4:
         return lines
     spacing = float(np.median(np.diff([line[0] for line in lines])))
-    out = list(lines)
-    for y0, _, _, x0, x1 in lines:
-        for y in (y0 - spacing, y0 + spacing):
-            if any(abs(o[0] - y) < spacing * 0.3 for o in out) or not 1 <= y < dark.shape[0] - 2:
-                continue
-            if not any(abs(o[0] - (2 * y0 - y)) < 2 for o in out):  # a neighbour on the other side
-                continue
-            if dark[int(y) - 1 : int(y) + 2, x0:x1].any(axis=0).mean() >= 0.55:
-                out.append((y, int(y), int(y), x0, x1))
-    return sorted(out)
+    out = sorted(lines)
+    for _ in range(4):
+        added = []
+        replaced = set()
+        for y0, _, _, x0, x1 in out:
+            for y in (y0 - spacing, y0 + spacing):
+                if not 1 <= y < dark.shape[0] - 2 or any(abs(o[0] - y) < spacing * 0.3 for o in added):
+                    continue
+                there = [o for o in out if abs(o[0] - y) < spacing * 0.3]
+                # a line found there already, unless only a part of it (a bar where a chord covers
+                # every string): then it is tested at the neighbour's width and widened
+                if there and (there[0][4] - there[0][3] >= 0.9 * (x1 - x0) or there[0] in replaced):
+                    continue
+                if not any(abs(o[0] - (2 * y0 - y)) < 2 for o in out):  # a neighbour on the other side
+                    continue
+                # a nearly solid line, or its pieces with digits on it: the digits, taller than the
+                # line, add ink around the row; a dashed "let ring" line beside the staff adds none
+                reach = max(2, round(0.35 * spacing))
+                row = dark[int(y) - 1 : int(y) + 2, x0:x1].any(axis=0).mean()
+                band = dark[max(0, int(y) - reach) : int(y) + reach + 1, x0:x1].any(axis=0).mean()
+                if row >= 0.8 or (row >= 0.35 and band >= row + 0.05):
+                    if there:
+                        replaced.add(there[0])
+                        y = there[0][0]
+                    added.append((y, int(y), int(y), x0, x1))
+        if not added:
+            break
+        out = sorted([o for o in out if o not in replaced] + added)
+    return out
+
+
+def _same_extent(line, other, step: float) -> bool:
+    """Two lines of the same staff: one end at the same place, the other within a few spaces
+    (ties hanging over from the line before, or on to the next, cover the start or the end of
+    the outer lines in Songsterr)."""
+    start, end = abs(line[3] - other[3]), abs(line[4] - other[4])
+    return (start <= step and end <= 8 * step) or (end <= step and start <= 8 * step)
 
 
 def _staves(lines):
@@ -168,9 +201,7 @@ def _staves(lines):
                 near = [
                     m
                     for m in range(last + 1, len(lines))
-                    if abs(ys[m] - want) <= max(1.5, step * 0.08)
-                    and abs(lines[m][3] - top[3]) <= step
-                    and abs(lines[m][4] - top[4]) <= step
+                    if abs(ys[m] - want) <= max(1.5, step * 0.08) and _same_extent(lines[m], top, step)
                 ]
                 if not near:
                     break
@@ -200,8 +231,7 @@ def _extend(group: list[int], lines, ys, used: set[int]) -> None:
             if m not in used
             and m not in group
             and abs(ys[m] - want) <= max(1.5, step * 0.08)
-            and abs(lines[m][3] - lines[edge][3]) <= step
-            and abs(lines[m][4] - lines[edge][4]) <= step
+            and _same_extent(lines[m], lines[edge], step)
         ]
         if near:
             group.append(min(near, key=lambda m: abs(ys[m] - want)))
@@ -320,7 +350,8 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         bars.append([])
         x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
         for y, a, b, lx0, lx1 in group:
-            segments.append(Segment(lx0 * k, lx1 * k, y * k, y * k))
+            # the staff's whole width: an outer line's start can be hidden (see _same_extent)
+            segments.append(Segment(x0 * k, x1 * k, y * k, y * k))
             on_line[a - 1 : b + 2, lx0 : lx1 + 1] |= long_runs[a - 1 : b + 2, lx0 : lx1 + 1]
         top, bottom = group[0][0], group[-1][0]
         ya, yb = round(top), round(bottom)
@@ -339,7 +370,8 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
     chars = _frets(glyph, groups, spacing, k) if frets else []
     signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
     numbers = _bar_numbers(gray, dark, groups, bars, spacing, k) if frets else []
-    page = Page(number, width * k, height * k, chars + signatures + numbers, segments)
+    labels = _tuning_labels(dark, groups, spacing, k)  # also when inspecting: the form shows the tuning
+    page = Page(number, width * k, height * k, chars + signatures + numbers + labels, segments)
     if frets:
         stems, shapes, flags = _rhythm(dark, groups, spacing, k)
         page.segments.extend(stems)
@@ -375,13 +407,20 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
     count, _, stats, _ = cv2.connectedComponentsWithStats(glyph.astype(np.uint8), connectivity=8)
     line_ys = [line[0] for group in groups for line in group]
     line_rows = {line[0]: (line[1], line[2]) for group in groups for line in group}
+    # the staff's width, per line: a letter left of the staff (a tuning label) is not a fret
+    line_span = {
+        line[0]: (min(other[3] for other in group), max(other[4] for other in group))
+        for group in groups
+        for line in group
+    }
     candidates = []  # digit-sized blobs centred on a staff line: (x, y, w, h, line y)
     for x, y, w, h, area in _split_chords(stats[1:count], line_ys, spacing):
         # a digit is taller than wide (a wide blob is a rest or a beam)
         if area < 4 or not (0.45 * spacing <= h <= 1.25 * spacing and w <= 1.6 * spacing and w <= h):
             continue
         line_y = min(line_ys, key=lambda ly, yc=y + h / 2: abs(ly - yc))
-        if abs(line_y - (y + h / 2)) <= 0.4 * spacing:
+        start, end = line_span[line_y]
+        if abs(line_y - (y + h / 2)) <= 0.4 * spacing and x + w > start and x < end:
             candidates.append((int(x), int(y), int(w), int(h), line_y))
     candidates.sort(key=lambda c: (c[4], c[0]))
     numbers: list[list[tuple[int, int, int, int, float]]] = []  # neighbouring blobs: one number
@@ -442,6 +481,46 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
                     bx, _, bw, _, _ = bracket
                     chars.append(Char(symbol, bx * k, (bx + bw) * k, gy0 * k, gy1 * k))
     return chars
+
+
+def _tuning_labels(dark, groups, spacing: float, k: float) -> list[Char]:
+    """The note names printed left of a staff, one per string ("E A D G B E", Songsterr's
+    "C G D# A# F A#"), as characters left of each line: the tab reader takes them for the tuning
+    when every string has one. A staff with nothing there (all but the first, usually) costs no
+    reading."""
+    cv2, np = _cv()
+    out: list[Char] = []
+    for group in groups:
+        x0 = min(line[3] for line in group)  # the staff's start (see _read_page)
+        left = max(0, x0 - round(5 * spacing))
+        if x0 - left < spacing:
+            continue
+        boxes = []
+        for line in group:
+            y = line[0]
+            top, bottom = max(0, round(y - 0.5 * spacing)), round(y + 0.5 * spacing)
+            region = dark[top:bottom, left : x0 - 2]
+            cols = np.flatnonzero(region.any(axis=0))
+            rows = np.flatnonzero(region.any(axis=1))
+            if not len(cols) or len(rows) < 0.3 * spacing:
+                break
+            boxes.append((left + int(cols[0]), left + int(cols[-1]) + 1, top + int(rows[0]), top + int(rows[-1]) + 1))
+        if len(boxes) != len(group):
+            continue
+        crops = []
+        for bx0, bx1, by0, by1 in boxes:
+            pad = round(spacing * 0.3)
+            crop = np.full((by1 - by0 + 2 * pad, bx1 - bx0 + 2 * pad), 255, np.uint8)
+            crop[pad : pad + by1 - by0, pad : pad + bx1 - bx0][dark[by0:by1, bx0:bx1]] = 0
+            crop = cv2.resize(crop, None, fx=48 / crop.shape[0], fy=48 / crop.shape[0], interpolation=cv2.INTER_AREA)
+            crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
+        texts = _recognize(crops, "ABCDEFGabcdefg#")
+        if not all(texts) or any(t[0].upper() not in "ABCDEFG" for t in texts):
+            continue
+        for (bx0, bx1, by0, by1), text in zip(boxes, texts, strict=True):
+            name = text[0].upper() + text[1:2].replace("B", "b")
+            out.append(Char(name, bx0 * k, bx1 * k, by0 * k, by1 * k))
+    return out
 
 
 # SMuFL flags by how many there are on a stem (8th, 16th, 32nd), as music fonts write them.
@@ -644,16 +723,21 @@ def _alone(zone, column: int, a: int, b: int, below: bool, spacing: float) -> bo
     either side) are left out."""
     _, np = _cv()
     margin, reach = round(spacing / 4), round(spacing / 2)
-    sides = [c for c in (column - 3, column - 2, column + 2, column + 3) if 0 <= c < zone.shape[1]]
+    half = (a + b) // 2
+    # the stem's own columns at its middle (a thick one, 3 px in a Songsterr print, included)
+    left = right = column
+    while left > 0 and zone[half, left - 1] and column - left < 3:
+        left -= 1
+    while right < zone.shape[1] - 1 and zone[half, right + 1] and right - column < 3:
+        right += 1
+    sides = [c for c in (left - 3, left - 2, right + 2, right + 3) if 0 <= c < zone.shape[1]]
     if not sides:
         return True
-    half = (a + b) // 2
     start, stop = (a + margin, half) if below else (half, b - margin)
     rows = [
         r
         for r in range(start, max(start + 1, stop))
-        if not zone[r, max(0, column - 1 - reach) : column - 1].all()
-        and not zone[r, column + 2 : column + 2 + reach].all()
+        if not zone[r, max(0, left - reach) : left].all() and not zone[r, right + 1 : right + 1 + reach].all()
     ]
     return not rows or zone[np.ix_(rows, sides)].mean() < 0.15
 
@@ -989,6 +1073,12 @@ def _time_signatures(gray, glyph, groups, bars: list[list[float]], spacing: floa
         read = _read_digits(crops)
         n = len(_SIGNATURE_MARGINS)
         texts = [_vote(read[i : i + n]) for i in range(0, len(read), n)]
+        # read freely too: digits only makes a digit of anything (a column of parentheses round a
+        # chord's notes, in Songsterr, came out as 8/8); a real one is a digit either way
+        free = _recognize(crops[::n])
+        texts = [
+            text if any(ch.isdigit() for ch in _clean(other)) else "" for text, other in zip(texts, free, strict=True)
+        ]
         for i in range(0, len(texts) - 1, 2):
             numerator, denominator = texts[i], texts[i + 1]
             if not (numerator.isdigit() and denominator.isdigit()):

@@ -445,7 +445,26 @@ async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
     return pdfs
 
 
-async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> ConversionResult:
+# Progress of the jobs running now, by the id the page sends in X-Progress-Id (a random UUID it
+# makes per request), polled by the page at /api/progress/{id} for its progress bar.
+_job_progress: dict[str, int] = {}
+_PROGRESS_ID = re.compile(r"[0-9a-f-]{8,64}")
+
+
+def _progress_id(request: Request) -> str | None:
+    value = request.headers.get("x-progress-id", "").lower()
+    return value if _PROGRESS_ID.fullmatch(value) else None
+
+
+@app.get("/api/progress/{progress_id}")
+async def job_progress(progress_id: str) -> dict:
+    """Percent done of a running job (null when it is not running: not started, or finished)."""
+    return {"percent": _job_progress.get(progress_id.lower())}
+
+
+async def _run_job(
+    pdfs: list[bytes], options: ConversionOptions, job: str, progress_id: str | None = None
+) -> ConversionResult:
     if _slots.locked():
         raise HTTPException(
             status_code=503,
@@ -454,9 +473,18 @@ async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> C
     # One budget per request, however many PDFs it carries, so a slow upload
     # cannot hold a worker slot for minutes.
     timeout = min(settings.conversion_timeout_s * len(pdfs), settings.max_job_timeout_s)
+    on_progress = None
+    if progress_id is not None and len(_job_progress) < 100:
+        _job_progress[progress_id] = 0
+
+        def on_progress(percent: int) -> None:
+            _job_progress[progress_id] = percent
+
     async with _slots:
         try:
-            return await run_in_threadpool(run_isolated, pdfs, options, timeout, settings.worker_memory_mb, job)
+            return await run_in_threadpool(
+                run_isolated, pdfs, options, timeout, settings.worker_memory_mb, job, on_progress
+            )
         except ConversionUnavailable:
             raise HTTPException(
                 status_code=503,
@@ -471,11 +499,14 @@ async def _run_job(pdfs: list[bytes], options: ConversionOptions, job: str) -> C
             ) from None
         except ConversionError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        finally:
+            if progress_id is not None:
+                _job_progress.pop(progress_id, None)
 
 
 async def _run_conversion(request: Request, files: list[UploadFile], form: ConvertForm) -> ConversionResult:
     options = _options(form, [f.filename or "" for f in files])
-    return await _run_job(await _read_pdfs(files), options, "convert")
+    return await _run_job(await _read_pdfs(files), options, "convert", _progress_id(request))
 
 
 def _download_name(result: ConversionResult, files: list[UploadFile]) -> str:
@@ -498,7 +529,7 @@ async def inspect_pdf(request: Request, file: FileField) -> JSONResponse:
         max_events=settings.max_events,
         max_measures=settings.max_measures,
     )
-    result = await _run_job(await _read_pdfs([file]), options, "inspect")
+    result = await _run_job(await _read_pdfs([file]), options, "inspect", _progress_id(request))
     return JSONResponse(result.report)
 
 

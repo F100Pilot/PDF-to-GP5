@@ -13,10 +13,12 @@ import json
 import logging
 import multiprocessing as mp
 import sys
+import time
+from collections.abc import Callable
 from multiprocessing.connection import Connection
 
 from . import i18n
-from .converter import ConversionError, ConversionOptions, ConversionResult, convert_many, inspect
+from .converter import ConversionError, ConversionOptions, ConversionResult, convert_many, inspect, set_progress
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +140,15 @@ def _worker(
     lang: str = i18n.DEFAULT,
 ) -> None:
     i18n.use(lang)  # the child writes its warnings and errors in the user's language
+    sent = [-1]
+
+    def progress(fraction: float) -> None:  # whole percents only, each once
+        percent = int(fraction * 100)
+        if percent > sent[0]:
+            sent[0] = percent
+            _reply(conn, status="progress", percent=percent)
+
+    set_progress(progress)
     try:
         _limit_resources(memory_mb, cpu_seconds)
         if job == "inspect":
@@ -159,7 +170,22 @@ def _worker(
         logger.exception("conversion failed")
         _reply(conn, status="error", message=generic_error())
     finally:
+        set_progress(None)
         conn.close()
+
+
+def _progress_of(raw: bytes) -> int | None:
+    """The percent of a progress message from the child; None for any other message."""
+    if len(raw) > 100:
+        return None
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or payload.get("status") != "progress":
+        return None
+    percent = payload.get("percent")
+    return min(max(percent, 0), 100) if isinstance(percent, int) and not isinstance(percent, bool) else 0
 
 
 def _decode_reply(raw: bytes) -> ConversionResult:
@@ -177,11 +203,17 @@ def _decode_reply(raw: bytes) -> ConversionResult:
 
 
 def run_isolated(
-    pdfs: bytes | list[bytes], options: ConversionOptions, timeout_s: int, memory_mb: int, job: str = "convert"
+    pdfs: bytes | list[bytes],
+    options: ConversionOptions,
+    timeout_s: int,
+    memory_mb: int,
+    job: str = "convert",
+    on_progress: Callable[[int], None] | None = None,
 ) -> ConversionResult:
     """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5.
 
-    ``pdfs`` is one PDF per track (inspect uses the first).
+    ``pdfs`` is one PDF per track (inspect uses the first). ``on_progress`` gets the percent of
+    the job done, as the child reports it.
     """
     if job not in ("convert", "inspect"):
         raise ValueError(f"unknown job {job!r}")
@@ -201,13 +233,21 @@ def run_isolated(
         raise ConversionUnavailable() from exc
     sender.close()
     windows_job = _windows_job(process, memory_mb)
+    deadline = time.monotonic() + timeout_s
     try:
-        if not receiver.poll(timeout_s):
-            raise ConversionTimeout()
-        try:
-            raw = receiver.recv_bytes(MAX_REPLY_BYTES)
-        except (EOFError, OSError) as exc:  # child died or reply too large
-            raise ConversionError(generic_error()) from exc
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not receiver.poll(remaining):
+                raise ConversionTimeout()
+            try:
+                raw = receiver.recv_bytes(MAX_REPLY_BYTES)
+            except (EOFError, OSError) as exc:  # child died or reply too large
+                raise ConversionError(generic_error()) from exc
+            percent = _progress_of(raw)
+            if percent is None:
+                break  # the result (or the error)
+            if on_progress is not None:
+                on_progress(percent)
     finally:
         receiver.close()
         process.join(timeout=1)
