@@ -454,6 +454,7 @@
       showPanel(Boolean(audio));
     },
     hasAudio: () => Boolean(audio),
+    following: () => following(), // the song's audio plays along with the score
     // Delay (+) or advance (−) the score by `seconds` against the audio (keyboard [ and ]).
     nudge(seconds) {
       if (audio) nudgeScore(seconds);

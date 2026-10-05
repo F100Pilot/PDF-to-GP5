@@ -13,6 +13,7 @@
   <script src="highway3d.js" defer></script>
   <script src="video.js" defer></script>
   <script src="gpzip.js" defer></script>
+  <script src="practice.js" defer></script>
   <script src="score.js" defer></script>
   <script src="audio.js" defer></script>
   <script src="app.js" defer></script>
@@ -322,6 +323,11 @@
                   <option value="1.25">125%</option>
                 </select>
               </label>
+              <div class="practice" role="group" aria-label="Prática">
+                <label class="check" title="Um clique em cada tempo, com o acento no primeiro do compasso"><input id="score-metronome" type="checkbox"> Metrónomo</label>
+                <label class="check" title="Um compasso de cliques antes de começar a tocar (não quando o áudio ou o vídeo da música acompanham: começariam um compasso antes da partitura)"><input id="score-count-in" type="checkbox"> Contagem</label>
+                <label class="check" title="Com o loop A–B ligado: cada volta é 5 % mais rápida, desde a velocidade escolhida até 100 %"><input id="score-trainer" type="checkbox"> Acelerar o loop</label>
+              </div>
               <button id="audio-toggle" type="button" class="secondary" aria-pressed="false" aria-controls="audio-panel" title="Mostrar ou esconder o painel do áudio da música" hidden>Mostrar áudio</button>
               <button id="score-loop" type="button" class="secondary" aria-pressed="false" disabled title="Repetir um trecho: carregue no início (A) e depois no fim (B); outra vez para desligar">Loop A–B</button>
             </div>

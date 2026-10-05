@@ -434,6 +434,7 @@
       song.speed = rate;
       send("setPlaybackRate", [rate]);
     },
+    following: () => syncInput.checked && !panel.hidden, // the video plays along with the score
     parseVideo, // also used by audio.js (YouTube links: only the video id is sent to the server)
   };
 })();

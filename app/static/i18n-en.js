@@ -443,5 +443,13 @@
  "Descarregar .{ext}": "Download .{ext}",
  "Não foi possível abrir {name}: não é um ficheiro Guitar Pro que o leitor conheça.": "Could not open {name}: it is not a Guitar Pro file the reader knows.",
  "Tabs de editor (MuseScore, Guitar Pro) ou tabs em texto · um ficheiro Guitar Pro (.gp, .gp5…) abre logo, para tocar": "Tabs from an editor (MuseScore, Guitar Pro) or text-based tabs · a Guitar Pro file (.gp, .gp5…) opens right away, to play",
- "Um ficheiro Guitar Pro abre-se sozinho, sem conversão: escolha só esse ficheiro.": "A Guitar Pro file opens on its own, with no conversion: choose only that file."
+ "Um ficheiro Guitar Pro abre-se sozinho, sem conversão: escolha só esse ficheiro.": "A Guitar Pro file opens on its own, with no conversion: choose only that file.",
+ "Acelerar o loop": "Speed up the loop",
+ "Com o loop A–B ligado: cada volta é 5 % mais rápida, desde a velocidade escolhida até 100 %": "With the A–B loop on: each round is 5 % faster, from the chosen speed up to 100 %",
+ "Contagem": "Count-in",
+ "Loop: volta seguinte a {percent}%.": "Loop: next round at {percent}%.",
+ "Metrónomo": "Metronome",
+ "Prática": "Practice",
+ "Um clique em cada tempo, com o acento no primeiro do compasso": "A click on every beat, accented on the first of the bar",
+ "Um compasso de cliques antes de começar a tocar (não quando o áudio ou o vídeo da música acompanham: começariam um compasso antes da partitura)": "One bar of clicks before playing starts (not when the song's audio or video plays along: they would start a bar before the score)"
 };

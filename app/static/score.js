@@ -27,6 +27,11 @@
   const SEEK_STEPS = Number(seekInput.max);
   const sectionsBar = document.getElementById("score-sections");
   const loopButton = document.getElementById("score-loop");
+  const metronomeInput = document.getElementById("score-metronome");
+  const countInInput = document.getElementById("score-count-in");
+  const trainerInput = document.getElementById("score-trainer");
+  const TRAINER_STEP = 0.05; // each round of the A–B loop this much faster…
+  const TRAINER_TOP = 1; // …up to normal speed
   const LOOP_LABEL = T("Loop A–B");
 
   let loading = null;
@@ -43,6 +48,29 @@
 
   function applySpeed() {
     if (api) api.playbackSpeed = Number(speedSelect.value) * tempoFactor;
+  }
+
+  // The playback speed (0.5 = 50 %), as the Velocidade menu sets it; a speed the menu lacks (the
+  // loop trainer goes up 5 % at a time) is added to it.
+  function setSpeed(value) {
+    const rounded = Math.round(value * 100) / 100;
+    const text = String(rounded);
+    if (![...speedSelect.options].some((option) => Number(option.value) === rounded)) {
+      const option = new Option(`${Math.round(rounded * 100)}%`, text);
+      const after = [...speedSelect.options].find((o) => Number(o.value) > rounded);
+      speedSelect.add(option, after || null);
+    }
+    speedSelect.value = [...speedSelect.options].find((o) => Number(o.value) === rounded).value;
+    speedSelect.dispatchEvent(new Event("change"));
+  }
+
+  // Metronome and count-in (one bar of clicks before playing), as chosen; the count-in only when
+  // neither the song's audio nor its video plays along (they would start a bar before the score).
+  function applyClicks() {
+    if (!api) return;
+    api.metronomeVolume = metronomeInput.checked ? 1 : 0;
+    const along = window.AudioSync.following() || window.VideoSync.following();
+    api.countInVolume = countInInput.checked && !along ? 1 : 0;
   }
 
   // The score's printed tempo (BPM at the start).
@@ -159,6 +187,19 @@
     loopButton.textContent = label;
   }
 
+  // Loop trainer: when the A–B loop jumps back from its end to its start, the next round plays a
+  // step faster, until normal speed.
+  let lastTick = 0;
+  function loopRound(tick) {
+    const range = api && api.isLooping && trainerInput.checked ? api.playbackRange : null;
+    const next = window.Practice.nextLoopSpeed(range, lastTick, tick, Number(speedSelect.value), TRAINER_STEP, TRAINER_TOP);
+    if (next !== null) {
+      setSpeed(next);
+      setStatus(T("Loop: volta seguinte a {percent}%.", { percent: Math.round(next * 100) }));
+    }
+    lastTick = tick;
+  }
+
   function clearLoop() {
     loopStart = null;
     if (api) {
@@ -251,6 +292,7 @@
     api.midiLoad.on(() => buildSections());
     api.scoreLoaded.on((score) => {
       applyVolume();
+      applyClicks();
       tempoFactor = 1;
       applySpeed();
       window.AudioSync.songLoaded(score.tempo, [score.artist, score.title].filter(Boolean).join(" - "));
@@ -262,6 +304,7 @@
       document.dispatchEvent(new CustomEvent("score-loaded"));
     });
     api.playerPositionChanged.on((e) => {
+      loopRound(e.currentTick);
       updateTimeline(e);
       window.Highway3D.setPosition(e.currentTick, e.modifiedTempo, e.isSeek);
       window.VideoSync.position(e.currentTime, api.playbackSpeed, e.isSeek);
@@ -434,7 +477,7 @@
     if (in3D()) showHighway();
     showTrack(Number(highwayTrack.value)); // the same track on the page
   });
-  playButton.addEventListener("click", () => api && api.playPause());
+  playButton.addEventListener("click", playPause);
   seekInput.addEventListener("input", () => {
     dragging = true; // show where the thumb is; seek when it is released
     showTime((Number(seekInput.value) / SEEK_STEPS) * timeline.endTime);
@@ -446,6 +489,18 @@
   window.Highway3D.setSeekHandler(seekTo);
   stopButton.addEventListener("click", () => api && api.stop());
   loopButton.addEventListener("click", toggleLoop);
+  // The practice choices, remembered in this browser.
+  for (const [input, key] of [
+    [metronomeInput, "pdf-to-gp5.metronome"],
+    [countInInput, "pdf-to-gp5.count-in"],
+    [trainerInput, "pdf-to-gp5.loop-trainer"],
+  ]) {
+    try { input.checked = localStorage.getItem(key) === "1"; } catch { /* storage unavailable */ }
+    input.addEventListener("change", () => {
+      try { localStorage.setItem(key, input.checked ? "1" : "0"); } catch { /* storage unavailable */ }
+      applyClicks();
+    });
+  }
   speedSelect.addEventListener("change", () => {
     applySpeed();
     window.VideoSync.speed(Number(speedSelect.value));
@@ -515,7 +570,9 @@
 
   // For the song's audio controls: play / pause the score, restart it at bar 1 (keeps playing).
   function playPause() {
-    if (api && !playButton.disabled) api.playPause();
+    if (!api || playButton.disabled) return;
+    applyClicks();
+    api.playPause();
   }
 
   function restart() {
@@ -605,6 +662,7 @@
     show, hide, exportGp, describe, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
     stop, stepBar, toggleLoop, setView,
     tempoFactor: () => tempoFactor,
+    clicks: () => (api ? { metronome: api.metronomeVolume, countIn: api.countInVolume } : null),
     ready: () => Boolean(api) && !playButton.disabled,
   };
 })();
