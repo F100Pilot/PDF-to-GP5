@@ -41,6 +41,7 @@
   let notice = ""; // message kept on screen after the notation is redrawn (e.g. no WebGL)
   let timedLyrics = null; // complete lyrics from the PDF with their place in the music
   let lastBytes = null; // the converted GP5 file
+  let drawn = false; // the loaded score has been drawn (alphaTab skips drawing while its page is hidden)
   const mutedBy = new Set(); // "video": the score's own sounds are silenced for it
   let notesVolume = 1; // volume of the score's sounds (0…1), set beside the song's audio
   // Tempo the score plays at ÷ its printed tempo, to follow a recording at another tempo.
@@ -285,12 +286,16 @@
     api.error.on((error) => {
       setStatus(T("Erro na partitura: {error}", { error: error && error.message ? error.message : error }));
     });
-    api.renderStarted.on(() => setStatus(T("A desenhar a partitura…")));
+    api.renderStarted.on(() => {
+      drawn = true;
+      setStatus(T("A desenhar a partitura…"));
+    });
     api.renderFinished.on(() => setStatus(notice));
     // midiLoad fires once the playing order (tickCache) is built. Not midiLoaded: subscribing to it
     // recurses forever inside alphaTab 1.8.4 (loadedMidiInfo) and the score never loads.
     api.midiLoad.on(() => buildSections());
     api.scoreLoaded.on((score) => {
+      drawn = false;
       applyVolume();
       applyClicks();
       tempoFactor = 1;
@@ -452,6 +457,12 @@
     api.updateSettings();
     api.render();
   }
+
+  // Converted while another page was showing: alphaTab skipped drawing (no width) and does not always
+  // draw once the page shows. The menu sends "resize" when it shows a page.
+  window.addEventListener("resize", () => {
+    if (api && api.score && !drawn && !in3D() && container.offsetWidth > 0) api.render();
+  });
 
   viewSelect.addEventListener("change", () => {
     if (!in3D()) notationView = viewSelect.value;

@@ -7,6 +7,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Adicionado
+- Manual do utilizador, em português ([`docs/MANUAL.md`](docs/MANUAL.md)) e em inglês ([`docs/MANUAL.en.md`](docs/MANUAL.en.md)), com capturas de ecrã: instalar, converter, tocar e praticar, pista 3D, áudio, vídeo, biblioteca, atalhos, privacidade e resolução de problemas. Ligado no início do README.
 - Leitor: **Metrónomo**, **Contagem** (um compasso antes de começar; desligada quando o áudio ou o vídeo da música acompanham) e **Acelerar o loop** (com o loop A–B, cada volta 5 % mais rápida até 100 %, para treinar um trecho difícil). Ficam lembrados no browser.
 - Abrir um ficheiro Guitar Pro (.gp, .gpx, .gp5, .gp4, .gp3) para tocar, sem converter: na mesma zona dos PDFs, abre logo com o resumo, a partitura, a pista 3D, o áudio e o vídeo, e fica na biblioteca no seu formato (também na exportação para outro computador).
 - Barra de progresso ao analisar cada ficheiro e ao converter (com a percentagem): o servidor conta as páginas lidas, e as lidas por OCR pesam mais.
@@ -29,6 +30,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - O processo de conversão pode usar até 2048 MB (`WORKER_MEMORY_MB`, antes 1024): o OCR precisa de ~1,5 GB de espaço de endereços.
 
 ### Corrigido
+- Tocar: depois de converter, a partitura às vezes ficava em branco ao abrir o leitor (era desenhada com a página escondida e não voltava a ser desenhada). Passa a ser desenhada quando a página aparece.
 - Tabs em imagem: pautas em que um acorde tapa todas as cordas (Songsterr) ou em que ligaduras tapam o início ou o fim das linhas eram lidas com 4 ou 5 cordas e ignoradas; letras à esquerda da pauta eram lidas como trastes; uma coluna de parêntesis junto a uma barra era lida como mudança de compasso (8/8). Tempo limite da conversão: passa a contar desde a última página lida (120 s sem avançar), com um máximo de 15 minutos para o pedido inteiro — num computador mais lento, um PDF de várias páginas lidas por OCR dava "O processamento do PDF excedeu o tempo limite" a meio. A procura de pausas numa imagem ficou mais rápida (~25 % menos por página).
 - Instalação em Python 3.13 ou mais recente (por exemplo o da Microsoft Store): falhava com "No matching distribution found for rapidocr-onnxruntime", porque o pacote do OCR declara que só aceita Python até 3.12. Funciona nas versões mais recentes (os testes todos passam no 3.13), por isso passa a ser instalado à parte (`requirements-ocr.txt`, com `--no-deps --ignore-requires-python`), com as dependências dele no `requirements.txt`. Se esse passo falhar, a aplicação arranca na mesma, sem ler imagens.
 - Mudar de idioma com uma música convertida aberta apagava tudo (a página recarrega): a música é reaberta da biblioteca, na mesma página. Os avisos do relatório escritos pelo servidor ficam no idioma em que a conversão foi feita.

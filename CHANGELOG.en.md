@@ -7,6 +7,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Added
+- User manual, in Portuguese ([`docs/MANUAL.md`](docs/MANUAL.md)) and English ([`docs/MANUAL.en.md`](docs/MANUAL.en.md)), with screenshots: install, convert, play and practise, 3D highway, audio, video, library, shortcuts, privacy and troubleshooting. Linked at the top of the README.
 - Player: **Metronome**, **Count-in** (one bar before playing; off when the song's audio or video plays along) and **Speed up the loop** (with the A–B loop, each round 5 % faster up to 100 %, to train a hard passage). Remembered in the browser.
 - Open a Guitar Pro file (.gp, .gpx, .gp5, .gp4, .gp3) to play it, without converting: in the same place as the PDFs, it opens right away with the summary, the score, the 3D highway, the audio and the video, and is kept in the library in its own format (also when exported to another computer).
 - Progress bar while each file is analysed and while converting (with the percentage): the server counts the pages read, those read by OCR weighing more.
@@ -29,6 +30,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - The conversion process may use up to 2048 MB (`WORKER_MEMORY_MB`, was 1024): OCR needs about 1.5 GB of address space.
 
 ### Fixed
+- Play: after converting, the notation was sometimes blank when the player opened (it was drawn while its page was hidden and not drawn again). It is now drawn when the page shows.
 - Tabs in images: staves where a chord covers every string (Songsterr), or where ties cover the start or end of the lines, were read with 4 or 5 strings and dropped; letters left of the staff were read as frets; a column of parentheses next to a bar line was read as a time signature change (8/8). Conversion time limit: now counted from the last page read (120 s without progress), with at most 15 minutes for the whole request — on a slower computer, a PDF of several pages read by OCR stopped halfway with "Processing the PDF exceeded the time limit". Finding rests in an image is faster (~25 % less per page).
 - Installing on Python 3.13 or later (for example the Microsoft Store one) failed with "No matching distribution found for rapidocr-onnxruntime", because the OCR package declares Python up to 3.12 only. It works on later versions (the whole test suite passes on 3.13), so it is now installed apart (`requirements-ocr.txt`, with `--no-deps --ignore-requires-python`), with its dependencies in `requirements.txt`. If that step fails, the app still starts, without reading images.
 - Switching the language with a converted song open wiped everything (the page reloads): the song is reopened from the library, on the same page. The report's warnings written by the server stay in the language the conversion was made in.

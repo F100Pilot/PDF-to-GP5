@@ -2,6 +2,8 @@
 
 Aplicação web que converte tablaturas em PDF (ou em imagem) para ficheiros **Guitar Pro 5** (`.gp5`).
 
+📖 **Manual do utilizador:** [Português](docs/MANUAL.md) · [English](docs/MANUAL.en.md)
+
 ## Formatos suportados
 
 | Tipo de PDF | Exemplo | Suporte |
