@@ -431,3 +431,154 @@ def test_bends_and_parentheses_are_not_taken_for_slides():
     pdf = engraved_tab_pdf(staves, knockout=True, ranges=[(0, "P.M.", 60, 250)], signatures=[(0, 0, 4, 4)])
     for width in (1000, 1300, 1600):
         assert all(not found for *_, found in _slides(convert(tab_png(pdf, width), ConversionOptions()).gp5))
+
+
+VIBRATO_STAVES = [
+    [[(3, 5, "~"), (2, 8), (4, 7, "~H"), (6, 3)], [(1, 12, "~"), (2, 9, "("), (5, 4), (5, 2, "~")]],
+    [[(4, 9), (4, 7, "~"), (2, 10, "~"), (3, 2)], [(6, 0, "~"), (1, 3), (1, 5, "H"), (2, 1, "~")]],
+]
+
+
+def _vibratos(gp5: bytes) -> list[bool]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        note.effect.vibrato
+        for measure in song.tracks[0].measures
+        for beat in measure.voices[0].beats
+        for note in beat.notes
+        if note.type.name != "tie"
+    ]
+
+
+@pytest.mark.parametrize("width", [1000, 1300, 1600])
+def test_vibrato_in_a_picture_is_read(width):
+    """A wavy line over the staff gives vibrato to the note under it. The factory draws it as a
+    path, which the vector reader does not see (it reads wiggle glyphs), so the expected notes
+    are the ones marked."""
+    pdf = engraved_tab_pdf(VIBRATO_STAVES, knockout=True)
+    marked = [len(note) > 2 and "~" in note[2] for staff in VIBRATO_STAVES for measure in staff for note in measure]
+    assert _vibratos(convert(tab_png(pdf, width), ConversionOptions()).gp5) == marked
+
+
+def test_words_over_the_staff_are_not_vibrato():
+    """Words printed over the staff are not wavy lines, even those whose letters rise and fall
+    as evenly as a wave ("minimum", "mum": stems and arches; bold letters run together)."""
+    words = [
+        (0, 62, "minimum", "Helvetica-Bold", 8),
+        (0, 140, "mum", "Helvetica", 9),
+        (0, 190, "una corda", "Times-Italic", 7),
+        (0, 290, "Chorus", "Helvetica-Bold", 7),
+        (0, 360, "acc.", "Helvetica-BoldOblique", 9),
+        (0, 420, "rit.", "Times-Italic", 9),
+        (1, 62, "nun rumor", "Helvetica-Bold", 9),
+        (1, 200, "wow", "Helvetica-BoldOblique", 8),
+        (1, 300, "Verse 2", "Times-Roman", 8),
+        (1, 400, "uuu", "Helvetica-Bold", 8),
+    ]
+    staves = [[[(3, 5), (2, 8), (4, 7), (6, 3)], [(1, 12), (2, 9), (5, 4), (5, 2)]]] * 2
+    pdf = engraved_tab_pdf(staves, knockout=True, words=words)
+    for width in (1000, 1300, 1600):
+        assert not any(_vibratos(convert(tab_png(pdf, width), ConversionOptions()).gp5))
+
+
+def test_a_wave_is_one_stroke_rising_and_falling_evenly():
+    import numpy as np
+
+    from app.extract.raster_tab import _is_wave
+
+    def art(text):
+        return np.array([[ch == "#" for ch in row] for row in text.split()])
+
+    wave = art(
+        """
+        .###...####...####..####...####
+        #####..#####.#####..#####.#####
+        .#.######.##.##.######.##.##.##
+        ...#####..#####..####..#####...
+        ....###....###...####...###....
+        """
+    )
+    bold_m = art(
+        """
+        ###############.
+        ####.###.###..##
+        ##...##..###..##
+        ##...##..##...##
+        ##...##..##...##
+        ##...##..##...##
+        ##...##..##...##
+        ##...##..##...##
+        """
+    )
+    two_heights = art(  # a "u" and an "o": ink at two heights in some columns
+        """
+        ##..##.#####.##..##.#####.
+        ##..##.##.##.##..##.##.##.
+        ##..##.##.##.##..##.##.##.
+        ######.#####.######.#####.
+        """
+    )
+    run_together = art(  # bold italic letters touching ("acc."): one blob, ink at two heights
+        """
+        #..##..#.####.##.##..#
+        ################.#####
+        ##########..##########
+        .#########..#########.
+        .######.###.#########.
+        .######..#####.######.
+        ..........##..........
+        """
+    )
+    one_zigzag = art(  # a "w": rises and falls, but once
+        """
+        ##........##
+        .##......##.
+        ..##....##..
+        ...##..##...
+        ....####....
+        """
+    )
+    one_hump = art(  # a slur
+        """
+        ......##########......
+        ...####........####...
+        .###..............###.
+        ##..................##
+        """
+    )
+
+    def polyline(points):
+        import cv2
+
+        canvas = np.zeros((40, 60), np.uint8)
+        cv2.polylines(canvas, [np.array(points, np.int32)], False, 1, 1)
+        ys, xs = np.nonzero(canvas)
+        return canvas[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].astype(bool)
+
+    stems_and_arches = np.zeros((8, 30), bool)  # a wide bold "mmm": rises and falls evenly
+    stems_and_arches[:2] = True
+    for x in range(0, 30, 4):
+        stems_and_arches[:, x : x + 2] = True
+    short_zigzag = polyline([(0, 0), (3, 5), (6, 0), (9, 5), (12, 0)])  # "vv": not long enough
+    uneven = polyline([(0, 0), (2, 4), (4, 0), (6, 4), (20, 0), (22, 4)])  # not at an even pace
+    assert _is_wave(wave, 16, np)
+    for shape in (bold_m, two_heights, run_together, one_zigzag, one_hump, stems_and_arches, short_zigzag, uneven):
+        assert not _is_wave(shape, 16, np)
+
+
+def test_the_vibrato_glyph_is_placed_as_a_music_font_places_it():
+    """The tab reader takes a wiggle glyph's line as about one em above its box (music fonts draw
+    there); the glyph handed on must put that line on the wave."""
+    from app.extract.raster_tab import read_image
+    from app.extract.rhythm_marks import glyph_ys
+
+    page, _ = read_image(tab_png(engraved_tab_pdf(VIBRATO_STAVES, knockout=True), 1300), 10**8)
+    tops = sorted({s.top for s in page.segments if s.top == s.bottom and s.x1 - s.x0 > 200})
+    staff_tops = [tops[0]] + [b for a, b in itertools.pairwise(tops) if b - a > 20]
+    waves = [c for c in page.chars if c.text == "\ueab0"]
+    assert len(waves) == 8
+    for wave in waves:
+        top = min((t for t in staff_tops if t > glyph_ys(wave)[1]), key=lambda t: t - glyph_ys(wave)[1])
+        assert abs(top - glyph_ys(wave)[1] - 14) < 1.2  # the factory draws it 14 points over the top line

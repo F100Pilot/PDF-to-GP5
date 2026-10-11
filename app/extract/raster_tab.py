@@ -7,8 +7,8 @@ read by a small text-recognition model (RapidOCR's PP-OCR recogniser, run with O
 
 Besides fret numbers, staff and bar lines, the rhythm drawn under the staff and the heading, the
 technique WORDS near the staff are read ("H", "P", "P.M.", "let ring", harmonics) with the dashed
-line after a range mark, and slides (straight slanted strokes beside the numbers); techniques
-drawn as curves (bends, vibrato, ties) are not seen.
+line after a range mark, slides (straight slanted strokes beside the numbers) and vibrato (a
+wavy line over the staff); bends and ties (curves) are not seen.
 """
 
 from __future__ import annotations
@@ -386,6 +386,7 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         page.chars.extend(marks)
         page.segments.extend(dashes)
         page.segments.extend(_slides(dark, on_line, groups, spacing, k))
+        page.chars.extend(_vibratos(dark, groups, spacing, k))
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -931,6 +932,75 @@ def _slides(dark, on_line, groups, spacing: float, k: float) -> list[Segment]:
             ax0, ax1 = sx0 + xa, sx0 + xb
             at, ab = y0 + min(ya, yb), y0 + max(ya, yb)
             out.append(Segment(ax0 * k, ax1 * k, at * k, ab * k, bool(yb < ya)))
+    return out
+
+
+# A wavy line as the tab reader knows it: a SMuFL wiggle glyph (engraved_tab._WIGGLES), outside
+# the arpeggio wiggles it reads apart.
+_WIGGLE = "\ueab0"
+
+
+def _is_wave(component, spacing: float, np) -> bool:
+    """A wavy line: one stroke drawn across, crests and troughs in turn at an even pace.
+
+    At least three times as long as it is high; every column has ink, in one run (a word leaves gaps between letters, and an "o", an "e" or
+    a "u" has ink at two heights in one column); few columns run from top to bottom (the stems
+    of "m", "minimum" do, regular as a wave); and it turns at least three times at an even pace
+    (not a slur's single hump, not a straight dash)."""
+    h, w = component.shape
+    inked = component.any(axis=0)
+    if w < 3 * h or inked.mean() < 0.9:
+        return False  # long and low: a vibrato runs on for several waves (a "w" is one zigzag)
+    starts = (np.diff(component.astype(np.int8), axis=0) == 1).sum(axis=0) + component[0]
+    if (starts > 1).any():
+        return False
+    # stems: columns whose one run is far longer than the stroke is thick (its thinnest column
+    # inside, the ends' tapering left out: a wave's crest, an "m"'s arch) and spans nearly the
+    # whole height (a wave's slope never is, however small the wave)
+    length = component.sum(axis=0)[inked]
+    thin = length[len(length) // 10 : len(length) - len(length) // 10].min()
+    if (length >= max(0.8 * h, 2.5 * thin)).sum() > 0.2 * w:
+        return False
+    rows = np.arange(h)[:, None]
+    centre = (np.where(component, rows, 0).sum(axis=0) / np.maximum(component.sum(axis=0), 1))[inked]
+    turns, last, going = [], 0, 0
+    for i in range(1, len(centre)):
+        step = centre[i] - centre[last]
+        if abs(step) < max(1.0, 0.25 * (h - 1)):
+            continue  # hysteresis: a turn needs a real swing, not a pixel of noise
+        direction = 1 if step > 0 else -1
+        if going and direction != going:
+            turns.append(last)
+        going, last = direction, i
+    if len(turns) < 3:
+        return False
+    halves = np.diff(turns)
+    return bool(halves.min() >= 0.1 * spacing and halves.max() <= 1.2 * spacing and halves.std() <= 0.5 * halves.mean())
+
+
+def _vibratos(dark, groups, spacing: float, k: float) -> list[Char]:
+    """Vibrato: a wavy line over the staff, handed on as the wiggle glyph the tab reader reads,
+    over the same span. A music font draws its glyph about one em above the glyph's box (see
+    rhythm_marks.glyph_ys), so the box is put that far below the line."""
+    cv2, np = _cv()
+    out: list[Char] = []
+    for group in groups:
+        top = group[0][0]
+        sx0, sx1 = min(line[3] for line in group), max(line[4] for line in group)
+        y0, y1 = max(0, round(top - 4 * spacing)), max(0, round(top - 0.3 * spacing))
+        region = dark[y0:y1, sx0 : sx1 + 1].astype(np.uint8)
+        if not region.size:
+            continue
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(region, connectivity=8)
+        for index in range(1, count):
+            x, y, w, h, _ = stats[index]
+            if w < 0.8 * spacing or not 0.12 * spacing <= h <= 0.7 * spacing:
+                continue
+            if not _is_wave(labels[y : y + h, x : x + w] == index, spacing, np):
+                continue
+            size = h * k
+            line_y = (y0 + y + h / 2) * k
+            out.append(Char(_WIGGLE, (sx0 + x) * k, (sx0 + x + w) * k, line_y + 0.9 * size, line_y + 1.9 * size))
     return out
 
 

@@ -39,6 +39,7 @@ def engraved_tab_pdf(
     heading: tuple[str, str, int] | None = None,
     signatures: list[tuple[int, int, int, int]] | None = None,
     gap: float = 0.6,
+    words: list[tuple[int, float, str, str, float]] | None = None,
 ) -> bytes:
     """Draw tab staves with vector lines.
 
@@ -49,7 +50,10 @@ def engraved_tab_pdf(
     slide from the previous note on the same string (a straight stroke between the two
     numbers, rising when the fret goes up), "<" a slide into the note from below and
     ">" a slide out of it downwards (short strokes beside the number), "b" a full bend
-    (a curve rising from the number to an arrowhead over the staff, "full" above it).
+    (a curve rising from the number to an arrowhead over the staff, "full" above it), "~" a
+    vibrato (a wavy line over the staff from the note on, drawn as a path: a picture of it
+    looks like an editor's wiggle glyph, but the vector reader, which reads the glyphs, does
+    not see it).
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to; a harmonic mark ("PH", "AH", "N.H.") is
     printed over the staff instead, above the "H"/"P" letters. Staff lines are drawn one
@@ -60,6 +64,8 @@ def engraved_tab_pdf(
     a tempo mark (a drawn quarter note, "= BPM") above the first staff.
     ``signatures`` are (staff, measure, numerator, denominator): a time signature
     in big bold digits at the start of that measure, the staff lines through them.
+    ``words`` are (staff, x, text, font, size): text over that staff (a section label, a
+    direction such as "rit." or "una corda").
     """
     if staves and staves[0] and isinstance(staves[0][0], tuple):
         staves = [staves]  # type: ignore[list-item]
@@ -138,6 +144,20 @@ def engraved_tab_pdf(
                     pdf.setFont("Helvetica", 5)
                     pdf.drawCentredString(x + half + 5.5, top + 11, "full")
                     pdf.setFont("Helvetica", 7)
+                if "~" in flags:
+                    wave = pdf.beginPath()
+                    wx, wy, end = x - 2, top + 14, x + 0.55 * step
+                    wave.moveTo(wx, wy)
+                    up = True
+                    while wx < end:
+                        wave.curveTo(
+                            wx + 0.5, wy + (1.1 if up else -1.1), wx + 1.0, wy + (1.1 if up else -1.1), wx + 1.5, wy
+                        )
+                        wx += 1.5
+                        up = not up
+                    pdf.setLineWidth(0.7)
+                    pdf.drawPath(wave, stroke=1, fill=0)
+                    pdf.setLineWidth(1)
                 last_on_string[string] = (x, fret)
         pdf.line(x1, top, x1, top - (strings - 1) * spacing)
         middle = top - (strings - 1) * spacing / 2
@@ -147,6 +167,10 @@ def engraved_tab_pdf(
                 x = x0 + measure * width + 10
                 pdf.drawCentredString(x, middle + 0.5, str(numerator))
                 pdf.drawCentredString(x, middle - 14.5, str(denominator))
+        for staff_index, x, text, font, size in words or []:
+            if staff_index == index:
+                pdf.setFont(font, size)
+                pdf.drawString(x, top + 9, text)
         for staff_index, text, x_from, x_to in ranges or []:
             if staff_index != index:
                 continue
