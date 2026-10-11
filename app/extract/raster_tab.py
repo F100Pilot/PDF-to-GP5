@@ -7,8 +7,8 @@ read by a small text-recognition model (RapidOCR's PP-OCR recogniser, run with O
 
 Besides fret numbers, staff and bar lines, the rhythm drawn under the staff and the heading, the
 technique WORDS near the staff are read ("H", "P", "P.M.", "let ring", harmonics) with the dashed
-line after a range mark, slides (straight slanted strokes beside the numbers) and vibrato (a
-wavy line over the staff); bends and ties (curves) are not seen.
+line after a range mark, slides (straight slanted strokes beside the numbers), vibrato (a wavy
+line over the staff) and ties and slurs (arcs over the strings); bends are not seen.
 """
 
 from __future__ import annotations
@@ -387,6 +387,7 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         page.segments.extend(dashes)
         page.segments.extend(_slides(dark, on_line, groups, spacing, k))
         page.chars.extend(_vibratos(dark, groups, spacing, k))
+        page.curves.extend(_arcs(dark, on_line, groups, chars, spacing, k))
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -933,6 +934,142 @@ def _slides(dark, on_line, groups, spacing: float, k: float) -> list[Segment]:
             at, ab = y0 + min(ya, yb), y0 + max(ya, yb)
             out.append(Segment(ax0 * k, ax1 * k, at * k, ab * k, bool(yb < ya)))
     return out
+
+
+def _arc_pieces(labels, stats, spacing: float, np) -> list[dict]:
+    """Thin pieces of ink that may be (part of) an arc, with their pixels and end points."""
+    pieces = []
+    for index in range(1, len(stats)):
+        x, y, w, h, area = stats[index]
+        if area < 3 or w < 2 or h > 1.2 * spacing or w > 12 * spacing:
+            continue
+        ys, xs = np.nonzero(labels[y : y + h, x : x + w] == index)
+        xs, ys = xs + x, ys + y
+        left, right = xs.min(), xs.max()
+        pieces.append(
+            {
+                "xs": xs,
+                "ys": ys,
+                "left": (left, ys[xs == left].mean()),
+                "right": (right, ys[xs == right].mean()),
+            }
+        )
+    return pieces
+
+
+def _is_arc(xs, ys, spacing: float, np) -> bool:
+    """A tie or slur: wider than tall, one stroke drawn across every column (letters side by side
+    leave gaps, a letter's bowl has ink at two heights), curving smoothly one way, its two ends at
+    about the same height (a straight slide, a wavy vibrato, a bend rising out of the staff are
+    not)."""
+    x0, y0 = xs.min(), ys.min()
+    w, h = xs.max() - x0 + 1, ys.max() - y0 + 1
+    if w < spacing or not 0.12 * spacing <= h <= 0.8 * spacing or w < 2.5 * h:
+        return False
+    grid = np.zeros((h, w), bool)
+    grid[ys - y0, xs - x0] = True
+    if grid.any(axis=0).mean() < 0.95:
+        return False
+    starts = (np.diff(grid.astype(np.int8), axis=0) == 1).sum(axis=0) + grid[0]
+    if (starts > 1).any():
+        return False  # one stroke: a letter's bowl has ink at two heights in a column
+    cols = np.flatnonzero(grid.any(axis=0))
+    centre = np.array([np.flatnonzero(grid[:, c]).mean() for c in cols])
+    a, b, c = np.polyfit(cols, centre, 2)
+    sag = abs(a) * (w / 2) ** 2  # how far the middle rises above (or sinks below) the ends
+    residual = np.abs(np.polyval([a, b, c], cols) - centre).max()
+    edge = max(1, len(centre) // 8)
+    ends = abs(centre[:edge].mean() - centre[-edge:].mean())
+    return bool(sag >= 0.12 * spacing and residual <= max(1.5, 0.15 * spacing) and ends <= max(1.5, 0.5 * sag))
+
+
+def _root(parent: list[int], i: int) -> int:
+    """The group a piece belongs to (union-find)."""
+    while parent[i] != i:
+        parent[i] = parent[parent[i]]
+        i = parent[i]
+    return i
+
+
+def _arcs(dark, on_line, groups, chars: list[Char], spacing: float, k: float) -> list[Segment]:
+    """Ties and slurs: arcs over (or under) a string between notes, handed on as curves (their
+    bounding boxes), as an engraved PDF has them. A tie ends at the tied number's parenthesis and
+    often touches it, so what was already read (numbers, parentheses) is blanked first. An arc
+    crossing a bar line is cut there when the lines are removed: pieces whose ends meet across
+    the gap are joined."""
+    cv2, np = _cv()
+    mask = (dark & ~on_line).copy()
+    pad = 0.1 * spacing
+    for c in chars:
+        x0, x1, y0, y1 = c.x0 / k - pad, c.x1 / k + pad, c.top / k - pad, c.bottom / k + pad
+        mask[max(0, round(y0)) : max(0, round(y1)) + 1, max(0, round(x0)) : max(0, round(x1)) + 1] = False
+    out: list[Segment] = []
+    gap = max(3.0, 0.35 * spacing)
+    for group in groups:
+        top, bottom = group[0][0], group[-1][0]
+        sx0, sx1 = min(line[3] for line in group), max(line[4] for line in group)
+        y0, y1 = max(0, round(top - 1.5 * spacing)), min(mask.shape[0], round(bottom + 1.5 * spacing))
+        region = mask[y0:y1, sx0 : sx1 + 1].astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(region, connectivity=8)
+        pieces = sorted(_arc_pieces(labels, stats[:count], spacing, np), key=lambda p: p["left"][0])
+        parent = list(range(len(pieces)))
+        for i, a in enumerate(pieces):
+            for j in range(i + 1, len(pieces)):
+                b = pieces[j]
+                if b["left"][0] - a["right"][0] > gap:
+                    break
+                if 0 < b["left"][0] - a["right"][0] <= gap and abs(b["left"][1] - a["right"][1]) <= 0.2 * spacing:
+                    parent[_root(parent, j)] = _root(parent, i)
+        joined: dict[int, list[dict]] = {}
+        for i, piece in enumerate(pieces):
+            joined.setdefault(_root(parent, i), []).append(piece)
+        for members in joined.values():
+            xs = np.concatenate([m["xs"] for m in members])
+            ys = np.concatenate([m["ys"] for m in members])
+            for part_xs, part_ys in _arc_chain(xs, ys, spacing, np):
+                if _is_arc(part_xs, part_ys, spacing, np):
+                    out.append(
+                        Segment(
+                            (sx0 + part_xs.min()) * k,
+                            (sx0 + part_xs.max() + 1) * k,
+                            (y0 + part_ys.min()) * k,
+                            (y0 + part_ys.max() + 1) * k,
+                        )
+                    )
+    return out
+
+
+def _arc_chain(xs, ys, spacing: float, np) -> list:
+    """Arcs drawn one after another meet at the note they share and come out as one blob: it is
+    cut where they meet, the low points between the humps of arcs drawn above (the high points
+    of arcs drawn below)."""
+    x0, y0 = xs.min(), ys.min()
+    w, h = xs.max() - x0 + 1, ys.max() - y0 + 1
+    if w < 2 * spacing or h < 3:
+        return [(xs, ys)]
+    grid = np.zeros((h, w), bool)
+    grid[ys - y0, xs - x0] = True
+    cols = np.flatnonzero(grid.any(axis=0))
+    centre = np.array([np.flatnonzero(grid[:, c]).mean() for c in cols])
+    edge = max(1, len(centre) // 10)
+    above = centre[:edge].mean() + centre[-edge:].mean() > 2 * np.median(centre)  # ends low: humps up
+    depth = centre if above else -centre
+    cuts = []
+    reach = max(2, round(0.4 * spacing))
+    for i in range(reach, len(depth) - reach):
+        window = depth[i - reach : i + reach + 1]
+        # a meeting point: lowest around it, with a hump rising well above it on each side
+        meets = depth[i] == window.max() and depth[i] - max(depth[:i].min(), depth[i + 1 :].min()) >= 0.4 * (h - 1)
+        if meets and (not cuts or cols[i] - cuts[-1] > spacing):
+            cuts.append(cols[i])
+    if not cuts:
+        return [(xs, ys)]
+    bounds = [-1, *cuts, w]
+    return [
+        (xs[(xs - x0 > a) & (xs - x0 <= b)], ys[(xs - x0 > a) & (xs - x0 <= b)])
+        for a, b in itertools.pairwise(bounds)
+        if ((xs - x0 > a) & (xs - x0 <= b)).any()
+    ]
 
 
 # A wavy line as the tab reader knows it: a SMuFL wiggle glyph (engraved_tab._WIGGLES), outside

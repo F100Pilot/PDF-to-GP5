@@ -53,7 +53,10 @@ def engraved_tab_pdf(
     (a curve rising from the number to an arrowhead over the staff, "full" above it), "~" a
     vibrato (a wavy line over the staff from the note on, drawn as a path: a picture of it
     looks like an editor's wiggle glyph, but the vector reader, which reads the glyphs, does
-    not see it).
+    not see it), "t" a tie from the previous note on the same string (an arc over the string
+    between the two numbers; the tied number in parentheses, as editors print it), "s" a slur
+    from the previous note on the same string (an arc above both numbers: with "/", a legato
+    slide) and "T" a tie from the note over the next bar line (into an empty bar).
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to; a harmonic mark ("PH", "AH", "N.H.") is
     printed over the staff instead, above the "H"/"P" letters. Staff lines are drawn one
@@ -90,7 +93,7 @@ def engraved_tab_pdf(
         for m in reversed(range(len(measures))):
             for s in range(strings):
                 pdf.line(x0 + m * width, top - s * spacing, x0 + (m + 1) * width, top - s * spacing)
-        last_on_string: dict[int, tuple[float, int]] = {}  # string -> (x, fret) of its last note
+        last_on_string: dict[int, tuple[float, int, bool]] = {}  # string -> (x, fret, in parentheses)
         for m, notes in enumerate(measures):
             start = x0 + m * width
             pdf.line(start, top, start, top - (strings - 1) * spacing)
@@ -101,6 +104,8 @@ def engraved_tab_pdf(
             step = width / (len(notes) + 1)
             for k, (string, fret, *rest) in enumerate(notes):
                 flags = rest[0] if rest else ""
+                if "t" in flags:
+                    flags += "("
                 y = top - (string - 1) * spacing
                 x = start + step * (k + 0.5) + 4
                 if knockout:  # the gap also takes the parentheses, as editors draw them
@@ -122,8 +127,8 @@ def engraved_tab_pdf(
                         pdf.drawCentredString(x - step / 2, top + 6, letter)
                 half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2
                 if "/" in flags and string in last_on_string:
-                    px, pfret = last_on_string[string]
-                    pwidth = pdf.stringWidth(str(pfret), "Helvetica", 7) / 2
+                    px, pfret, paren = last_on_string[string]
+                    pwidth = pdf.stringWidth(str(pfret), "Helvetica", 7) / 2 + (1.8 if paren else 0)
                     rise = 2.1 if fret > pfret else -2.1  # PDF y goes up
                     pdf.line(px + pwidth + 1.2, y - rise, x - half - 1.2, y + rise)
                 if "<" in flags:
@@ -158,7 +163,26 @@ def engraved_tab_pdf(
                     pdf.setLineWidth(0.7)
                     pdf.drawPath(wave, stroke=1, fill=0)
                     pdf.setLineWidth(1)
-                last_on_string[string] = (x, fret)
+
+                def arc(x_from: float, x_to: float, low: float, rise: float) -> None:
+                    path = pdf.beginPath()
+                    path.moveTo(x_from, low)
+                    span = x_to - x_from
+                    path.curveTo(x_from + span / 4, low + rise, x_to - span / 4, low + rise, x_to, low)
+                    pdf.setLineWidth(0.6)
+                    pdf.drawPath(path, stroke=1, fill=0)
+                    pdf.setLineWidth(1)
+
+                if "t" in flags and string in last_on_string:
+                    px, pfret, paren = last_on_string[string]
+                    pwidth = pdf.stringWidth(str(pfret), "Helvetica", 7) / 2
+                    arc(px + pwidth + (2.6 if paren else 0.8), x - half - 2.6, y + 1.6, 3.2)
+                if "s" in flags and string in last_on_string:
+                    px, _, _ = last_on_string[string]
+                    arc(px - 1, x + 1, y + 4.0, 2.4)
+                if "T" in flags:
+                    arc(x + half + (2.6 if "(" in flags else 0.8), start + width + 0.35 * width, y + 1.6, 3.2)
+                last_on_string[string] = (x, fret, "(" in flags)
         pdf.line(x1, top, x1, top - (strings - 1) * spacing)
         middle = top - (strings - 1) * spacing / 2
         for staff_index, measure, numerator, denominator in signatures or []:

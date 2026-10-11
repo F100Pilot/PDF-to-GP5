@@ -582,3 +582,151 @@ def test_the_vibrato_glyph_is_placed_as_a_music_font_places_it():
     for wave in waves:
         top = min((t for t in staff_tops if t > glyph_ys(wave)[1]), key=lambda t: t - glyph_ys(wave)[1])
         assert abs(top - glyph_ys(wave)[1] - 14) < 1.2  # the factory draws it 14 points over the top line
+
+
+TIE_STAVES = [
+    [
+        [(3, 5), (3, 5, "t"), (2, 8), (2, 8, "(")],
+        [(4, 7), (4, 9, "/s"), (4, 7, "/s"), (5, 6, "T")],
+        [],
+        [(2, 3), (2, 3, "t"), (2, 3, "t"), (6, 3)],
+    ],
+    [
+        [(6, 2), (6, 2, "t"), (3, 7), (3, 9, "/s")],
+        [(5, 0), (2, 13), (2, 13, "tT")],
+        [],
+        [(4, 6), (4, 6, "("), (1, 8), (1, 8, "t")],
+    ],
+]
+
+
+def _tie_notes(gp5: bytes) -> list[tuple]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (
+            index,
+            note.string,
+            note.value,
+            note.type.name,
+            note.effect.ghostNote,
+            sorted(s.name for s in note.effect.slides),
+        )
+        for index, measure in enumerate(song.tracks[0].measures)
+        for beat in measure.voices[0].beats
+        for note in beat.notes
+    ]
+
+
+# Ties ending right at the tied number's parenthesis, close enough to touch it in a picture.
+TOUCHING_TIES = [
+    [
+        [(1, 1), (3, 7), (3, 7, "t"), (3, 7, "tT")],
+        [],
+        [(3, 10), (3, 12, "s/"), (6, 13)],
+        [(3, 6), (3, 4), (3, 4, "t")],
+    ],
+    [
+        [(2, 12), (1, 3), (1, 3, "t"), (2, 1, "T")],
+        [],
+        [(1, 7), (1, 7, "("), (1, 7, "t"), (6, 1)],
+        [(1, 7), (1, 7, "t"), (1, 7, "t"), (5, 9)],
+    ],
+]
+
+
+@pytest.mark.parametrize("width", [1000, 1300, 1600])
+@pytest.mark.parametrize("staves", [TIE_STAVES, TOUCHING_TIES], ids=["ties", "touching"])
+def test_ties_and_slurs_in_a_picture_are_read_as_in_the_pdf(staves, width):
+    """Arcs over the strings, read from the picture as from the PDF: a tie into a parenthesised
+    note (a parenthesised note no arc reaches is a ghost note), a slur over a slide (legato),
+    ties one after another, a tie over the bar line into an empty bar (cut in two by the bar
+    line when the lines are removed), and ties touching the parenthesis they end at."""
+    pdf = engraved_tab_pdf(staves, knockout=True)
+    expected = _tie_notes(convert(pdf, ConversionOptions()).gp5)
+    assert sum(1 for n in expected if n[3] == "tie") >= 8
+    assert _tie_notes(convert(tab_png(pdf, width), ConversionOptions()).gp5) == expected
+
+
+def test_the_tie_page_has_every_kind_of_arc():
+    expected = _tie_notes(convert(engraved_tab_pdf(TIE_STAVES, knockout=True), ConversionOptions()).gp5)
+    assert any(n[4] for n in expected) and any("legatoSlideTo" in n[5] for n in expected)
+
+
+def test_no_arc_is_made_up_on_a_page_without_any():
+    """A made-up arc beside a parenthesised note would tell the reader the page draws its ties as
+    arcs, and every other parenthesised note would turn into a ghost note: none must be found on
+    a page with parentheses, bends, slides, vibrato and words over the staff but no arcs."""
+    from app.extract import raster_tab
+
+    staves = [
+        [[(3, 5), (3, 5, "("), (4, 7, "b"), (6, 3)], [(1, 12, "~"), (2, 9, "("), (5, 4, "<"), (5, 2, ">")]],
+        [[(4, 9), (4, 7, "/"), (2, 10, "("), (3, 2, "b")], [(6, 0, "~"), (1, 3), (1, 3, "("), (2, 1)]],
+    ]
+    words = [
+        (0, 62, "una corda", "Times-Italic", 7),
+        (0, 300, "minimum", "Helvetica-Bold", 8),
+        (1, 200, "nun", "Helvetica", 9),
+    ]
+    pdf = engraved_tab_pdf(staves, knockout=True, words=words, signatures=[(0, 0, 4, 4)])
+    found: list = []
+    original = raster_tab._arcs
+    raster_tab._arcs = lambda *args: found.extend(original(*args)) or []
+    try:
+        for width in (1000, 1300, 1600):
+            raster_tab.read_image(tab_png(pdf, width), 10**8)
+    finally:
+        raster_tab._arcs = original
+    assert found == []
+
+
+def test_an_arc_is_one_thin_stroke_curving_one_way():
+    import cv2
+    import numpy as np
+
+    from app.extract.raster_tab import _arc_chain, _is_arc
+
+    def drawn(points, thickness=1):
+        canvas = np.zeros((60, 200), np.uint8)
+        cv2.polylines(canvas, [np.array(points, np.int32)], False, 1, thickness)
+        ys, xs = np.nonzero(canvas)
+        return xs, ys
+
+    def arc(x0, x1, y, rise):
+        t = np.linspace(0, 1, 40)
+        return [(x0 + (x1 - x0) * s, y - 4 * rise * s * (1 - s)) for s in t]
+
+    def art(text):
+        ys, xs = np.nonzero(np.array([[ch == "#" for ch in row] for row in text.split()]))
+        return xs, ys
+
+    letters = art(  # letters run together over the staff, where an arc was once seen
+        """
+        ###...........###....###
+        ###........#..###....###
+        ###.......#######....##.
+        ####......#######...###.
+        .####...####.###....###.
+        .##########..###....###.
+        ..########...###....###.
+        ......#.................
+        """
+    )
+    assert _is_arc(*drawn(arc(10, 60, 30, 6)), 16, np)
+    assert _is_arc(*drawn([(x, 2 * y - 20) for x, y in arc(10, 60, 30, -3)]), 16, np)  # drawn under
+    assert not _is_arc(*drawn([(10, 30), (60, 24)]), 16, np)  # a straight slide
+    assert not _is_arc(*drawn([(10, 40), (14, 30), (30, 30), (60, 34)]), 16, np)  # bend: rises at one end
+    wave = [(10 + i * 4, 30 + (4 if i % 2 else 0)) for i in range(13)]
+    assert not _is_arc(*drawn(wave), 16, np)  # a vibrato
+    assert not _is_arc(*letters, 16, np)
+    xs, ys = drawn(arc(10, 60, 30, 6))
+    broken = (xs < 32) | (xs > 38)
+    assert not _is_arc(xs[broken], ys[broken], 16, np)  # not drawn across: a gap in the middle
+    canvas_xs, canvas_ys = drawn(arc(10, 60, 30, 6) + [(60, 30)])
+    mark_xs, mark_ys = drawn([(33, 27), (36, 27)])  # a second stroke under it: a letter's bowl
+    assert not _is_arc(np.concatenate([canvas_xs, mark_xs]), np.concatenate([canvas_ys, mark_ys]), 16, np)
+    assert not _is_arc(*drawn([(10 + i, 22 + 0.006 * (i - 10) ** 2) for i in range(51)]), 16, np)  # ends apart
+    xs, ys = drawn(arc(10, 60, 30, 6) + arc(60, 110, 30, 6))  # two slurs meeting on one note
+    parts = _arc_chain(xs, ys, 16, np)
+    assert len(parts) == 2 and all(_is_arc(px, py, 16, np) for px, py in parts)
