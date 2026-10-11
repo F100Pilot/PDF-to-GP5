@@ -528,3 +528,11 @@ def test_song_and_artist_from_the_title_of_a_printed_web_page():
     info = {"Title": "OFFICIAL YOURE A GOD CHORDS & TABS by Vertical Horizon @ Ultimate-Guitar.Com"}
     assert detect_metadata([page], info).artist == "Vertical Horizon"
     assert detect_metadata([page], {"Title": "My Song", "Author": "Me"}).artist == "Me"
+
+
+def test_a_pull_off_and_a_hammer_on_are_not_a_pinch_harmonic():
+    """A "P" and an "H" over two different note pairs sit on one text line, and its letters
+    read "PH": they are not a pinch harmonic, a mark printed with its letters together."""
+    chars = [*_text("P", 120, 80), *_text("H", 320, 80)]
+    systems = extract_engraved_systems(_signs_page(notes=((100, "3"), (150, "5"), (300, "7"), (350, "9")), chars=chars))
+    assert [e.harmonic for e in systems[0].events] == [None] * 4

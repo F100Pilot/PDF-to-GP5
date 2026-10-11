@@ -5,8 +5,10 @@ lines as segments, fret numbers as characters — so ``extract_engraved_systems`
 engraved PDF. Staff and bar lines are found with image morphology (OpenCV); the fret numbers are
 read by a small text-recognition model (RapidOCR's PP-OCR recogniser, run with ONNX Runtime).
 
-Only fret numbers, staff lines and bar lines are read: rhythm comes from the horizontal spacing,
-and techniques (bends, slides, ties…) are not seen.
+Besides fret numbers, staff and bar lines, the rhythm drawn under the staff and the heading, the
+technique WORDS near the staff are read ("H", "P", "P.M.", "let ring", harmonics) with the dashed
+line after a range mark; techniques drawn as lines and curves (bends, slides, vibrato, ties) are
+not seen.
 """
 
 from __future__ import annotations
@@ -380,6 +382,9 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         page.chars = [c for c in page.chars if not any(c is m for m in misread)]
         page.chars.extend(flags + rests)
         page.curves.extend(rest_dots)
+        marks, dashes = _technique_marks(gray, dark, groups, spacing, k)
+        page.chars.extend(marks)
+        page.segments.extend(dashes)
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -837,6 +842,134 @@ def _bar_numbers(gray, dark, groups, bars: list[list[float]], spacing: float, k:
         for j, digit in enumerate(text):
             chars.append(Char(digit, (bx0 + j * step) * k, (bx0 + (j + 1) * step) * k, by0 * k, by1 * k))
     return chars
+
+
+# Technique marks printed as words near the staff, as the tab reader expects to find them
+# (engraved_tab: _LEGATO_LETTERS, _RANGE_MARKS). Read words are compared without spaces and
+# dots, in capitals; "H"/"P" only as printed (a lowercase "p" is a dynamic, not a pull-off).
+_MARK_WORDS = {"PM": "P.M.", "LETRING": "letring", "PH": "PH", "AH": "AH", "NH": "N.H."}
+_LEGATO_WORDS = {"H", "P"}
+
+
+def _mark_text(read: str) -> str | None:
+    """The text the tab reader looks for, for a word read near the staff; None for any other word
+    (a bar number, a chord name, a section label, a stem read as a letter)."""
+    key = read.replace(" ", "")
+    if key in _LEGATO_WORDS:
+        return key
+    return _MARK_WORDS.get(key.replace(".", "").upper())
+
+
+def _mark_bands(groups, spacing: float, height: int) -> list[tuple[int, int, int, int]]:
+    """(y0, y1, x0, x1) of the strips above and below each staff where technique marks are
+    printed — "H"/"P" and harmonics above, "P.M."/"let ring" below — merged where two staves'
+    strips meet."""
+    bands: list[list[int]] = []
+    for group in groups:
+        top, bottom = group[0][0], group[-1][0]
+        x0, x1 = min(line[3] for line in group), max(line[4] for line in group)
+        for y0, y1 in ((top - 5 * spacing, top - 0.35 * spacing), (bottom + 0.35 * spacing, bottom + 5 * spacing)):
+            bands.append([max(0, round(y0)), min(height, round(y1)), x0, x1])
+    merged: list[list[int]] = []
+    for band in sorted(bands):
+        if band[1] <= band[0]:
+            continue
+        if merged and band[0] <= merged[-1][1]:
+            last = merged[-1]
+            last[1], last[2], last[3] = max(last[1], band[1]), min(last[2], band[2]), max(last[3], band[3])
+        else:
+            merged.append(band)
+    return [(a, b, c, d) for a, b, c, d in merged]
+
+
+def _words(stats, spacing: float):
+    """Letter-sized blobs joined into words (letters side by side on one line, the gap between
+    them at most a little over half their height — a word space included, so "let ring" is one),
+    and the flat blobs apart: the dashes of a range line."""
+    letters, dashes = [], []
+    for index, (x, y, w, h, area) in enumerate(stats):
+        if area < 2:
+            continue
+        if h <= 0.25 * spacing and w >= max(2 * h, 0.25 * spacing):
+            dashes.append((x, y, w, h))
+        elif h <= 1.6 * spacing and w <= 3 * spacing:
+            letters.append((x, y, w, h, index))
+    words: list[list] = []  # [x0, y0, x1, y1, labels]
+    for x, y, w, h, index in sorted(letters):
+        best = None
+        for word in words:
+            tall = max(word[3] - word[1], h)
+            overlap = min(word[3], y + h) - max(word[1], y)
+            if x - word[2] <= 0.6 * tall and overlap >= 0.3 * min(word[3] - word[1], h):
+                best = word if best is None or overlap > min(best[3], y + h) - max(best[1], y) else best
+        if best is None:
+            words.append([x, y, x + w, y + h, [index]])
+        else:
+            best[:4] = [min(best[0], x), min(best[1], y), max(best[2], x + w), max(best[3], y + h)]
+            best[4].append(index)
+    return words, dashes
+
+
+def _technique_marks(gray, dark, groups, spacing: float, k: float) -> tuple[list[Char], list[Segment]]:
+    """Technique words printed near the staff ("H", "P", "P.M.", "let ring", "PH", "AH", "N.H."),
+    as characters spelled as the tab reader expects them, and the dashes of the line that follows
+    a range mark ("P.M. - - - -|"), as segments: the tab reader then applies them as it does in an
+    engraved PDF. Every word there is read; only these are kept."""
+    cv2, np = _cv()
+    entries = []  # (word box in the page, crop)
+    dash_rows = []
+    for y0, y1, x0, x1 in _mark_bands(groups, spacing, dark.shape[0]):
+        band = dark[y0:y1, x0:x1].astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(band, connectivity=8)
+        words, dashes = _words(stats[1:count], spacing)
+        dash_rows.extend((x0 + x, y0 + y, w, h) for x, y, w, h in dashes)
+        for wx0, wy0, wx1, wy1, members in words:
+            tall = wy1 - wy0
+            if not (0.35 * spacing <= tall <= 1.8 * spacing) or wx1 - wx0 > 10 * spacing:
+                continue
+            pad = max(2, round(0.3 * tall))
+            crop = np.full((tall + 2 * pad, wx1 - wx0 + 2 * pad), 255, np.uint8)
+            # the word's own grey pixels (their soft edges read better than a black-and-white
+            # mask), anything else in its box (a stem, a bar number) blanked
+            ink = np.isin(labels[wy0:wy1, wx0:wx1], [m + 1 for m in members])
+            ink = cv2.dilate(ink.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+            word = gray[y0 + wy0 : y0 + wy1, x0 + wx0 : x0 + wx1]
+            crop[pad : pad + tall, pad : pad + wx1 - wx0] = np.where(ink, word, 255)
+            crop = cv2.resize(crop, None, fx=48 / crop.shape[0], fy=48 / crop.shape[0], interpolation=cv2.INTER_AREA)
+            entries.append(((x0 + wx0, y0 + wy0, x0 + wx1, y0 + wy1), cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)))
+    chars: list[Char] = []
+    segments: list[Segment] = []
+    texts = _recognize([crop for _, crop in entries]) if entries else []
+    for ((bx0, by0, bx1, by1), _), read in zip(entries, texts, strict=True):
+        text = _mark_text(read.strip())
+        if text is None:
+            continue
+        step = (bx1 - bx0) / len(text)
+        # "H"/"P" only where the tab reader takes them, just above a staff: a stray letter read
+        # elsewhere stays out of the page (under the staff it would read as a lyric)
+        yc = (by0 + by1) / 2
+        if text in _LEGATO_WORDS and not any(g[0][0] - 3 * spacing <= yc < g[0][0] for g in groups):
+            continue
+        for j, ch in enumerate(text):
+            chars.append(Char(ch, (bx0 + j * step) * k, (bx0 + (j + 1) * step) * k, by0 * k, by1 * k))
+        if text in _LEGATO_WORDS:
+            continue
+        end = bx1
+        for x, y, w, h in sorted(dash_rows):
+            if not (by0 <= y + h / 2 <= by1) or x + w <= end:
+                continue
+            if x - end > 1.5 * spacing:
+                break
+            y_line = (y + h / 2) * k
+            # the stroke's soft edges make it longer than drawn: a quarter of its thickness off
+            # each end, or a note just past the range's end is taken in. One segment per dash,
+            # a long solid line in pieces: the tab reader takes long horizontal segments for
+            # staff lines
+            a0, a1 = x + h / 4, x + w - h / 4
+            for a in np.arange(a0, a1, spacing):
+                segments.append(Segment(a * k, min(a + spacing, a1) * k, y_line, y_line))
+            end = x + w
+    return chars, segments
 
 
 def _read_boxes(gray, boxes) -> list[str]:

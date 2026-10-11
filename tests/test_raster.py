@@ -1,6 +1,7 @@
 """Tablature read from pictures (OCR): PNG/JPEG/WebP uploads and PDFs that are only images."""
 
 import io
+import itertools
 
 import pytest
 from PIL import Image
@@ -313,3 +314,67 @@ def test_tuning_letters_left_of_the_staff_are_read():
     systems = extract_engraved_systems(page)
     assert systems[0].labels == ["C", "G", "D#", "A#", "F", "A#"]
     assert all(event.x > systems[0].start_x for event in systems[0].events)  # the F is no fret
+
+
+TECHNIQUE_STAVES = [
+    [[(2, 5), (2, 7, "H"), (3, 4), (1, 8), (1, 5, "P")], [(4, 2), (5, 2), (6, 0), (3, 2), (3, 4, "H")]],
+    [[(4, 7), (5, 10), (6, 2), (6, 5, "H")], [(2, 8), (1, 7), (5, 5), (5, 2, "P")]],
+]
+TECHNIQUE_RANGES = [(0, "P.M.", 60, 300), (0, "PH", 420, 540), (1, "let ring", 60, 260), (1, "N.H.", 300, 420)]
+
+
+def _techniques(gp5: bytes) -> list[tuple]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (note.string, note.value, note.effect.hammer, note.effect.palmMute, note.effect.letRing, note.effect.harmonic)
+        for measure in song.tracks[0].measures
+        for beat in measure.voices[0].beats
+        for note in sorted(beat.notes, key=lambda n: n.string)
+    ]
+
+
+@pytest.mark.parametrize("width", [1000, 1600])
+def test_technique_marks_in_a_picture_are_read_as_in_the_pdf(width):
+    """ "H"/"P" over the staff, "P.M." and "let ring" with their dashed lines under it, and harmonics
+    ("PH", "N.H.") over it: read from the picture, applied to the same notes as in the PDF."""
+    pdf = engraved_tab_pdf(TECHNIQUE_STAVES, knockout=True, ranges=TECHNIQUE_RANGES)
+    expected = _techniques(convert(pdf, ConversionOptions()).gp5)
+    assert sum(1 for t in expected if t[2]) >= 3 and sum(1 for t in expected if t[3]) >= 3
+    assert any(t[4] for t in expected) and any(t[5] for t in expected)
+    assert _techniques(convert(tab_png(pdf, width), ConversionOptions()).gp5) == expected
+
+
+def test_only_technique_words_are_kept():
+    from app.extract.raster_tab import _mark_text
+
+    assert [_mark_text(w) for w in ("H", "P", "P.M.", "PM", "P. M", "let ring", "Let Ring", "P.H.", "AH", "N.H.")] == [
+        "H",
+        "P",
+        "P.M.",
+        "P.M.",
+        "P.M.",
+        "letring",
+        "letring",
+        "PH",
+        "AH",
+        "N.H.",
+    ]
+    # a dynamic, a bar number, a section label, a chord name: not technique marks
+    assert [_mark_text(w) for w in ("p", "h", "12", "Verse", "A", "full", "")] == [None] * 7
+
+
+def test_the_dashes_of_a_range_end_where_they_are_drawn():
+    """A dash in the picture is longer than drawn (its soft edges): read as is, a note just past
+    the end of a "P.M. - - -" line was palm-muted. The factory draws dashes 3 long every 5."""
+    from app.extract.raster_tab import read_image
+
+    pdf = engraved_tab_pdf(TECHNIQUE_STAVES, knockout=True, ranges=[(0, "P.M.", 60, 250), (1, "let ring", 100, 400)])
+    for width in (1000, 1600):
+        page, _ = read_image(tab_png(pdf, width), 10**8)
+        dashes = sorted((s for s in page.segments if s.top == s.bottom and s.x1 - s.x0 < 8), key=lambda s: s.x0)
+        assert len(dashes) > 40
+        lengths = sorted(s.x1 - s.x0 for s in dashes)
+        periods = sorted(b.x0 - a.x0 for a, b in itertools.pairwise(dashes) if b.x0 - a.x0 < 8)
+        assert 0.5 <= lengths[len(lengths) // 2] / periods[len(periods) // 2] <= 0.62

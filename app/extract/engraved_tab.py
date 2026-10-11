@@ -309,6 +309,9 @@ def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLi
                 last_char = line.chars[start + len(mark) - 1]
                 end_x = last_char.x1
                 # A mark above the staff is a word of its own: no letter touching it ("PHASE").
+                # Its letters printed together: an "H" and a "P" over two different note pairs are
+                # not "PH" (a word space, as in "let ring", is narrower than the letters are tall).
+                spread = any(b.x0 - a.x1 > height for a, b in itertools.pairwise(line.chars[start : start + len(mark)]))
                 neighbours = [line.chars[i] for i in (start - 1, start + len(mark)) if 0 <= i < len(line.chars)]
                 part_of_word = any(
                     c.text.isalpha()
@@ -321,7 +324,7 @@ def _apply_effect_ranges(page: Page, placed: list[tuple[TabSystem, list[_StaffLi
                 ]
                 nearest = min(((d, i) for d, i in distances if 0 < d < 8 * placed[i][2]), default=None)
                 owner = placed[nearest[1]] if nearest is not None else None
-                if owner is not None and not (above and part_of_word):
+                if owner is not None and not spread and not (above and part_of_word):
                     system, _, spacing = owner
                     dashes = sorted(
                         (

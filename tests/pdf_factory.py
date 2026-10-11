@@ -47,7 +47,8 @@ def engraved_tab_pdf(
     as one staff. Flags: "(" draws parentheses as curved paths, "P"/"H" prints
     the letter above the staff between the previous note and this one.
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
-    staff followed by a dashed line up to x_to. Staff lines are drawn one
+    staff followed by a dashed line up to x_to; a harmonic mark ("PH", "AH", "N.H.") is
+    printed over the staff instead, above the "H"/"P" letters. Staff lines are drawn one
     segment per measure, right to left, as some editors do. ``knockout`` blanks
     the line behind each number, as editors do on screen and in print, ``gap`` points
     beyond the digits on each side.
@@ -119,7 +120,8 @@ def engraved_tab_pdf(
         for staff_index, text, x_from, x_to in ranges or []:
             if staff_index != index:
                 continue
-            y = top - (strings - 1) * spacing - 20
+            above = text in ("PH", "AH", "N.H.")
+            y = top + 16 if above else top - (strings - 1) * spacing - 20
             pdf.setFont("Helvetica", 6)
             pdf.drawString(x_from, y, text)
             dash = pdf.stringWidth(text, "Helvetica", 6) + x_from + 3
