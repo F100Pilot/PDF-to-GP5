@@ -7,8 +7,8 @@ read by a small text-recognition model (RapidOCR's PP-OCR recogniser, run with O
 
 Besides fret numbers, staff and bar lines, the rhythm drawn under the staff and the heading, the
 technique WORDS near the staff are read ("H", "P", "P.M.", "let ring", harmonics) with the dashed
-line after a range mark; techniques drawn as lines and curves (bends, slides, vibrato, ties) are
-not seen.
+line after a range mark, and slides (straight slanted strokes beside the numbers); techniques
+drawn as curves (bends, vibrato, ties) are not seen.
 """
 
 from __future__ import annotations
@@ -385,6 +385,7 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         marks, dashes = _technique_marks(gray, dark, groups, spacing, k)
         page.chars.extend(marks)
         page.segments.extend(dashes)
+        page.segments.extend(_slides(dark, on_line, groups, spacing, k))
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -842,6 +843,95 @@ def _bar_numbers(gray, dark, groups, bars: list[list[float]], spacing: float, k:
         for j, digit in enumerate(text):
             chars.append(Char(digit, (bx0 + j * step) * k, (bx0 + (j + 1) * step) * k, by0 * k, by1 * k))
     return chars
+
+
+def _strokes(labels, stats, spacing: float, np) -> list[tuple]:
+    """Thin straight pieces of ink: (left end, right end, thickness), ends as (x, y) along the
+    piece's long axis."""
+    pieces = []
+    for index in range(1, len(stats)):
+        x, y, w, h, area = stats[index]
+        if area < 3 or max(w, h) < 0.2 * spacing or w > 8 * spacing or h > 1.5 * spacing:
+            continue
+        ys, xs = np.nonzero(labels[y : y + h, x : x + w] == index)
+        points = np.column_stack([xs + x, ys + y]).astype(np.float64)
+        centre = points.mean(axis=0)
+        _, vectors = np.linalg.eigh(np.cov((points - centre).T))
+        direction = vectors[:, 1] if vectors[0, 1] >= 0 else -vectors[:, 1]  # the long axis, left to right
+        along = (points - centre) @ direction
+        length = float(np.ptp(along))
+        thickness = area / max(length, 1.0)
+        off = np.abs((points - centre) @ vectors[:, 0])
+        # thin (a line, not a blob) and straight (not an arc)
+        if length < 0.2 * spacing or thickness > 0.3 * spacing or off.max() > thickness / 2 + 0.1 * spacing:
+            continue
+        pieces.append((centre + along.min() * direction, centre + along.max() * direction, thickness))
+    return pieces
+
+
+def _joined(pieces, line_ys: list[float], spacing: float) -> list[tuple]:
+    """Pieces of one stroke cut apart by a staff line put back together. Removing the lines takes
+    the middle of a slide drawn low over its string (near the line its pixels are long horizontal
+    runs, like the line's), leaving two pieces: in line with each other, one ending beside a line
+    and the next starting beside it on the other side, a little apart."""
+    _, np = _cv()
+    pieces = sorted(pieces, key=lambda p: p[0][0])
+    used = [False] * len(pieces)
+    out = []
+    for i, (left, right, thick) in enumerate(pieces):
+        if used[i]:
+            continue
+        for j in range(i + 1, len(pieces)):
+            if used[j]:
+                continue
+            nleft, nright, _ = pieces[j]
+            gap = nleft[0] - right[0]
+            if not -0.2 * spacing <= gap <= 3 * spacing:
+                continue
+            a, b = left, nright
+            span = b - a
+            if span[0] <= 0:
+                continue
+            normal = np.array([-span[1], span[0]]) / np.hypot(*span)
+            if max(abs(float((p - a) @ normal)) for p in (right, nleft)) > 0.15 * spacing + thick / 2:
+                continue
+            # cut by a line: both ends beside the same line (two slides on neighbouring strings
+            # can be nearly in line with each other too)
+            if not any(abs(right[1] - y) <= 0.35 * spacing and abs(nleft[1] - y) <= 0.35 * spacing for y in line_ys):
+                continue
+            right = nright
+            used[j] = True
+        out.append((left, right))
+    return out
+
+
+def _slides(dark, on_line, groups, spacing: float, k: float) -> list[Segment]:
+    """Slides: straight oblique strokes on the staff, beside the fret numbers, as segments with
+    their direction — what the tab reader takes for a slide between two notes, into a note or
+    out of it. The strokes the staff lines cut are joined again; only thin, straight, slanted
+    strokes of a slide's size are kept (a digit, a parenthesis, a bend's curve, a rest are not)."""
+    cv2, np = _cv()
+    mask = dark & ~on_line
+    out: list[Segment] = []
+    for group in groups:
+        top, bottom = group[0][0], group[-1][0]
+        sx0, sx1 = min(line[3] for line in group), max(line[4] for line in group)
+        # from above the top line: a bend rising out of the staff is seen whole (too tall)
+        y0, y1 = max(0, round(top - 3 * spacing)), min(mask.shape[0], round(bottom + spacing))
+        region = mask[y0:y1, sx0 : sx1 + 1].astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(region, connectivity=8)
+        pieces = _strokes(labels, stats[:count], spacing, np)
+        for left, right in _joined(pieces, [line[0] - y0 for line in group], spacing):
+            (xa, ya), (xb, yb) = left, right
+            w, h = xb - xa, abs(yb - ya)
+            if not (0.3 * spacing <= w <= 8 * spacing and 0.15 * spacing <= h <= 1.2 * spacing):
+                continue
+            if not 0.05 <= h / w <= 1.8 or y0 + max(ya, yb) < top - 0.5 * spacing:
+                continue
+            ax0, ax1 = sx0 + xa, sx0 + xb
+            at, ab = y0 + min(ya, yb), y0 + max(ya, yb)
+            out.append(Segment(ax0 * k, ax1 * k, at * k, ab * k, bool(yb < ya)))
+    return out
 
 
 # Technique marks printed as words near the staff, as the tab reader expects to find them

@@ -45,7 +45,11 @@ def engraved_tab_pdf(
     ``staves`` is a list of staves, each a list of measures, each a list of
     (string, fret) or (string, fret, flags). A plain list of measures is treated
     as one staff. Flags: "(" draws parentheses as curved paths, "P"/"H" prints
-    the letter above the staff between the previous note and this one.
+    the letter above the staff between the previous note and this one, "/" draws a
+    slide from the previous note on the same string (a straight stroke between the two
+    numbers, rising when the fret goes up), "<" a slide into the note from below and
+    ">" a slide out of it downwards (short strokes beside the number), "b" a full bend
+    (a curve rising from the number to an arrowhead over the staff, "full" above it).
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to; a harmonic mark ("PH", "AH", "N.H.") is
     printed over the staff instead, above the "H"/"P" letters. Staff lines are drawn one
@@ -80,6 +84,7 @@ def engraved_tab_pdf(
         for m in reversed(range(len(measures))):
             for s in range(strings):
                 pdf.line(x0 + m * width, top - s * spacing, x0 + (m + 1) * width, top - s * spacing)
+        last_on_string: dict[int, tuple[float, int]] = {}  # string -> (x, fret) of its last note
         for m, notes in enumerate(measures):
             start = x0 + m * width
             pdf.line(start, top, start, top - (strings - 1) * spacing)
@@ -109,6 +114,31 @@ def engraved_tab_pdf(
                 for letter in "HP":
                     if letter in flags:
                         pdf.drawCentredString(x - step / 2, top + 6, letter)
+                half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2
+                if "/" in flags and string in last_on_string:
+                    px, pfret = last_on_string[string]
+                    pwidth = pdf.stringWidth(str(pfret), "Helvetica", 7) / 2
+                    rise = 2.1 if fret > pfret else -2.1  # PDF y goes up
+                    pdf.line(px + pwidth + 1.2, y - rise, x - half - 1.2, y + rise)
+                if "<" in flags:
+                    pdf.line(x - half - 6.5, y - 3.5, x - half - 1.2, y + 0.7)
+                if ">" in flags:
+                    pdf.line(x + half + 1.2, y - 0.7, x + half + 6.5, y - 4.9)
+                if "b" in flags:
+                    path = pdf.beginPath()
+                    path.moveTo(x + half + 0.6, y)
+                    path.curveTo(x + half + 4, y, x + half + 5.5, top - 2, x + half + 5.5, top + 6)
+                    pdf.drawPath(path, stroke=1, fill=0)
+                    head = pdf.beginPath()
+                    head.moveTo(x + half + 3.8, top + 6)
+                    head.lineTo(x + half + 7.2, top + 6)
+                    head.lineTo(x + half + 5.5, top + 9.5)
+                    head.close()
+                    pdf.drawPath(head, stroke=0, fill=1)
+                    pdf.setFont("Helvetica", 5)
+                    pdf.drawCentredString(x + half + 5.5, top + 11, "full")
+                    pdf.setFont("Helvetica", 7)
+                last_on_string[string] = (x, fret)
         pdf.line(x1, top, x1, top - (strings - 1) * spacing)
         middle = top - (strings - 1) * spacing / 2
         for staff_index, measure, numerator, denominator in signatures or []:

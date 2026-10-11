@@ -378,3 +378,56 @@ def test_the_dashes_of_a_range_end_where_they_are_drawn():
         lengths = sorted(s.x1 - s.x0 for s in dashes)
         periods = sorted(b.x0 - a.x0 for a, b in itertools.pairwise(dashes) if b.x0 - a.x0 < 8)
         assert 0.5 <= lengths[len(lengths) // 2] / periods[len(periods) // 2] <= 0.62
+
+
+SLIDE_STAVES = [
+    [[(3, 5), (3, 9, "/"), (2, 8, "<"), (2, 6, ">")], [(1, 12), (1, 9, "/"), (4, 4, "<"), (5, 2)]],
+    [[(4, 7, ">"), (3, 2), (3, 7, "/"), (3, 5, "/")], [(6, 3, "<"), (5, 9, "<"), (2, 10), (2, 12, "/")]],
+    [
+        [(6, 14), (4, 8, "<"), (3, 14, "<"), (6, 14, "<"), (3, 5, ">")],
+        [(4, 9), (6, 13), (4, 11), (1, 10)],
+        [(2, 3), (1, 8, ">"), (2, 3, ">")],
+        [(3, 7), (1, 13), (1, 11)],
+    ],
+]
+
+
+def _slides(gp5: bytes) -> list[tuple]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (note.string, note.value, sorted(s.name for s in note.effect.slides))
+        for measure in song.tracks[0].measures
+        for beat in measure.voices[0].beats
+        for note in sorted(beat.notes, key=lambda n: n.string)
+    ]
+
+
+@pytest.mark.parametrize("width", [1300, 1600])
+def test_slides_in_a_picture_are_read_as_in_the_pdf(width):
+    """Slides drawn as straight strokes on the staff — between two notes on a string (cut in two
+    by the string's line when drawn low over it), into a note from below, out of it downwards —
+    read from the picture as from the PDF; two slides into notes on neighbouring strings, nearly
+    in line, stay two."""
+    pdf = engraved_tab_pdf(SLIDE_STAVES, knockout=True)
+    expected = _slides(convert(pdf, ConversionOptions()).gp5)
+    kinds = [kind for *_, found in expected for kind in found]
+    assert kinds.count("shiftSlideTo") == 5 and kinds.count("intoFromBelow") == 7 and kinds.count("outDownwards") == 5
+    assert _slides(convert(tab_png(pdf, width), ConversionOptions()).gp5) == expected
+
+
+def test_bends_and_parentheses_are_not_taken_for_slides():
+    """A bend's curve, a parenthesis and the slanted stroke of a big time-signature "4", cut by the
+    staff lines, leave slanted pieces of ink: they are not straight, so not slides."""
+    staves = [
+        [
+            [(2, 9), (6, 12, "("), (2, 2), (1, 12, "b")],
+            [(3, 1), (5, 11, "("), (2, 3, "("), (2, 0, "b")],
+            [(3, 8), (2, 9, "("), (6, 11), (5, 10, "b")],
+            [(4, 7), (2, 15, "("), (1, 9), (3, 9, "b")],
+        ]
+    ]
+    pdf = engraved_tab_pdf(staves, knockout=True, ranges=[(0, "P.M.", 60, 250)], signatures=[(0, 0, 4, 4)])
+    for width in (1000, 1300, 1600):
+        assert all(not found for *_, found in _slides(convert(tab_png(pdf, width), ConversionOptions()).gp5))
