@@ -80,6 +80,22 @@ O OCR das tabs em imagem (RapidOCR) instala-se à parte, com `requirements-ocr.t
 
 Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
 
+## Usar o conversor noutro programa
+
+O conversor instala-se como pacote Python, sem a aplicação web: `pip install "pdf-to-gp5 @ git+https://github.com/F100Pilot/PDF-to-GP5@<commit>"` (com `[ocr]` no fim do nome para as tabs em imagem). Fica com o nome `pdf_to_gp5` — a pasta `app/` instalada com outro nome, por isso o código do conversor importa os seus módulos de forma relativa (`tests/test_packaging.py` garante-o). Só traz o que a conversão precisa (pdfplumber e PyGuitarPro); a aplicação continua a usar o `requirements.txt`.
+
+```python
+from pdf_to_gp5 import i18n
+from pdf_to_gp5.converter import ConversionOptions
+from pdf_to_gp5.sandbox import run_isolated
+
+i18n.use("en")  # avisos e erros neste idioma
+result = run_isolated([pdf_bytes], ConversionOptions(), timeout_s=120, memory_mb=2048)
+open("tab.gp5", "wb").write(result.gp5)  # result.report: título, avisos…
+```
+
+É assim que o [RockForge](https://github.com/F100Pilot/RockForge) converte um PDF ou uma imagem no "Novo projeto".
+
 ## Áudio de um endereço (URL → MP3)
 
 Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor obtém o áudio com o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e converte-o para MP3 (128–320 kbit/s) com o FFmpeg, mostra o progresso e entrega o MP3, que fica logo a tocar com a partitura (e pode ser guardado).

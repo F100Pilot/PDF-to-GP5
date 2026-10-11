@@ -7,6 +7,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Added
+- The converter can be used by other programs: `pip install "pdf-to-gp5 @ git+https://github.com/F100Pilot/PDF-to-GP5"` installs it under the name `pdf_to_gp5` (with the `[ocr]` extra for tab pictures). This is how RockForge converts a PDF or a picture in "New project". The app still starts and installs as before.
 - User manual, in Portuguese ([`docs/MANUAL.md`](docs/MANUAL.md)) and English ([`docs/MANUAL.en.md`](docs/MANUAL.en.md)), with screenshots: install, convert, play and practise, 3D highway, audio, video, library, shortcuts, privacy and troubleshooting. Linked at the top of the README.
 - Player: **Metronome**, **Count-in** (one bar before playing; off when the song's audio or video plays along) and **Speed up the loop** (with the A–B loop, each round 5 % faster up to 100 %, to train a hard passage). Remembered in the browser.
 - Open a Guitar Pro file (.gp, .gpx, .gp5, .gp4, .gp3) to play it, without converting: in the same place as the PDFs, it opens right away with the summary, the score, the 3D highway, the audio and the video, and is kept in the library in its own format (also when exported to another computer).

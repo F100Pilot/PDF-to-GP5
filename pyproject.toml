@@ -1,3 +1,34 @@
+# The converter as an installable package, for programs that use it as a library
+# (RockForge: pip install "pdf-to-gp5 @ git+https://github.com/F100Pilot/PDF-to-GP5@<commit>").
+# The app/ folder is installed under the name pdf_to_gp5 — the converter imports its own
+# modules relatively, so it works under any name (tests/test_packaging.py) — and nothing
+# about running this app changes: start.bat and the CI still install requirements.txt.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdf-to-gp5"
+dynamic = ["version"]
+description = "Tablature in a PDF or a picture to a Guitar Pro 5 file"
+requires-python = ">=3.11"
+# Only what the conversion needs (pdfplumber brings pdfminer.six); the web app's own
+# dependencies stay in requirements.txt.
+dependencies = ["pdfplumber>=0.11", "PyGuitarPro>=0.9.3"]
+
+[project.optional-dependencies]
+# Tab pictures (OCR). rapidocr-onnxruntime declares Python <3.13 only; on 3.13+ install it
+# with --no-deps --ignore-requires-python as requirements-ocr.txt says.
+ocr = ["rapidocr-onnxruntime>=1.4.4"]
+
+[tool.setuptools]
+package-dir = { "pdf_to_gp5" = "app" }
+packages = ["pdf_to_gp5", "pdf_to_gp5.extract"]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+version = { attr = "pdf_to_gp5.__version__" }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
