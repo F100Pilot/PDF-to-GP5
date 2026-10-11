@@ -730,3 +730,135 @@ def test_an_arc_is_one_thin_stroke_curving_one_way():
     xs, ys = drawn(arc(10, 60, 30, 6) + arc(60, 110, 30, 6))  # two slurs meeting on one note
     parts = _arc_chain(xs, ys, 16, np)
     assert len(parts) == 2 and all(_is_arc(px, py, 16, np) for px, py in parts)
+
+
+BEND_STAVES = [
+    [[(3, 5, "b"), (2, 8), (4, 7)], [(4, 7, "B"), (6, 3), (2, 8)], [(2, 9, "bR"), (5, 9), (3, 7)]],
+    [[(5, 6, "BR"), (1, 3), (2, 3)], [(3, 7, "^"), (5, 2), (1, 5)], [(6, 5, "b"), (4, 2), (2, 3)]],
+]
+
+
+def _bends(gp5: bytes) -> list[tuple]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (
+            note.string,
+            note.value,
+            note.type.name,
+            (note.effect.bend.type.name, note.effect.bend.value) if note.effect.bend else None,
+        )
+        for measure in song.tracks[0].measures
+        for beat in measure.voices[0].beats
+        for note in beat.notes
+    ]
+
+
+@pytest.mark.parametrize("width", [1300, 1600])
+def test_bends_in_a_picture_are_read_as_in_the_pdf(width):
+    """A bend's arrowhead over the staff with the curve rising to it from the note, its amount
+    over it ("full", "1/2"), a release (an arrowhead pointing down at the end of a curve back)
+    and a pre-bend (a straight arrow up from the number): read from the picture as from the PDF,
+    from the top string to the bottom one."""
+    pdf = engraved_tab_pdf(BEND_STAVES, knockout=True)
+    expected = _bends(convert(pdf, ConversionOptions()).gp5)
+    kinds = {b for *_, b in expected if b}
+    assert {("bend", 100), ("bend", 50), ("bendRelease", 100), ("bendRelease", 50), ("prebend", 100)} <= kinds
+    assert _bends(convert(tab_png(pdf, width), ConversionOptions()).gp5) == expected
+
+
+def test_no_bend_is_made_up_from_words_or_a_tempo_mark():
+    """Bold letters over the staff and the tempo mark's filled note head with its stem look like
+    arrowheads with a stroke: none of them becomes a bend."""
+    from app.extract import raster_tab
+
+    words = [
+        (0, 62, "AVA", "Helvetica-Bold", 9),
+        (0, 200, "VAMP", "Times-Bold", 8),
+        (0, 330, "full", "Helvetica-Bold", 7),
+        (1, 62, "T Y", "Helvetica-Bold", 9),
+        (1, 200, "1/2", "Helvetica-Bold", 8),
+    ]
+    staves = [[[(3, 5), (2, 8), (4, 7)], [(4, 7), (6, 3, "("), (2, 8)]]] * 2
+    pdf = engraved_tab_pdf(staves, knockout=True, words=words, heading=("Invented Song", "Nobody", 120))
+    found: list = []
+    original = raster_tab._bends
+
+    def spy(*args):
+        out = original(*args)
+        found.extend(out[0])
+        return out
+
+    raster_tab._bends = spy
+    try:
+        for width in (1000, 1300, 1600):
+            assert not any(b for *_, b in _bends(convert(tab_png(pdf, width), ConversionOptions()).gp5))
+    finally:
+        raster_tab._bends = original
+    assert found == []
+
+
+def test_an_arrowhead_is_a_triangle_narrowing_to_a_point():
+    import numpy as np
+
+    from app.extract.raster_tab import _arrowhead
+
+    def art(text):
+        return np.array([[ch == "#" for ch in row] for row in text.split()])
+
+    up_with_stroke = art(  # an arrowhead with the bend's stroke hanging from its base
+        """
+        ......#......
+        .....###.....
+        .....###.....
+        ....#####....
+        ....#####....
+        ...#######...
+        ...#######...
+        ...#######...
+        .....###.....
+        .....###.....
+        .....###.....
+        .....###.....
+        .....###.....
+        """
+    )
+    down_with_stroke = art(  # a release's arrowhead, the curve coming in from above on a slant
+        """
+        ....###........
+        .....##........
+        .....###.......
+        ...#######.....
+        ...#######.....
+        ...#######.....
+        ...#######.....
+        ....####.......
+        .....###.......
+        .....##........
+        ......#........
+        """
+    )
+    blob = art(  # a solid square (a filled letter, a blot): no tip on either side
+        """
+        .#######.
+        .#######.
+        .#######.
+        .#######.
+        .#######.
+        """
+    )
+    assert _arrowhead(up_with_stroke, 6, (3, 8), 16, np)[0] == "up"
+    assert _arrowhead(down_with_stroke, 6, (3, 8), 16, np)[0] == "down"
+    assert _arrowhead(blob, 4, (0, 5), 16, np) is None
+    small = art(  # a narrow triangle, a quarter of a space wide: part of a digit, not an arrow
+        """
+        .#..
+        .#..
+        .##.
+        .##.
+        ####
+        ####
+        """
+    )
+    assert _arrowhead(small, 1, (4, 6), 16, np) is None

@@ -8,7 +8,8 @@ read by a small text-recognition model (RapidOCR's PP-OCR recogniser, run with O
 Besides fret numbers, staff and bar lines, the rhythm drawn under the staff and the heading, the
 technique WORDS near the staff are read ("H", "P", "P.M.", "let ring", harmonics) with the dashed
 line after a range mark, slides (straight slanted strokes beside the numbers), vibrato (a wavy
-line over the staff) and ties and slurs (arcs over the strings); bends are not seen.
+line over the staff), ties and slurs (arcs over the strings) and bends (an arrowhead with the
+stroke rising to it, the amount written over it).
 """
 
 from __future__ import annotations
@@ -388,6 +389,9 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         page.segments.extend(_slides(dark, on_line, groups, spacing, k))
         page.chars.extend(_vibratos(dark, groups, spacing, k))
         page.curves.extend(_arcs(dark, on_line, groups, chars, spacing, k))
+        arrows, amounts = _bends(gray, dark, groups, page.chars, spacing, k)
+        page.curves.extend(arrows)
+        page.chars.extend(amounts)
     if not heading:
         return page, None
     head = _heading(gray, groups, spacing, k, number)
@@ -1070,6 +1074,184 @@ def _arc_chain(xs, ys, spacing: float, np) -> list:
         for a, b in itertools.pairwise(bounds)
         if ((xs - x0 > a) & (xs - x0 <= b)).any()
     ]
+
+
+# Bend amounts as the tab reader knows them (engraved_tab._BEND_AMOUNTS), compared without spaces
+# and in lower case. The recogniser loses the thin slash of a small "1/2" ("12"): over an
+# arrowhead, where no other number belongs, that is still the half.
+_BEND_LABELS = {
+    "full": "full",
+    "1/2": "1/2",
+    "12": "1/2",
+    "½": "½",
+    "1/4": "¼",
+    "14": "¼",
+    "¼": "¼",
+    "11/2": "11/2",
+    "112": "11/2",
+    "1½": "1½",
+    "1": "1",
+    "2": "2",
+}
+
+
+def _arrowhead(box, centre: int, core: tuple[int, int], spacing: float, np) -> tuple[str, int, int] | None:
+    """An arrowhead in ``box`` (the ink around a solid blob whose middle is column ``centre``):
+    ("up" or "down", its first row, its last row), None for anything else. Each row is measured
+    by its run of ink through the middle (a release's curve leaving the tip is another run). The
+    widest row of the solid part (rows ``core``) is the base; on one side the triangle narrows row by row to its tip, about half
+    an arrowhead's height away; on the other side there is nothing or the stroke it ends, much
+    thinner straight away."""
+    widths = np.zeros(len(box), int)
+    for r, row in enumerate(box):
+        at = next((c for c in (centre, centre - 1, centre + 1) if 0 <= c < len(row) and row[c]), None)
+        if at is None:
+            continue
+        left, right = at, at
+        while left > 0 and row[left - 1]:
+            left -= 1
+        while right + 1 < len(row) and row[right + 1]:
+            right += 1
+        widths[r] = right - left + 1
+    wide = widths[core[0] : core[1]].max()
+    if wide < 0.3 * spacing or wide > 0.8 * spacing:
+        return None
+    base = core[0] + int(np.flatnonzero(widths[core[0] : core[1]] >= 0.8 * wide).mean().round())
+
+    def taper(rows) -> tuple[int, int]:
+        """(how many rows narrow from the base to a tip, the tip's width); (0, 0) for nothing or
+        for a stroke, which keeps one thin width row after row."""
+        seq: list[int] = []
+        for r in rows:
+            previous = seq[-1] if seq else wide
+            if widths[r] == 0 or widths[r] > previous + 1:
+                break
+            seq.append(int(widths[r]))
+        if not seq or seq[-1] > max(3, wide / 3):
+            return 0, 0
+        thin = [w for w in seq if w <= 0.6 * wide]
+        if any(a == b == c for a, b, c in zip(thin, thin[1:], thin[2:], strict=False)):
+            return 0, 0
+        return len(seq), seq[-1]
+
+    (up, up_tip), (down, down_tip) = taper(range(base - 1, -1, -1)), taper(range(base + 1, len(widths)))
+    if up and down:  # a slanting stroke can look like a tip for a few rows: the sharper side wins
+        if up_tip == down_tip:
+            return None
+        up, down = (up, 0) if up_tip < down_tip else (0, down)
+    if up and 0.2 * spacing <= up + 1 <= 0.8 * spacing:
+        first, last = base - up, base
+    elif down and 0.2 * spacing <= down + 1 <= 0.8 * spacing:
+        first, last = base, base + down
+    else:
+        return None
+    head = box[first : last + 1]
+    cols = np.flatnonzero(head.any(axis=0))
+    if not 0.35 <= head[:, cols[0] : cols[-1] + 1].mean() <= 0.8:
+        return None
+    return ("up" if up else "down"), first, last
+
+
+def _bends(gray, dark, groups, chars: list[Char], spacing: float, k: float) -> tuple[list[Segment], list[Char]]:
+    """Bends: an arrowhead over the staff with the stroke under it rising from a note (curved: a
+    bend; straight up from the number: a pre-bend), an arrowhead pointing down with the stroke
+    coming down to it (a release), and the amount printed over the arrow ("full", "1/2"). Handed
+    on as an engraved PDF has them: the arrowhead and the stroke as curves, the amount as
+    characters. What was already read as text (numbers, parentheses, letters) is blanked first;
+    not the music glyphs: the rhythm reader can take a bend's stroke for a stem."""
+    cv2, np = _cv()
+    mask = dark.copy()
+    pad = 0.1 * spacing
+    for c in chars:
+        if "\ue000" <= c.text[:1] <= "\uf8ff":
+            continue
+        x0, x1, y0, y1 = c.x0 / k - pad, c.x1 / k + pad, c.top / k - pad, c.bottom / k + pad
+        mask[max(0, round(y0)) : max(0, round(y1)) + 1, max(0, round(x0)) : max(0, round(x1)) + 1] = False
+    curves: list[Segment] = []
+    labels: list[tuple[tuple[int, int, int, int], object]] = []
+    for group in groups:
+        top, bottom = group[0][0], group[-1][0]
+        sx0, sx1 = min(line[3] for line in group), max(line[4] for line in group)
+        y0, y1 = max(0, round(top - 4 * spacing)), min(mask.shape[0], round(bottom + spacing))
+        region = mask[y0:y1, sx0 : sx1 + 1].copy()
+        # on a staff line's own rows, keep what is drawn on either side of it (an arrowhead
+        # resting on the line, a stroke crossing it): the line itself goes
+        for _, a, b, _, _ in group:
+            above, below = a - 1 - y0, b + 1 - y0
+            if 0 <= above and below < len(region):
+                region[above + 1 : below] = region[above] | region[below]
+        # only what is solid: a small square fits in an arrowhead, not in a stroke or a letter
+        size = max(4, round(0.25 * spacing))
+        solid = cv2.morphologyEx(region.astype(np.uint8), cv2.MORPH_OPEN, np.ones((size, size), np.uint8))
+        count, _, stats, _ = cv2.connectedComponentsWithStats(solid, connectivity=8)
+        heads = []  # (way, x0, y0, width, height) in the region's pixels
+        for index in range(1, count):
+            x, y, w, h, _ = stats[index]
+            if w > 0.8 * spacing or h > 0.8 * spacing:
+                continue
+            # tall enough to see a stroke leave the base: it keeps one width, a tip narrows to a point
+            reach = round(0.8 * spacing)
+            bx0, by0 = max(0, x - size), max(0, y - reach)
+            box = region[by0 : y + h + reach, bx0 : x + w + size]
+            found = _arrowhead(box, x + w // 2 - bx0, (y - by0, y - by0 + h), spacing, np)
+            if found is None:
+                continue
+            way, first, last = found
+            lo = max(0, x - bx0 - 2)
+            cols = np.flatnonzero(box[first : last + 1, lo : x - bx0 + w + 2].any(axis=0)) + lo
+            heads.append((way, bx0 + cols[0], by0 + first, cols[-1] - cols[0] + 1, last - first + 1))
+        # the stroke of each arrow: with the arrowheads taken out, the blob touching the head's base
+        strokes = region.copy()
+        for _, hx, hy, w, h in heads:
+            strokes[max(0, hy - 1) : hy + h + 1, max(0, hx - 1) : hx + w + 1] = False
+        count, comp, stats, _ = cv2.connectedComponentsWithStats(strokes.astype(np.uint8), connectivity=8)
+        bent_at: list[float] = []  # x of the bends found: a release comes back from one of them
+        for way, hx, hy, w, h in sorted(heads, key=lambda head: head[0] != "up"):
+            row = hy + h + 1 if way == "up" else hy - 2
+            if not 0 <= row < len(comp):
+                continue
+            touching = comp[row, max(0, hx - 1) : hx + w + 1]
+            touching = touching[touching > 0]
+            if not len(touching):
+                continue
+            x, y, sw, sh, _ = stats[np.bincount(touching).argmax()]
+            if sh < 0.5 * spacing or sh > 7 * spacing or sw > 6 * spacing:
+                continue
+            ax, ay = sx0 + hx, y0 + hy
+            # a bend rises from a note on the staff; a release comes down after a bend
+            if way == "up" and y0 + y + sh < top - 0.5 * spacing:
+                continue
+            if way == "down" and not any(0 <= ax - b <= 4 * spacing for b in bent_at):
+                continue
+            if way == "up":
+                bent_at.append(ax)
+            curves.append(Segment(ax * k, (ax + w) * k, ay * k, (ay + h) * k))
+            curves.append(Segment((sx0 + x) * k, (sx0 + x + sw) * k, (y0 + y) * k, (y0 + y + sh) * k))
+            if way == "up":
+                centre = ax + w / 2
+                lx0, lx1 = max(0, round(centre - 0.8 * spacing)), round(centre + 0.8 * spacing)
+                ly0, ly1 = max(0, round(ay - 2 * spacing)), ay - 1
+                box = mask[ly0:ly1, lx0:lx1]
+                if box.any():
+                    ys, xs = np.nonzero(box)
+                    labels.append(((lx0 + xs.min(), ly0 + ys.min(), lx0 + xs.max() + 1, ly0 + ys.max() + 1), None))
+    out: list[Char] = []
+    crops = []
+    for (bx0, by0, bx1, by1), _ in labels:
+        tall = by1 - by0
+        crop = np.full((tall + 2 * max(2, tall // 3), bx1 - bx0 + 2 * max(2, tall // 3)), 255, np.uint8)
+        p = max(2, tall // 3)
+        crop[p : p + tall, p : p + bx1 - bx0] = np.where(mask[by0:by1, bx0:bx1], gray[by0:by1, bx0:bx1], 255)
+        crop = cv2.resize(crop, None, fx=48 / crop.shape[0], fy=48 / crop.shape[0], interpolation=cv2.INTER_AREA)
+        crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
+    for ((bx0, by0, bx1, by1), _), read in zip(labels, _recognize(crops) if crops else [], strict=True):
+        text = _BEND_LABELS.get(read.replace(" ", "").lower())
+        if text is None:
+            continue
+        step = (bx1 - bx0) / len(text)
+        for j, ch in enumerate(text):
+            out.append(Char(ch, (bx0 + j * step) * k, (bx0 + (j + 1) * step) * k, by0 * k, by1 * k))
+    return curves, out
 
 
 # A wavy line as the tab reader knows it: a SMuFL wiggle glyph (engraved_tab._WIGGLES), outside

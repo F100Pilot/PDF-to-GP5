@@ -147,7 +147,7 @@ Colunas:
 | Texto livre sobre notas | ⬜ | ⬜ | ✅ | — | |
 | Segunda voz | ⬜ | ⬜ | ✅ | — | Hoje: uma voz por track |
 | Bateria / percussão | ⬜ | ⬜ | ✅ | — | Fora de âmbito por agora |
-| Tab em imagem (PNG/JPEG/WebP, PDF só com imagens) | ⬜ | 🟡 | — | Jet Lag (print do Ultimate Guitar) | OCR: números, linhas das cordas, barras de compasso, ritmo desenhado e técnicas escritas como palavras (H/P, P.M., let ring, PH/AH/N.H.), slides, vibrato, ligaduras e arcos de legato; bends não. Tab em texto numa imagem ainda não |
+| Tab em imagem (PNG/JPEG/WebP, PDF só com imagens) | ⬜ | 🟡 | — | Jet Lag (print do Ultimate Guitar) | OCR: números, linhas das cordas, barras de compasso, ritmo desenhado e técnicas escritas como palavras (H/P, P.M., let ring, PH/AH/N.H.), slides, vibrato, ligaduras, arcos de legato e bends (com release, pre-bend e quantidade). Tab em texto numa imagem ainda não |
 
 ---
 

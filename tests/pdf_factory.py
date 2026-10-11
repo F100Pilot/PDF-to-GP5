@@ -50,7 +50,9 @@ def engraved_tab_pdf(
     slide from the previous note on the same string (a straight stroke between the two
     numbers, rising when the fret goes up), "<" a slide into the note from below and
     ">" a slide out of it downwards (short strokes beside the number), "b" a full bend
-    (a curve rising from the number to an arrowhead over the staff, "full" above it), "~" a
+    (a curve rising from the number to an arrowhead over the staff, "full" above it), "B" a
+    half bend ("1/2"), "R" after either a release (a curve down from the peak to an arrowhead
+    pointing down), "^" a pre-bend (a straight arrow up from the number), "~" a
     vibrato (a wavy line over the staff from the note on, drawn as a path: a picture of it
     looks like an editor's wiggle glyph, but the vector reader, which reads the glyphs, does
     not see it), "t" a tie from the previous note on the same string (an arc over the string
@@ -135,20 +137,39 @@ def engraved_tab_pdf(
                     pdf.line(x - half - 6.5, y - 3.5, x - half - 1.2, y + 0.7)
                 if ">" in flags:
                     pdf.line(x + half + 1.2, y - 0.7, x + half + 6.5, y - 4.9)
-                if "b" in flags:
-                    path = pdf.beginPath()
-                    path.moveTo(x + half + 0.6, y)
-                    path.curveTo(x + half + 4, y, x + half + 5.5, top - 2, x + half + 5.5, top + 6)
-                    pdf.drawPath(path, stroke=1, fill=0)
+
+                def arrowhead(cx: float, base: float, up: bool) -> None:
                     head = pdf.beginPath()
-                    head.moveTo(x + half + 3.8, top + 6)
-                    head.lineTo(x + half + 7.2, top + 6)
-                    head.lineTo(x + half + 5.5, top + 9.5)
+                    head.moveTo(cx - 1.7, base)
+                    head.lineTo(cx + 1.7, base)
+                    head.lineTo(cx, base + (3.5 if up else -3.5))
                     head.close()
                     pdf.drawPath(head, stroke=0, fill=1)
+
+                def amount(cx: float, text: str, top: float = top) -> None:
                     pdf.setFont("Helvetica", 5)
-                    pdf.drawCentredString(x + half + 5.5, top + 11, "full")
+                    pdf.drawCentredString(cx, top + 11, text)
                     pdf.setFont("Helvetica", 7)
+
+                if "b" in flags or "B" in flags:
+                    peak = x + half + 5.5
+                    path = pdf.beginPath()
+                    path.moveTo(x + half + 0.6, y)
+                    path.curveTo(x + half + 4, y, peak, top - 2, peak, top + 6)
+                    pdf.drawPath(path, stroke=1, fill=0)
+                    arrowhead(peak, top + 6, up=True)
+                    amount(peak, "1/2" if "B" in flags else "full")
+                    if "R" in flags:
+                        back = peak + 0.45 * step
+                        path = pdf.beginPath()
+                        path.moveTo(peak, top + 9.5)
+                        path.curveTo(peak + 2, top + 9.5, back, top + 6, back, top + 1)
+                        pdf.drawPath(path, stroke=1, fill=0)
+                        arrowhead(back, top + 1, up=False)
+                if "^" in flags:
+                    pdf.line(x, y + 3.6, x, top + 6)
+                    arrowhead(x, top + 6, up=True)
+                    amount(x, "full")
                 if "~" in flags:
                     wave = pdf.beginPath()
                     wx, wy, end = x - 2, top + 14, x + 0.55 * step
