@@ -1,237 +1,74 @@
 # PDF → GP5
 
-Aplicação web que converte tablaturas em PDF (ou em imagem) para ficheiros **Guitar Pro 5** (`.gp5`).
+**English** · [Português](README.pt.md)
 
-📖 **Manual do utilizador:** [Português](docs/MANUAL.md) · [English](docs/MANUAL.en.md)
+Turn guitar and bass tablature PDFs — or screenshots of tabs — into **Guitar Pro** files, then
+practise them in your browser: notation that plays, a Rocksmith-style 3D highway, the song's audio
+and YouTube video in sync, an A–B loop, a metronome and a library of your songs.
 
-## Formatos suportados
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/F100Pilot/PDF-to-GP5)](https://github.com/F100Pilot/PDF-to-GP5/releases/latest)
+[![CI](https://github.com/F100Pilot/PDF-to-GP5/actions/workflows/ci.yml/badge.svg)](https://github.com/F100Pilot/PDF-to-GP5/actions/workflows/ci.yml)
 
-| Tipo de PDF | Exemplo | Suporte |
-|---|---|---|
-| Tab em texto (monoespaçado) | `e|--0--3h5--|` impresso de um `.txt` / site | ✅ |
-| Tab gravada por editor | Exportação PDF do Guitar Pro, MuseScore, TuxGuitar | ⚠️ experimental |
-| Imagem de tab gravada (OCR) | Print/screenshot PNG, JPEG ou WebP; PDF só com imagens (print guardado como PDF, digitalização) | ⚠️ experimental: números, linhas das cordas, barras de compasso, ritmo desenhado e técnicas escritas (H/P, P.M., let ring, harmónicos), slides, vibrato, ligaduras, arcos de legato e bends |
-| Imagem de tab em texto | Print de `e|--0--3h5--|` | ❌ ainda não (sem linhas das cordas desenhadas) |
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/F100Pilot)
 
-- 4–8 cordas (baixo, guitarra 6/7/8 cordas); afinação lida das etiquetas (`e B G D A D` → Drop D) ou escolhida manualmente.
-- Técnicas: hammer-on/pull-off (`h`/`p`), slides (`/`, `\`, `s`), bend (`b`, `7b9`, `7b9r7`), vibrato (`~`), nota abafada (`x`), ghost note (`(5)`).
-- Tabs gravadas: bends (bend, pre-bend, release, bend mantido), vibrato (linha ondulada), setas de rasgueado (brush), notas entre parêntesis (ligadura se repetem o traste da nota que soa na corda no tempo anterior e, nos PDFs do MuseScore, que desenha as ligaduras como arcos, só quando um arco chega à nota; senão ghost note), `H`/`P` sobre a pauta (hammer-on/pull-off), `let ring` e `P.M.` com linha tracejada, pausas de vários compassos (pelos números de compasso).
-- Vários sistemas e páginas são concatenados numa única pista.
-- Imagens (OCR): as linhas das cordas e as barras de compasso são detetadas na imagem (OpenCV) e os números lidos por um modelo de reconhecimento de texto ([RapidOCR](https://github.com/RapidAI/RapidOCR), modelos PP-OCR em ONNX Runtime, que correm no computador, sem rede: a telemetria do ONNX Runtime é desligada com `ORT_DISABLE_TELEMETRY=1`). O título, o artista, o BPM ("♩ = 97") e a afinação ("Tuning: …") são lidos do texto por cima da primeira pauta da imagem (deteção de texto do mesmo RapidOCR); num PDF cuja página 1 é uma imagem, completam o que o texto do próprio PDF não tem (num print de uma página web, o BPM só está na imagem). O compasso (os dois números grandes na pauta, no início ou numa mudança a meio) também é lido: os dígitos são lidos só como dígitos, porque o modelo, treinado sobretudo em chinês, lê um "4" grande sozinho como um carácter chinês. O ritmo desenhado com a tab ("tab com hastes": hastes, barras de colcheia e semicolcheia, meias-barras, bandeiras, pontos de aumentação e pausas na pauta) é lido como num PDF vetorial; num compasso em que as marcas não somam certo (uma quiáltera, uma pausa de outra forma), o ritmo desse compasso é estimado pelo espaçamento. Nos 13 PDFs de teste desenhados como imagem, 96,5 % dos compassos ficam com o ritmo igual ao do PDF (66 % só pelo espaçamento); num print da web de uma tab Official do Ultimate Guitar, os 24 compassos com notas usam o ritmo desenhado. As pausas são reconhecidas pelo tamanho, como o MuseScore (e os prints do Ultimate Guitar) as desenham. As técnicas escritas como palavras junto à pauta também são lidas: "H"/"P" (hammer-on/pull-off), "P.M." e "let ring" com o tracejado até ao fim do trecho, e os harmónicos "PH", "AH" e "N.H." — cada palavra perto da pauta é lida e só estas ficam, escritas como o leitor de PDFs as espera, por isso aplicam-se às notas como num PDF vetorial (em 12 tabs de teste com estas marcas, desenhadas como imagem a 1000, 1300 e 1600 px, as técnicas das 1269 notas marcadas saem como no PDF, nenhuma inventada). Os slides (traços retos inclinados junto aos números: entre duas notas, para dentro e para fora de uma nota) também são lidos, juntando o traço que a remoção da linha da corda corta em dois (em 10 tabs de teste, 589 de 590 slides como no PDF, nenhum inventado; nenhum inventado em 2049 notas de páginas sem slides). O vibrato (a linha ondulada por cima da pauta) também é lido: só conta uma linha com um só traço por coluna, sem hastes, comprida e baixa, a subir e descer pelo menos três vezes a ritmo regular, por isso as palavras por cima da pauta não contam (em 8 tabs de teste, 382 de 382 vibratos, nenhum inventado; nenhum inventado em 51 páginas cheias de palavras por cima da pauta). As ligaduras e os arcos de legato também são lidos (um arco que chega a uma nota entre parêntesis faz dela uma ligadura, sem arco é uma ghost note; um arco por cima de um slide faz dele um legato slide; um arco para um compasso vazio prolonga a nota), juntando o arco que a barra de compasso corta e separando arcos seguidos (em 12 tabs de teste, nas pautas com os números iguais aos do PDF: 116 de 117 ligaduras, 48 de 48 ghost notes, 47 de 47 legato slides, nenhum arco inventado; nenhum inventado em 69 imagens sem arcos). Os bends também são lidos: a seta com a curva que sobe da nota, a seta reta do pre-bend, a seta para baixo do release e a quantidade por cima ("full", "1/2") — a ponta é um triângulo cheio que afunila até um bico e o traço é a mancha que lhe toca na base; só conta uma seta cujo traço desce até à pauta (em 8 tabs de teste a 1300 px: 42 de 42 bends, 37 de 38 releases, 29 de 36 pre-bends; mais fraco a 1000 px; nenhum bend inventado). Uma imagem é uma track: vários prints da mesma parte juntam-se num PDF. Melhor com a página inteira a 1000 px ou mais de largura (linhas das cordas a 10 px ou mais umas das outras). Num PDF, são lidas por OCR as páginas sem tab com notas no texto que tenham imagens, ou que tenham linhas desenhadas e nenhum texto (um PDF do Songsterr impresso com "Microsoft Print to PDF" traz os números e as palavras como contornos); as letras da afinação à esquerda da pauta ("C G D# A# F A#") também são lidas. A análise e a conversão mostram uma barra de progresso. Também são lidos os números de compasso e as contagens das pausas de vários compassos (para a música ter o número certo de compassos), e as notas entre parêntesis (ghost notes ou ligaduras, como num PDF). Nos 13 PDFs de teste (exportados de editores) desenhados como imagem, 99,9 % das notas são encontradas e 99,7 % ficam com o traste certo, com cerca de 4 % de notas a mais (números que não são trastes): o relatório pede para conferir. Na Jet Lag (Simple Plan) como imagem, comparada compasso a compasso com o PDF: 119 de 119 compassos iguais a 1300 px, 116 a 1600 px e 101 a 1000 px (a essa resolução, pausas desenhadas são às vezes lidas como "9"). O título, o artista e o BPM saem iguais aos do PDF em todos (a 1000, 1300, 1600 e 2600 px), e o compasso também (sem compassos a mais).
+![The 3D highway](docs/manual/en/4-highway.png)
 
-O estado detalhado de cada nota e técnica (implementado, parcial, por implementar, sem suporte em GP5) está em [`docs/NOTACAO.md`](docs/NOTACAO.md).
+## Features
 
-### Metadados
+- **Reads tabs in many forms**: text tabs (`e|--0--3h5--|`), PDFs exported by Guitar Pro, MuseScore, TuxGuitar or Songsterr, and pictures of tabs (PNG, JPEG, WebP or scanned PDFs, read by OCR on your computer).
+- **Finds the song's details**: title, artist, tempo, time signature, tuning, rhythm, techniques (bends, slides, hammer-ons, vibrato, palm mute…), repeats and lyrics.
+- **Writes Guitar Pro files**: `.gp5`, or `.gp` (Guitar Pro 7/8) with the song's audio inside. Up to 7 tracks, 4 to 8 strings.
+- **Opens Guitar Pro files** (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`) to play them.
+- **Practice player**: staff and tab, 3D highway, speed, A–B loop that can speed up each pass, metronome and count-in.
+- **Plays along with the real song**: an audio file or a YouTube video, lined up with the notation.
+- **Library** of your songs, with album covers, that you can move to another computer.
+- **Portuguese and English** interface.
+- **Private**: it runs on your computer, and your files are not uploaded anywhere.
 
-Título, artista, BPM e compasso são detetados automaticamente quando os campos ficam vazios (texto em destaque no topo da página, linhas `Title:`/`Artist:`/`Tempo:`, indicação de metrónomo `♩ = 118`, glifos de compasso, metadados do PDF). Valores preenchidos pelo utilizador têm prioridade.
+## Get started
 
-### Ritmo
+You need **Python 3.11 or later** ([python.org](https://www.python.org/downloads/)) and **Google Chrome** (recommended) or Edge.
 
-Se a tab gravada tiver notação rítmica (hastes, barras, pausas — "tab com hastes" do MuseScore/Guitar Pro), as durações são lidas diretamente. Compassos com tercinas, ou cuja notação não some a métrica, usam a estimativa abaixo. Sem notação, há dois modos:
+**Windows**
 
-- **Pelo espaçamento** (por defeito quando há barras de compasso): as posições das notas dentro de cada compasso são quantizadas para a grelha (colcheias → semicolcheias → fusas) que melhor encaixa. Durações não representáveis numa só figura são divididas com ligaduras.
-- **Duração fixa**: todas as notas têm a mesma figura e os compassos são refeitos a partir da métrica.
+1. Download the latest version from [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest) (*Source code (zip)*) and extract it.
+2. Double-click `start.bat`. On a work PC without administrator rights, or with the folder on OneDrive, use `start_env.bat`.
+3. The first run installs what is needed, which takes a few minutes. The app then opens in Chrome at `http://127.0.0.1:8021`.
 
-Todos os compassos gerados somam exatamente a métrica escolhida. Reveja sempre a pré-visualização: o ritmo é uma estimativa.
+To quit, close the app window.
 
-## Interface
-
-Uma página por assunto, com o menu à esquerda (em baixo, no telemóvel): **Converter** (PDFs das tracks, metadados e ritmo), **Resultado** (resumo, avisos, pré-visualização e download), **Tocar** (partitura, tab ou pista 3D, com os painéis do áudio e do vídeo ao lado), **Áudio** (escolher o áudio da música ou obtê-lo de um endereço) e **Definições** (estado do servidor e versão). Cada página tem o seu endereço (`#/converter`, `#/tocar`…): os botões recuar/avançar do browser funcionam e nada é recarregado ao mudar de página — a música continua a tocar. Fontes Sora e IBM Plex Sans incluídas em `app/static/vendor/fonts/` (SIL OFL 1.1).
-
-- **Leitor**: barra de reprodução sempre visível em baixo, com as secções da música (Intro, Verse, Chorus…) por cima da barra de tempo — clicar numa secção salta para lá —, velocidade e **Loop A–B** (carregar no início e no fim do trecho; outra vez para desligar). Para praticar: **Metrónomo** (um clique em cada tempo, acento no primeiro do compasso), **Contagem** (um compasso de cliques antes de começar; não quando o áudio ou o vídeo da música acompanham, que começariam um compasso antes da partitura) e **Acelerar o loop** (com o loop A–B ligado, cada volta é 5 % mais rápida, desde a velocidade escolhida até 100 %). As três escolhas ficam lembradas no browser.
-- **Abrir um ficheiro Guitar Pro** (.gp, .gpx, .gp5, .gp4, .gp3): escolhido ou arrastado na mesma zona dos PDFs, abre logo, sem conversão — lido no browser pelo alphaTab, com o resumo (título, artista, BPM, compassos, notas, tracks e afinações), a partitura, a pista 3D, o áudio e o vídeo, e fica na biblioteca no formato em que veio (até 40 MB: um .gp pode trazer o áudio). Um ficheiro Guitar Pro abre-se sozinho: com PDFs na mesma escolha, a página pede para escolher só esse.
-- **Biblioteca**: cada música convertida fica guardada numa pasta do computador — por defeito `PDF-to-GP5/Biblioteca` na pasta do utilizador (ex.: `C:\Users\<nome>\PDF-to-GP5\Biblioteca`), ou a indicada em `LIBRARY_DIR` — uma subpasta por música com o `.gp5` (abre no Guitar Pro), o áudio escolhido, a capa (`capa.jpg`) e `musica.json` (relatório e dados). "Tocar" reabre-a sem converter de novo, com o áudio e o acerto. Converter a mesma música outra vez substitui o GP5 (mantendo o áudio e a capa); "Remover" apaga só os ficheiros da aplicação (outros que ponha na subpasta ficam). A pasta não depende do browser nem da porta: mudar de porta, de browser ou limpar os dados do browser não perde nada. Só existe com a aplicação aberta no próprio computador (`127.0.0.1`/`localhost`); numa cópia publicada num servidor, a biblioteca fica no browser de quem a usa (IndexedDB), como antes. Músicas que estejam no browser passam sozinhas para a pasta quando a aplicação é aberta nesse endereço (para recuperar as de outra porta, abra a aplicação uma vez nessa porta: `python -m app --port 8020`). Variáveis: `LIBRARY_DIR`, `LIBRARY_MAX_AUDIO_MB` (200, áudio de uma música).
-- **Exportar / importar a biblioteca** (para outro computador): na Biblioteca, "Exportar…" deixa escolher as músicas e guarda-as num ZIP (`biblioteca-pdf-to-gp5-<data>.zip`), com uma pasta por música como na biblioteca — o `.gp5`, a capa, `musica.json` — e `definicoes.json` com as definições da música guardadas no browser (início do compasso 1 no áudio, tempo, vídeo do YouTube e o seu acerto); o áudio (MP3) não vai. No outro computador, "Importar…" mostra as músicas do ZIP para escolher; as que já existem lá aparecem com as duas datas e qual é a mais recente, e só são substituídas se marcar "Substituir" (o áudio dessa música fica). A data de cada música é a do computador de origem. Só com a aplicação aberta no próprio computador (como a pasta da biblioteca).
-- **Capas**: ao guardar uma música na biblioteca, o servidor procura a capa do álbum pelo artista e título na pesquisa pública do iTunes (sem chave; só um resultado do mesmo artista conta, imagem JPEG/PNG até 2 MB dos servidores da Apple, guardada em cache um dia) — precisa de internet. "Procurar capa" tenta de novo e "Escolher imagem" usa uma imagem sua (JPEG, PNG ou WebP até 5 MB). A capa fica na biblioteca, com a música.
-- **MP3 na pasta das partituras** (Chrome/Edge): escolhendo os PDFs pela zona "Arraste os PDFs" (clique ou arrastar), a aplicação fica a saber em que pasta estão (sem ler mais nada); depois de obter o MP3 de um endereço, "Guardar o MP3 na pasta das partituras" abre o diálogo de gravação nessa pasta e com o nome já preenchido — basta confirmar. A pasta fica lembrada na biblioteca. O browser não deixa gravar numa pasta sem esta confirmação; noutros browsers o botão é um download normal.
-- **Atalhos**: Espaço tocar/pausa · ← → compasso anterior/seguinte · 1–4 vista · [ ] atrasar/adiantar a partitura 0,1 s (com áudio) · L loop A–B · **Ctrl K** (⌘K no Mac) procura páginas, músicas da biblioteca e comandos.
-- **Tema**: do sistema, claro ou escuro (Definições; fica guardado no browser).
-- **Idiomas** / **Languages**: português e inglês (English). A escolha fica no fundo do menu lateral e em Definições → Aparência; por defeito segue o idioma do browser. Mudar de idioma recarrega a página; a música aberta é reaberta da biblioteca, na mesma página. As mensagens do servidor (erros, avisos da conversão) vêm no mesmo idioma. As Novidades também: `CHANGELOG.md` (português) e `CHANGELOG.en.md` (inglês), com as mesmas entradas. Cada idioma é um dicionário `app/static/i18n-<código>.js`, com o português como chave; texto novo tem de ter tradução em todos (ver `.claude/skills/pdf-to-gp5-i18n/SKILL.md`; `tests/test_i18n.py` falha se faltar).
-- **Tracks**: a ordem muda com as setas ou arrastando pela pega ⠿.
-
-## Arranque rápido (Windows)
-
-Dois scripts na raiz do projeto fazem `git pull`, instalam/atualizam as dependências, abrem o browser em http://127.0.0.1:8021 e iniciam o servidor (Ctrl+C para parar):
-
-| Script | Para | Python |
-|---|---|---|
-| `start.bat` | PC sem restrições | Ambiente virtual em `.venv`, na pasta do projeto, criado na primeira execução |
-| `start_env.bat` | PC com restrições (sem administrador, projeto no OneDrive) | Ambiente virtual em `%USERPROFILE%\venvs\pdf-to-gp5`, criado na primeira execução |
-
-Basta fazer duplo clique no script: a aplicação abre no Chrome (no Brave o vídeo do YouTube não toca dentro da página); sem Chrome instalado, abre no browser predefinido. O Chrome abre com um perfil só da aplicação (`%LocalAppData%\PDF-to-GP5\Chrome`, numa janela à parte), onde a aceleração gráfica de que a pista 3D precisa está sempre ligada, e com `--ignore-gpu-blocklist`, para usar a placa gráfica mesmo que o Chrome a tenha na lista das que não usa (comum em portáteis). A biblioteca não muda: fica na pasta do servidor. Porta e endereço podem ser alterados nas variáveis `PORT` e `HOST` no topo de cada ficheiro.
-
-Para parar, basta fechar a página da aplicação no browser: o servidor encerra cerca de 8 segundos depois de fechada a última página (recarregar a página não o encerra) e a janela do script fecha-se. Também se pode usar Ctrl+C na janela do script.
-
-## Executar
+**macOS / Linux**
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/pip install --no-deps --ignore-requires-python -r requirements-ocr.txt  # OCR (ver abaixo)
-.venv/bin/uvicorn app.main:app --port 8021 --workers 1
-# http://localhost:8021
-```
-
-Uso pessoal no próprio PC: `python -m app --port 8021 --close-with-browser` arranca o mesmo servidor e encerra-o quando a última página da aplicação é fechada (é o que os scripts de arranque usam). Sem `--close-with-browser` (ou com `uvicorn` diretamente) o servidor só para com Ctrl+C e ignora os avisos de presença das páginas.
-
-**Instalar o que falta pela página**: em Definições → Estado do servidor, cada parte em falta que seja um pacote Python (OCR, yt-dlp, FFmpeg, Deno) tem um botão "Instalar", que corre os mesmos dois passos `pip` dos scripts de arranque no ambiente da aplicação e mostra as últimas linhas do pip se falhar; a pesquisa automática do vídeo tem "Configurar chave", que grava a chave colada em `youtube_api_key.txt` (nunca é devolvida à página). Só com a aplicação aberta no próprio computador; os comandos são fixos, nada do pedido chega a eles.
-
-O OCR das tabs em imagem (RapidOCR) instala-se à parte, com `requirements-ocr.txt`: o pacote declara que só aceita Python até 3.12, mas funciona nos mais recentes (os testes todos passam no 3.13), por isso é instalado com `--no-deps --ignore-requires-python`; as dependências dele estão no `requirements.txt`. Os scripts de arranque fazem os dois passos; se o do OCR falhar, a aplicação corre na mesma, sem ler imagens.
-
-Usar um único worker: o rate limiting e o limite de conversões simultâneas são por processo.
-
-## Usar o conversor noutro programa
-
-O conversor instala-se como pacote Python, sem a aplicação web: `pip install "pdf-to-gp5 @ git+https://github.com/F100Pilot/PDF-to-GP5@<commit>"` (com `[ocr]` no fim do nome para as tabs em imagem). Fica com o nome `pdf_to_gp5` — a pasta `app/` instalada com outro nome, por isso o código do conversor importa os seus módulos de forma relativa (`tests/test_packaging.py` garante-o). Só traz o que a conversão precisa (pdfplumber e PyGuitarPro); a aplicação continua a usar o `requirements.txt`.
-
-```python
-from pdf_to_gp5 import i18n
-from pdf_to_gp5.converter import ConversionOptions
-from pdf_to_gp5.sandbox import run_isolated
-
-i18n.use("en")  # avisos e erros neste idioma
-result = run_isolated([pdf_bytes], ConversionOptions(), timeout_s=120, memory_mb=2048)
-open("tab.gp5", "wb").write(result.gp5)  # result.report: título, avisos…
-```
-
-É assim que o [RockForge](https://github.com/F100Pilot/RockForge) converte um PDF ou uma imagem no "Novo projeto".
-
-## Áudio de um endereço (URL → MP3)
-
-Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor obtém o áudio com o [yt-dlp](https://github.com/yt-dlp/yt-dlp) e converte-o para MP3 (128–320 kbit/s) com o FFmpeg, mostra o progresso e entrega o MP3, que fica logo a tocar com a partitura (e pode ser guardado).
-
-- **YouTube, para uso pessoal**: o áudio de um vídeo, quando a aplicação está aberta no próprio computador onde corre (`http://127.0.0.1:8021` ou `localhost`, como abrem os scripts de arranque). "Neste computador" quer dizer as duas coisas: o pedido vem desta máquina e é feito a um endereço local — assim, uma cópia publicada na internet (mesmo atrás de um proxy na mesma máquina) não se torna um conversor do YouTube para quem a visita, e aí só aceita vídeos Creative Commons. Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito.
-- **Outros endereços**: um ficheiro de áudio/vídeo direto, conteúdo com licença Creative Commons ou de domínio público (conforme o site indica), ou um site seu declarado em `AUDIO_DOWNLOAD_HOSTS`. O resto é recusado com o motivo. Não são usados cookies, contas nem formatos com DRM.
-- **Quando falha, diz porquê**: os avisos do yt-dlp vão para o registo do servidor (nunca para a página) e a causa reconhecida aparece na página — falta o runtime JavaScript (instalar o Deno), o YouTube pediu para confirmar que não é um robô, restrição de idade, vídeo privado ou indisponível, nenhum formato de áudio (atualizar o yt-dlp). Sem o runtime ou o `yt-dlp-ejs`, um vídeo do YouTube é recusado logo ao pedir, com o que falta.
-- Segurança: só `http(s)`, sem credenciais no endereço, sem endereços da rede local (exceto sites declarados); o FFmpeg corre com argumentos em lista (sem shell); limite de tamanho e de duração, tempo máximo por tarefa; uma pasta temporária por tarefa, apagada depois do download, em caso de erro ou ao fim de 15 min.
-- YouTube: aceita o link (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`) ou só o ID do vídeo. A página envia apenas o ID; o servidor volta a validá-lo (11 caracteres `A–Z a–z 0–9 _ -`) e constrói o endereço — nenhum host, caminho ou parâmetro (`list=`, `t=`) do utilizador chega ao yt-dlp. Listas de reprodução e canais são recusados.
-- Dependências (instaladas pelos scripts de arranque com `requirements.txt`): `yt-dlp[default]` (inclui o `yt-dlp-ejs`, os scripts de que o YouTube precisa, usados localmente — nunca descarregados durante a execução) e `imageio-ffmpeg`, que traz o FFmpeg para Windows, macOS e Linux. Sem elas, a secção avisa que não está disponível.
-- O YouTube precisa também de um runtime JavaScript. O `requirements.txt` instala o **Deno** oficial (pacote `deno` do PyPI) no ambiente Python da aplicação, sem administrador nem winget, e a aplicação encontra-o aí. Também serve um Deno, Node.js, QuickJS ou Bun instalado no PC (no PATH). Sem nenhum, a secção avisa e os outros endereços continuam a funcionar; `/api/health` indica o estado em `audio_youtube`.
-- Variáveis: `AUDIO_DOWNLOAD_HOSTS` (ex.: `musica.meusite.pt,nas.local`), `AUDIO_MAX_MB` (200), `AUDIO_MAX_DURATION_S` (1200), `AUDIO_TIMEOUT_S` (300), `AUDIO_TTL_S` (900), `AUDIO_JOBS_PER_MINUTE` (5), `AUDIO_CONCURRENT_JOBS` (1).
-- API: `POST /api/audio/jobs` `{"url", "bitrate", "authorized": true}` → `{id, status, progress, message}`; `GET /api/audio/jobs/{id}` (progresso); `GET /api/audio/jobs/{id}/file` (o MP3, uma vez); `DELETE /api/audio/jobs/{id}` (cancelar).
-
-## Repetições
-
-Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e os saltos D.C./D.S./To Coda/Fine passam para o ficheiro, tal como as mudanças de tempo. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).
-
-## Áudio (ficheiro .gp)
-
-Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 100 MB). O áudio toca em sincronia com a partitura, a pista 3D e o vídeo (Tocar, Pausa, Parar, barra de tempo e velocidade). Os controlos (Tocar, início da música, "Marcar início", "Atrasar" / "Adiantar a partitura" — o início pode ficar antes do 0 —, "Tempo da partitura" para uma gravação que não está exatamente ao BPM do PDF, volume da música e volume das notas) ficam ao lado da partitura. Na pista 3D, a música aparece desenhada no chão, alinhada com a reprodução. O início e o tempo ficam guardados por música neste browser. Com áudio, "Descarregar" dá um ficheiro `.gp` (Guitar Pro 7/8) com o áudio como faixa de áudio e um ponto de sincronização no compasso 1 ("Marcar início" enquanto ouve o áudio na página; a sincronização pode ser afinada no Guitar Pro). Sem áudio, o download é o `.gp5` de sempre (o formato GP5 não guarda áudio). O `.gp` é criado no browser pelo alphaTab: o áudio não sai do computador. Dentro do `.gp`, o áudio fica como `Content/Assets/backing-track.mp3` (ou `.ogg`/`.wav`), com extensão como nos ficheiros do Guitar Pro e do Songsterr — o alphaTab grava-o sem extensão e há programas que assim não o encontram. Confirme que o seu conversor (por exemplo para Rocksmith) aceita `.gp`; senão use o `.gp5`.
-
-## Letra
-
-A letra impressa no PDF vai completa para o GP5 numa track própria, "Letra (voz)", silenciada (volume 0): uma nota por sílaba, no sítio onde a sílaba está impressa. Assim o Guitar Pro, o TuxGuitar e os conversores de GP5 para o Rocksmith (PSARC) leem a letra toda. Com 7 tracks já ocupadas, a letra vai para a track que toca em mais compassos com letra e a página avisa dos compassos que ficam sem ela.
-
-## Partitura
-
-Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, só tab ou só pauta), com todas as tracks ou só as escolhidas, cada uma com a sua cor, e toca-a (tocar/pausa/parar, velocidade, silenciar tracks; clicar numa nota começa a tocar daí). Usa o [alphaTab](https://alphatab.net) 1.8.4, incluído em `app/static/vendor/alphatab/` (funciona sem internet) e carregado só quando há um resultado para mostrar. Licenças: alphaTab MPL-2.0, fonte Bravura SIL OFL 1.1, sons Sonivox Apache-2.0 (ficheiros de licença na mesma pasta). O botão "Vídeo YouTube" liga e desliga o vídeo (desligado, fica em pausa e o som da partitura volta; a escolha é lembrada). A barra de tempo por baixo dos botões mostra o tempo atual e a duração da música; clicar ou arrastar nela avança ou recua (o vídeo e a pista 3D acompanham).
-
-**Pista 3D (Rocksmith)**: na Vista, "Pista 3D" mostra uma track como no Rocksmith — cordas nas cores do Rocksmith (Mi grave vermelho em cima), notas com o traste a chegar à linha de ataque, cordas soltas como barra, rasto nas notas longas e ligadas, quadro nos acordes, linhas de compasso e de tempo com o número do compasso e as secções, painel com o compasso atual e o progresso, câmara a seguir a zona do braço, inclinação e ângulo lateral ajustáveis (e, com o rato sobre a pista, arrastar roda a vista à volta das cordas, para os lados e para cima e para baixo, até 120° em cada eixo; Ctrl + arrastar roda sobre o eixo da vista; Shift ou botão direito + arrastar move a vista; a roda aproxima ou afasta na direção do cursor; um duplo clique repõe a vista), letra no topo com a sílaba atual, nome do acorde por cima do quadro (calculado pelas notas; sem nome quando não é um acorde conhecido) e brilho com o número na corda quando a nota é tocada (nas notas com bend, a nota sobe e desce na corda em tempo real, conforme o bend). Notas com cantos arredondados e o traste impresso; headstock no traste 0 (cabeça de madeira, pestana e tarrachas, com o nome de cada corda solta na cor da corda). Técnicas: bends e pre-bends (o rasto sobe com o bend — um tom chega à corda seguinte — e desce no release; seta e quantidade), slides (rasto inclinado até ao traste de destino; entrada e saída), hammer-on/pull-off (H/P, nota translúcida), palm mute (PM), harmónicos (losango), vibrato (rasto ondulado), tapping (T), ghost notes (n) e direção do rasgueado. Segue o mesmo áudio, velocidade e posição da partitura. Usa o [three.js](https://threejs.org) 0.186.1 (MIT, em `app/static/vendor/three/`) e precisa de WebGL (aceleração gráfica); sem WebGL a página avisa e mantém a partitura.
-
-**Vídeo do YouTube ao lado**: depois de converter, a aplicação procura o vídeo da música (artista + título) e abre o painel com o primeiro resultado; os outros ficam numa lista para escolher. O vídeo escolhido e o acerto do início ficam guardados por música no browser. A pesquisa automática usa a YouTube Data API e precisa de uma chave gratuita (guia passo a passo em [`docs/CHAVE_YOUTUBE.md`](docs/CHAVE_YOUTUBE.md)):
-
-1. Em https://console.cloud.google.com crie um projeto, ative a "YouTube Data API v3" e, em Credenciais, crie uma "Chave de API" (restrinja-a a essa API).
-2. Guarde a chave na primeira linha de um ficheiro `youtube_api_key.txt` na pasta do projeto (ao lado dos scripts de arranque; o ficheiro não vai para o git) ou na variável de ambiente `YOUTUBE_API_KEY`, e reinicie o servidor.
-
-A quota gratuita dá cerca de 100 pesquisas por dia (cada música é pesquisada uma vez por dia no máximo; o servidor guarda os resultados). Sem chave, o painel mostra "Procurar no YouTube" (abre a pesquisa já preenchida) e pode colar-se o endereço do vídeo. O início da música no vídeo acerta-se com "Marcar início" (com o vídeo a tocar, carregar no primeiro tempo do compasso 1) e afina-se com os botões ±0,1 s / ±1 s. Se o dono do vídeo não permitir vê-lo fora do YouTube, o painel diz isso (escolha outro vídeo); com a chave, a pesquisa só devolve vídeos que podem ser vistos fora do YouTube. No painel também se pode colar o endereço de outro vídeo (`youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`; um `t=` no endereço preenche o início). O vídeo acompanha Tocar/Pausa/Parar, a posição e a velocidade da partitura, com um acerto do início da música no vídeo (em segundos, guardado por música no browser); pode silenciar-se o som da partitura para ouvir só o vídeo. Usa o leitor oficial `youtube-nocookie.com` controlado por mensagens (`postMessage`), sem scripts do YouTube na página; precisa de internet.
-
-## API
-
-| Método | Rota | Resposta |
-|---|---|---|
-| `GET` | `/api/health` | estado |
-| `GET` | `/api/options` | afinações, instrumentos, limites |
-| `GET` | `/api/changelog` | versões publicadas e respetivas alterações |
-| `POST` | `/api/inspect` | JSON: título, artista, BPM e compasso detetados (sem converter) |
-| `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
-| `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
-
-Campos (multipart):
-- `file` (obrigatório; PDF, PNG, JPEG ou WebP; repetir para várias tracks, até 7, pela ordem das tracks).
-- Por track (um valor por PDF, ou um só valor para todos): `track_name`, `tuning`, `instrument`.
-- Da música: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `parentheses` (`tie` = ligadura, `note` = nota normal).
-
-Campos omitidos ou `auto` são detetados nos PDFs.
-
-```bash
-curl -F file=@tab.pdf -F tuning=drop_d -o tab.gp5 http://localhost:8021/api/convert/gp5
-curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_name=Baixo \
-     -o musica.gp5 http://localhost:8021/api/convert/gp5
-```
-
-## Segurança
-
-- A aplicação não guarda ficheiros: os PDFs e as imagens são processados em memória. Uploads acima de 1 MB são colocados pelo servidor (Starlette) num ficheiro temporário, apagado no fim do pedido.
-- Validação: tamanho máximo (cabeçalho `Content-Length` **e** contagem em streaming), assinatura `%PDF-` (ou PNG/JPEG/WebP), limite de páginas, de páginas lidas por OCR, de píxeis por imagem e de notas, campos validados.
-- Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux/macOS; Job Object em Windows); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
-- Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429; IPv6 agrupado por /64), verificados antes de ler o corpo do pedido; inspeção com orçamento próprio.
-- Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
-- Cabeçalhos: CSP estrita sem scripts nem estilos inline (os dois blocos de estilo do alphaTab são autorizados pelo hash; workers só do próprio site; só o leitor youtube-nocookie.com pode ser embebido), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
-- Erros internos nunca são expostos ao cliente; nomes de ficheiro e metadados GP5 são sanitizados.
-- Documentação OpenAPI desativada por defeito. `pip-audit` no CI.
-
-Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se configure `uvicorn --proxy-headers --forwarded-allow-ips=<ip do proxy>`.
-
-### Configuração (variáveis de ambiente)
-
-| Variável | Por defeito |
-|---|---|
-| `MAX_UPLOAD_MB` (por PDF) | 10 |
-| `MAX_TOTAL_UPLOAD_MB` (todos os PDFs) | 40 |
-| `MAX_PAGES` | 40 |
-| `MAX_IMAGE_PAGES` (páginas lidas por OCR, por ficheiro) | 15 |
-| `MAX_IMAGE_MEGAPIXELS` (por imagem) | 40 |
-| `MAX_EVENTS` | 50000 |
-| `CONVERSION_TIMEOUT_S` (sem avançar: cada página lida dá este tempo outra vez) | 120 |
-| `WORKER_MEMORY_MB` | 2048 (o OCR precisa de ~1,5 GB de espaço de endereços) |
-| `MAX_CONCURRENT_CONVERSIONS` | 2 |
-| `RATE_LIMIT_PER_MINUTE` | 20 |
-| `INSPECT_RATE_LIMIT_PER_MINUTE` | 60 |
-| `MAX_JOB_TIMEOUT_S` (pedido inteiro, mesmo a avançar) | 900 |
-| `MAX_MEASURES` | 2000 |
-| `ALLOWED_HOSTS` (separados por vírgula) | `127.0.0.1,localhost,[::1]` |
-| `YOUTUBE_API_KEY` (ou ficheiro `youtube_api_key.txt`) | — (pesquisa automática do vídeo desligada) |
-| `VIDEO_SEARCH_PER_MINUTE` | 10 |
-| `ENABLE_DOCS` | desligado |
-| `ENABLE_HSTS` | desligado |
-
-## Limitações conhecidas
-
-- Tabs em texto com fonte proporcional desalinham as colunas; acordes podem ser separados.
-- Em tabs gravadas, hastes/figuras rítmicas, técnicas desenhadas como curvas e a pauta de notação não são interpretadas.
-- Em imagens (OCR): números, linhas das cordas, barras de compasso, ritmo desenhado e técnicas escritas (H/P, P.M., let ring, harmónicos), slides, vibrato, ligaduras e bends (a 1000 px os bends falham mais); "(1)" pode sair "11"; números que tocam na linha da corda (sem o espaço em branco que os editores deixam) ou imagens muito pequenas podem falhar. Tab em texto numa imagem ainda não é lida.
-- Uma track por PDF (dentro de cada PDF, linhas com número de cordas diferente do maioritário são ignoradas, com aviso). Máximo de 7 tracks (canais MIDI da porta 1, sem o canal de percussão).
-- Acordes por extenso, ritardando/accelerando ("rit.", "accel.") e, nas tabs em texto, mudanças de compasso não são convertidos. Repetições, voltas, D.C./D.S./Coda/Fine e marcas de tempo só são lidos por cima da própria tab (numa pauta com notação e tab, os sinais impressos só na notação não são lidos). O GP5 guarda cada sinal de navegação (Segno, Coda, D.S. al Coda…) uma só vez por música.
-
-## Versões
-
-[Semantic Versioning](https://semver.org/lang/pt-BR/): `MAJOR.MINOR.PATCH`, definida em `app/__init__.py`, visível na interface e em `/api/health`, com tag git `vX.Y.Z` por versão. Alterações em `CHANGELOG.md`.
-
-- Cada alteração é registada em `## [Unreleased]` no `CHANGELOG.md`, sem mudar a versão.
-- A versão só sobe quando várias alterações são publicadas em conjunto: a secção `[Unreleased]` passa a `[X.Y.Z] - data` e `__version__` é atualizado.
-- Ao abrir a aplicação, um banner "Novidades" mostra as versões publicadas desde a última que o utilizador viu (guardada no browser); fecha-se com "Fechar". Alterações ainda não publicadas não aparecem.
-
-## Desenvolvimento
-
-```bash
-.venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install --no-deps --ignore-requires-python -r requirements-ocr.txt
-.venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests
-.venv/bin/pytest -q
-.venv/bin/pip-audit -r requirements.txt
+.venv/bin/python -m app --port 8021 --close-with-browser
 ```
 
-Estrutura:
+Then open `http://127.0.0.1:8021`.
 
-```
-app/
-  extract/        pdf_reader (chars + linhas), ascii_tab, engraved_tab
-  rhythm.py       colunas → compassos com durações
-  gp5_writer.py   Score → .gp5 (PyGuitarPro)
-  converter.py    pipeline
-  sandbox.py      processo isolado com timeout/limite de memória
-  security.py     cabeçalhos, limites, rate limiting, sanitização
-  main.py         API FastAPI + frontend estático
-  static/         index.html, app.js, styles.css
-tests/            testes unitários, API e round-trip GP5
-```
+## Documentation
+
+| | English | Português |
+|---|---|---|
+| User manual | [MANUAL.en.md](docs/MANUAL.en.md) | [MANUAL.md](docs/MANUAL.md) |
+| Technical documentation (API, configuration, security, development) | [TECHNICAL.md](docs/TECHNICAL.md) | [TECNICO.md](docs/TECNICO.md) |
+| Notes and techniques supported | [NOTATION.md](docs/NOTATION.md) | [NOTACAO.md](docs/NOTACAO.md) |
+| YouTube API key (optional) | [YOUTUBE_KEY.md](docs/YOUTUBE_KEY.md) | [CHAVE_YOUTUBE.md](docs/CHAVE_YOUTUBE.md) |
+| What's new | [CHANGELOG.en.md](CHANGELOG.en.md) | [CHANGELOG.md](CHANGELOG.md) |
+
+## Support the project
+
+PDF → GP5 is free. If it saves you time, you can buy me a coffee:
+
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/F100Pilot)
+
+Bug reports and ideas are welcome in [Issues](https://github.com/F100Pilot/PDF-to-GP5/issues). See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence and notices
+
+- The code is under the [MIT licence](LICENSE). The bundled third-party components keep their own licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+- Use the app only with tabs and music you have the rights to use. YouTube's terms do not allow downloading outside YouTube's own features.
+- Guitar Pro is a trademark of Arobas Music, and Rocksmith is a trademark of Ubisoft. This project is not affiliated with or endorsed by either.

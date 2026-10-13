@@ -29,7 +29,7 @@
   const manualHint = document.getElementById("video-manual");
   const searchLink = document.getElementById("video-search-link");
 
-  // The server can search YouTube only when it has an API key (see README).
+  // The server can search YouTube only when it has an API key (see docs/YOUTUBE_KEY.md).
   let canSearch = false;
   fetch("/api/health")
     .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))

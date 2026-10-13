@@ -15,14 +15,16 @@ cd /d "%~dp0"
 
 echo.
 if /i "%~1"=="--atualizado" goto :prepare
-echo [1/3] A atualizar o codigo (git pull)...
+echo [1/3] A atualizar o codigo / Updating the code (git pull)...
 where git >nul 2>nul
 if errorlevel 1 (
     echo AVISO: git nao encontrado. Vai ser usada a versao local.
+echo WARNING: git not found. Using the local version.
 ) else (
     git pull --ff-only
     if errorlevel 1 (
         echo AVISO: git pull falhou. Vai ser usada a versao local.
+        echo WARNING: git pull failed. Using the local version.
     ) else (
         rem O cmd le este ficheiro enquanto o executa: recomecar com a versao
         rem acabada de descarregar - este bloco ja foi lido todo.
@@ -34,7 +36,7 @@ if errorlevel 1 (
 :prepare
 
 echo.
-echo [2/3] A preparar o ambiente Python em "%VENV%" ...
+echo [2/3] A preparar o ambiente Python / Preparing the Python environment: "%VENV%" ...
 if not exist "%VENV%\Scripts\python.exe" (
     python -m venv "%VENV%"
     if errorlevel 1 goto :no_python
@@ -44,13 +46,14 @@ if errorlevel 1 goto :pip_failed
 rem O OCR (tabs em imagem) a parte: o pacote diz que so aceita Python ate 3.12, mas funciona nos
 rem mais recentes. Se falhar, a aplicacao corre na mesma, sem ler imagens.
 "%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check -q --no-deps --ignore-requires-python -r requirements-ocr.txt
-if errorlevel 1 echo AVISO: nao foi possivel instalar o OCR; as tabs em imagem nao vao ser lidas.
+if errorlevel 1 echo AVISO: nao foi possivel instalar o OCR; as tabs em imagem nao vao ser lidas. / WARNING: OCR not installed; tab pictures will not be read.
 
 echo.
 netstat -an | find ":%PORT% " | find "LISTENING" >nul
 if not errorlevel 1 goto :port_busy
-echo [3/3] Servidor em http://%HOST%:%PORT%
+echo [3/3] Servidor / Server: http://%HOST%:%PORT%
 echo       Para parar: feche a pagina no browser (ou Ctrl+C nesta janela).
+echo       To stop: close the page in the browser (or Ctrl+C in this window).
 rem Abrir no Chrome: no Brave o video do YouTube nao toca dentro da pagina.
 rem O Chrome abre com um perfil so desta aplicacao: nesse perfil a aceleracao grafica
 rem (WebGL, precisa dela a pista 3D) esta sempre ligada, mesmo que esteja desligada no
@@ -66,7 +69,7 @@ if not defined BROWSER goto :open_default
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start "" "%BROWSER%" %CHROME_FLAGS% http://%HOST%:%PORT%"
 goto :run_server
 :open_default
-echo       Chrome nao encontrado: a abrir o browser predefinido.
+echo       Chrome nao encontrado: a abrir o browser predefinido. / Chrome not found: opening the default browser.
 start "" /min cmd /c "ping -n 4 127.0.0.1 >nul & start http://%HOST%:%PORT%"
 :run_server
 "%VENV%\Scripts\python.exe" -m app --host %HOST% --port %PORT% --close-with-browser
@@ -76,20 +79,26 @@ goto :eof
 
 :server_failed
 echo ERRO: o servidor terminou com erro - veja as mensagens acima.
+echo ERROR: the server stopped with an error - see the messages above.
 goto :end
 
 :port_busy
 echo ERRO: a porta %PORT% ja esta em uso - o servidor ja esta a correr noutra janela?
 echo Feche essa janela ou altere PORT no topo deste ficheiro.
+echo ERROR: port %PORT% is already in use - is the server running in another window?
+echo Close that window or change PORT at the top of this file.
 goto :end
 
 :no_python
 echo ERRO: Python nao encontrado. Instale o Python 3.11 ou superior a partir da Microsoft Store.
+echo ERROR: Python not found. Install Python 3.11 or later from the Microsoft Store.
 goto :end
 
 :pip_failed
 echo ERRO: nao foi possivel instalar as dependencias.
-echo Se for erro de SSL ou proxy da empresa, veja a seccao "Executar" do README.
+echo ERROR: the dependencies could not be installed.
+echo Se for erro de SSL ou proxy da empresa, veja docs\MANUAL.md, "Resolucao de problemas".
+echo If it is an SSL or company proxy error, see docs\MANUAL.en.md, "Troubleshooting".
 
 :end
 echo.

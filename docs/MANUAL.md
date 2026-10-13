@@ -129,7 +129,7 @@ Abra **Definições** no menu à esquerda.
 
 - O melhor resultado é com a página inteira, a 1000 px de largura ou mais.
 - O OCR lê os números, as linhas das cordas, as barras de compasso, o ritmo desenhado e as letras da afinação.
-- Os bends, os slides e as ligaduras desenhados numa imagem não são lidos.
+- Também lê as técnicas desenhadas: bends (com release e pre-bend), slides, ligaduras, vibrato, H/P, P.M., let ring e harmónicos. As quiálteras e os nomes das secções ainda não são lidos.
 - Uma imagem é uma track. Para juntar vários prints da mesma parte, ponha-os num único PDF.
 - Confira sempre as notas: o relatório avisa quando algo é incerto.
 
@@ -302,14 +302,15 @@ Converter a mesma música outra vez substitui o ficheiro Guitar Pro e mantém o 
 | As notas de uma imagem estão erradas | Use uma imagem maior (página inteira, ≥ 1000 px de largura) e confira as notas. |
 | Um vídeo do YouTube não dá áudio | A página mostra a causa: vídeo privado, restrição de idade, pedido para confirmar que não é um robô, ou falta o runtime JavaScript (Instalar em Definições). |
 | O vídeo diz que não pode ser visto fora do YouTube | O dono do vídeo não o permite. Escolha outro vídeo. |
+| A instalação falha com erro de SSL ou de proxy (rede da empresa) | O pip precisa de chegar à internet. Defina a variável `HTTPS_PROXY` com o endereço do proxy da empresa antes de correr o script, ou faça a primeira instalação noutra rede. |
 | A porta 8021 está ocupada | Mude `PORT` no topo do `start.bat` / `start_env.bat`. A biblioteca não muda. |
 
 ## 14. Limitações
 
 - Tabs em texto com fonte proporcional (não monoespaçada) desalinham as colunas.
-- Nas imagens não são lidos os bends, os slides, as ligaduras nem as quiálteras desenhados, nem os nomes das secções. Tab em texto numa imagem também não é lida.
+- Nas imagens não são lidos as quiálteras nem os nomes das secções, e as técnicas lidas devem ser conferidas. Tab em texto numa imagem também não é lida.
 - O ritmo estimado pelo espaçamento é uma aproximação: confira-o na partitura.
 - Acordes por extenso, rit./accel. e quintinas/septinas não são convertidos com exatidão.
 - Uma track por PDF, no máximo 7 tracks.
 
-Para os detalhes técnicos (API, configuração, segurança), veja o [README](../README.md).
+Para os detalhes técnicos (API, configuração, segurança), veja a [documentação técnica](TECNICO.md).

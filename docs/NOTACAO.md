@@ -1,5 +1,7 @@
 # Registo de notação: notas e técnicas
 
+**Português** · [English](NOTATION.md)
+
 Lista de tudo o que uma tablatura pode conter e o estado da conversão para GP5.
 Serve de plano de implementação: cada música nova com notação diferente atualiza esta tabela.
 

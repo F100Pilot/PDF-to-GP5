@@ -44,7 +44,7 @@ server reads them in memory.
 - Techniques: hammer-on/pull-off, slides, bends, vibrato, muted notes, ghost notes, palm mute, let ring, repeats, alternate endings and D.C./D.S./Coda.
 - Lyrics printed in the PDF go into the file on a track of their own, "Lyrics (vocals)".
 
-The status of every note and technique is listed in [`NOTACAO.md`](NOTACAO.md) (in Portuguese).
+The status of every note and technique is listed in [`NOTATION.md`](NOTATION.md).
 
 ## 2. Install and start
 
@@ -130,7 +130,7 @@ Open **Settings** in the menu on the left.
 
 - For the best results, use the whole page, at least 1000 px wide.
 - The OCR reads frets, string lines, bar lines, the drawn rhythm and the tuning letters.
-- Bends, slides and ties drawn in a picture are not read.
+- It also reads the drawn techniques: bends (with release and pre-bend), slides, ties, vibrato, H/P, P.M., let ring and harmonics. Tuplets and section names are not read yet.
 - One picture is one track. To combine several screenshots of the same part, put them in one PDF.
 - Always check the notes: the report warns you when something is uncertain.
 
@@ -246,7 +246,7 @@ Data API key:
 3. Under **Credentials**, create an **API key**. Restricting it to that API is recommended.
 4. Paste the key in **Settings → Set up key**.
 
-The step-by-step guide, with screens, is [`CHAVE_YOUTUBE.md`](CHAVE_YOUTUBE.md) (in Portuguese).
+The step-by-step guide is [`YOUTUBE_KEY.md`](YOUTUBE_KEY.md).
 Without a key, the panel offers **Search on YouTube**, which opens the search already filled in.
 
 ## 10. Library
@@ -310,14 +310,15 @@ Converting the same song again replaces its Guitar Pro file and keeps the audio 
 | Wrong notes from a picture | Use a bigger picture (whole page, at least 1000 px wide) and check the notes. |
 | A YouTube video gives no audio | The page shows the cause: private video, age restriction, a request to confirm you are not a robot, or a missing JavaScript runtime (use Install in Settings). |
 | The video says it cannot be played outside YouTube | The owner does not allow it. Choose another video. |
+| Installing fails with an SSL or proxy error (company network) | pip has to reach the internet. Set the `HTTPS_PROXY` variable to the company proxy's address before running the script, or do the first install on another network. |
 | Port 8021 is in use | Change `PORT` at the top of `start.bat` / `start_env.bat`. The library stays the same. |
 
 ## 14. Limitations
 
 - Text tabs set in a proportional (not monospaced) font have misaligned columns.
-- Pictures: bends, slides, ties and tuplets drawn in a picture are not read, nor are section names. Text tabs inside a picture are not read either.
+- Pictures: tuplets and section names are not read, and the techniques that are read should be checked. Text tabs inside a picture are not read either.
 - Rhythm estimated from spacing is an approximation: check it in the notation.
 - Spelled-out chords, rit./accel., quintuplets and septuplets are not converted exactly.
 - One track per PDF, 7 tracks at most.
 
-For technical details (API, configuration, security), see the [README](../README.md) (in Portuguese).
+For technical details (API, configuration, security), see the [technical documentation](TECHNICAL.md).

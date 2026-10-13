@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User manual · Manual do utilizador
+    url: https://github.com/F100Pilot/PDF-to-GP5/blob/main/docs/MANUAL.en.md
+    about: How to install and use the app · Como instalar e usar a aplicação (PT → docs/MANUAL.md)

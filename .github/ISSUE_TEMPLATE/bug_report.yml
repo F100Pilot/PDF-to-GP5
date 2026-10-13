@@ -1,0 +1,32 @@
+name: Bug report · Relatar um erro
+description: Something does not work as expected · Algo não funciona como devia
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? · O que aconteceu?
+      description: What you did, what you expected and what you got. · O que fez, o que esperava e o que obteve.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version · Versão da aplicação
+      description: Settings → About · Definições → Sobre
+      placeholder: 0.8.0 (abc1234)
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System and browser · Sistema e browser
+      placeholder: Windows 11, Chrome 140
+  - type: textarea
+    id: source
+    attributes:
+      label: The tab · A tab
+      description: >-
+        Where it came from (Guitar Pro, MuseScore, Songsterr, a text site, a screenshot…). Attach the file only if you
+        have the right to share it. · De onde veio (Guitar Pro, MuseScore, Songsterr, um site em texto, um print…).
+        Anexe o ficheiro só se tiver o direito de o partilhar.

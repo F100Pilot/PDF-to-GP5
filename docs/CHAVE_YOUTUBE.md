@@ -1,5 +1,7 @@
 # Criar a chave da API do YouTube (pesquisa automática do vídeo)
 
+**Português** · [English](YOUTUBE_KEY.md)
+
 A aplicação só precisa desta chave para **encontrar sozinha** o vídeo da música no YouTube.
 Sem ela, tudo o resto funciona e pode colar o endereço do vídeo à mão.
 
@@ -35,6 +37,8 @@ podem ter a Google Cloud bloqueada.
 
 A chave fica num ficheiro de texto na pasta do projeto (a mesma dos `start-*.bat`).
 Esse ficheiro **não vai para o git** (está no `.gitignore`).
+
+A forma mais simples: Definições → Estado do servidor → **Configurar chave**.
 
 **Com o Bloco de Notas**
 1. Abra o Bloco de Notas e cole a chave (só a chave, numa linha).
