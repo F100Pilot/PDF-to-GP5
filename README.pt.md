@@ -40,6 +40,36 @@ pratique-as no browser, com:
 - Interface em **português e inglês**.
 - **Privado**: corre no seu computador, e os seus ficheiros não são enviados para lado nenhum.
 
+## Que ficheiros funcionam melhor
+
+| Origem | Como é lido | Resultado |
+|---|---|---|
+| **PDF com texto real**: uma tab em texto, ou um PDF exportado pelo Guitar Pro, MuseScore, TuxGuitar ou impresso do Songsterr | Os números, as linhas e os símbolos estão no próprio ficheiro | **O mais fiável.** Use este sempre que puder |
+| **Imagem ou PDF digitalizado**: um print, uma fotografia, um "PDF" que é só uma imagem | Lido por OCR (reconhecimento de caracteres) no seu computador | **Experimental**: bom em imagens nítidas e grandes; confira sempre o resultado |
+
+**Teste rápido:** abra o PDF e tente selecionar um número com o rato. Se conseguir, o PDF tem texto real e vai converter bem. Se a página inteira seleciona como um bloco, ou não seleciona nada, é uma imagem.
+
+**Limitações das imagens e dos PDFs de imagem**
+- **A qualidade conta.** Use a página inteira, com pelo menos 1000 px de largura, sem as barras do browser à volta. Imagens pequenas, desfocadas ou muito comprimidas (JPEG) dão números errados, notas a mais ou compassos em falta.
+- **Os números podem ser mal lidos** (um 0 a negrito lido como 6 ou 9, por exemplo). O relatório avisa para os conferir.
+- **O ritmo** é lido das hastes, barras e pausas desenhadas quando estão nítidas; senão é estimado pelo espaçamento das notas, compasso a compasso.
+- **Ainda não é lido nas imagens:** quiálteras, nomes das secções (Intro, Verse…) e tabs escritas em texto (`e|--0--3--|`) dentro de uma imagem.
+- **Uma imagem é uma track.** Para juntar vários prints da mesma parte, ponha-os num só PDF.
+
+## Ainda não suportado
+
+Há notação que ainda não é convertida, ou é só em parte:
+
+- **Quiálteras** (tercinas, quintinas…): são detetadas, mas o ritmo desse compasso é estimado.
+- Notas de ornamento (grace notes), swing, compassos de anacruse e armações de clave.
+- Acentos, staccato, dedilhação, crescendo/decrescendo (forquilhas) e marcas de palhetada (⊓ / V).
+- Trilos, tremolo picking, alavanca (dips e dives), vibrato largo, volume swell e bend + release + bend.
+- Slap/pop, rasgueado e harmónicos em PDFs exportados por editores (nas tabs em texto, `<12>` funciona).
+- Mudanças graduais de tempo (rit. / accel.).
+- Capo, nomes e diagramas de acordes, uma segunda voz na mesma pauta e bateria.
+
+A lista completa, técnica a técnica, está em [NOTACAO.md](docs/NOTACAO.md). Se a sua tab usa algo que falta, abra uma [issue](https://github.com/F100Pilot/PDF-to-GP5/issues) a descrever o compasso e o que devia ser.
+
 ## Começar
 
 Precisa do **Python 3.11 ou mais recente** ([python.org](https://www.python.org/downloads/)) e do **Google Chrome** (recomendado) ou do Edge.

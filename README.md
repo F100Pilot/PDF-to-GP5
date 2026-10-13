@@ -26,6 +26,36 @@ and YouTube video in sync, an A–B loop, a metronome and a library of your song
 - **Portuguese and English** interface.
 - **Private**: it runs on your computer, and your files are not uploaded anywhere.
 
+## Which files work best
+
+| Source | How it is read | Result |
+|---|---|---|
+| **PDF with real text**: a text tab, or a PDF exported by Guitar Pro, MuseScore, TuxGuitar or printed from Songsterr | The numbers, lines and symbols are in the file itself | **The most reliable.** Use this whenever you can |
+| **Picture or scanned PDF**: a screenshot, a photo, a "PDF" that is only an image | Read by OCR (character recognition) on your computer | **Experimental**: good on clean, large pictures; always check the result |
+
+**Quick test:** open the PDF and try to select a fret number with the mouse. If you can, the PDF has real text and will convert well. If the whole page selects as one block, or nothing selects, it is an image.
+
+**Limitations of pictures and image PDFs**
+- **Quality matters.** Use the whole page, at least 1000 px wide, without the browser's bars around it. Small, blurred or heavily compressed (JPEG) pictures give wrong numbers, extra notes or missing bars.
+- **Numbers can be misread** (a bold 0 read as 6 or 9, for example). The report warns you to check them.
+- **Rhythm** is read from the drawn stems, beams and rests when they are clear; otherwise it is estimated from the spacing of the notes, bar by bar.
+- **Not read in pictures yet:** tuplets, section names (Intro, Verse…), and tabs written as plain text (`e|--0--3--|`) inside a picture.
+- **One picture is one track.** To combine several screenshots of the same part, put them in one PDF.
+
+## Not supported yet
+
+Some notation is not converted yet, or only in part:
+
+- **Tuplets** (triplets, quintuplets…): detected, but the rhythm of that bar is estimated.
+- Grace notes, swing feel, pickup bars and key signatures.
+- Accents, staccato, fingering, crescendo/decrescendo hairpins, and pick-stroke marks (⊓ / V).
+- Trills, tremolo picking, whammy bar (dips and dives), wide vibrato, volume swells, and bend + release + bend.
+- Slap/pop, rasgueado, and harmonics in PDFs exported by editors (in text tabs, `<12>` works).
+- Gradual tempo changes (rit. / accel.).
+- Capo, chord names and diagrams, a second voice in the same staff, and drums.
+
+The full list, technique by technique, is in [NOTATION.md](docs/NOTATION.md). If your tab uses something missing, open an [issue](https://github.com/F100Pilot/PDF-to-GP5/issues) describing the bar and what it should be.
+
 ## Get started
 
 You need **Python 3.11 or later** ([python.org](https://www.python.org/downloads/)) and **Google Chrome** (recommended) or Edge.
