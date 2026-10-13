@@ -45,6 +45,13 @@ são lidos pelo servidor local, em memória.
 
 O estado de cada nota e técnica está em [`NOTACAO.md`](NOTACAO.md).
 
+### Que ficheiros funcionam melhor
+
+- **O mais fiável é um PDF com texto real**: uma tab em texto, ou um PDF exportado pelo Guitar Pro, MuseScore, TuxGuitar ou impresso do Songsterr. Os números, as linhas e os símbolos estão no próprio ficheiro, nas posições exatas, sem adivinhar.
+- **Uma imagem, ou um PDF que é só uma imagem** (print, fotografia, digitalização), é lida por OCR: o resultado depende da nitidez e deve ser sempre conferido.
+- **Teste rápido**: abra o PDF e tente selecionar um número com o rato. Se conseguir, o PDF tem texto real. Se a página seleciona como um bloco, ou não seleciona nada, é uma imagem.
+- Tendo as duas versões da mesma tab, use sempre o PDF com texto.
+
 ## 2. Instalar e abrir
 
 ### O que é preciso
@@ -133,6 +140,13 @@ Abra **Definições** no menu à esquerda.
 - Uma imagem é uma track. Para juntar vários prints da mesma parte, ponha-os num único PDF.
 - Confira sempre as notas: o relatório avisa quando algo é incerto.
 
+**Limitações das imagens**
+
+- **A qualidade conta**: imagens pequenas, desfocadas ou muito comprimidas (JPEG) dão números errados, notas a mais ou compassos em falta. Prefira PNG e corte as barras do browser.
+- **Números mal lidos**: um 0 a negrito pode sair 6 ou 9, um "(1)" pode sair "11". Corrija-os na partitura com **Corrigir notas** ([secção 6](#corrigir-notas)).
+- **Ritmo**: é lido das hastes, barras e pausas quando estão nítidas; senão é estimado pelo espaçamento das notas, compasso a compasso.
+- **Ainda não lido nas imagens**: quiálteras, nomes das secções e tabs em texto (`e|--0--3--|`) dentro de uma imagem.
+
 ### Abrir um ficheiro Guitar Pro
 
 Escolha ou arraste um `.gp`, `.gpx`, `.gp5`, `.gp4` ou `.gp3` para a mesma zona. Abre logo, sem
@@ -163,6 +177,7 @@ Para guardar a música:
 - **Vista**: *Pauta e tab*, *Só tab*, *Só pauta* ou *Pista 3D (Rocksmith)*. As teclas 1–4 também mudam a vista.
 - **Tracks**: escolha a track a mostrar. O botão 🔊 de cada track silencia-a ou volta a ligá-la.
 - **Clique numa nota** para começar a tocar a partir daí.
+- **Corrigir notas**: corrige números errados diretamente na tab (veja abaixo).
 
 A barra em baixo fica sempre visível:
 
@@ -176,6 +191,22 @@ A barra em baixo fica sempre visível:
 - **Acelerar o loop**: com o Loop A–B ligado, cada volta fica 5 % mais rápida, desde a velocidade escolhida até 100 %. Comece, por exemplo, a 75 %.
 
 As escolhas do metrónomo, da contagem e do loop ficam guardadas no browser.
+
+### Corrigir notas
+
+Para corrigir um número mal lido (sobretudo nas tabs em imagem), sem sair da aplicação:
+
+1. Carregue em **✎ Corrigir notas** por cima da partitura. A partitura fica com um contorno tracejado.
+2. Clique no número da tab que está errado. Abre-se uma caixa com o compasso, a corda (1 = a mais aguda) e o traste.
+3. Escreva o traste certo e carregue em **Enter** (ou **OK**). Para tirar uma nota que não devia lá estar, use **Apagar nota**. **Esc** fecha a caixa sem mudar nada.
+4. A partitura volta a ser desenhada com a correção, no mesmo sítio.
+
+- **↶ Desfazer** volta atrás uma correção de cada vez.
+- As correções vão para o ficheiro de **Descarregar** e para a música guardada na **Biblioteca**.
+- Uma nota ligada (entre parêntesis na tab) é o mesmo som que a nota de onde vem: muda, ou é apagada, com ela.
+- Funciona em ficheiros `.gp5`, `.gp4` e `.gp3` (todas as músicas convertidas são `.gp5`). Um `.gp` ou `.gpx` aberto tal como está não pode ser corrigido aqui.
+- Corrige o traste ou apaga a nota. Mudar a nota de corda, acrescentar notas ou mudar o ritmo faz-se no Guitar Pro ou no TuxGuitar.
+- Não funciona na pista 3D: escolha uma vista com tab.
 
 ## 7. Pista 3D
 
@@ -299,7 +330,7 @@ Converter a mesma música outra vez substitui o ficheiro Guitar Pro e mantém o 
 | A pista 3D não aparece | Abra a aplicação pelo `start.bat` / `start_env.bat`: eles ligam a aceleração gráfica no Chrome. Noutro browser, confirme que a aceleração por hardware está ligada. |
 | "O processamento do PDF excedeu o tempo limite." | Acontece com PDFs muito grandes lidos por OCR num computador lento. Divida o PDF ou use imagens com menos páginas. |
 | O título ou o artista não foram detetados | Escreva-os nos campos antes de converter. |
-| As notas de uma imagem estão erradas | Use uma imagem maior (página inteira, ≥ 1000 px de largura) e confira as notas. |
+| As notas de uma imagem estão erradas | Use uma imagem maior (página inteira, ≥ 1000 px de largura) ou o PDF com texto, se o tiver. Os números que ficarem errados corrigem-se com **Corrigir notas** ([secção 6](#corrigir-notas)). |
 | Um vídeo do YouTube não dá áudio | A página mostra a causa: vídeo privado, restrição de idade, pedido para confirmar que não é um robô, ou falta o runtime JavaScript (Instalar em Definições). |
 | O vídeo diz que não pode ser visto fora do YouTube | O dono do vídeo não o permite. Escolha outro vídeo. |
 | A instalação falha com erro de SSL ou de proxy (rede da empresa) | O pip precisa de chegar à internet. Defina a variável `HTTPS_PROXY` com o endereço do proxy da empresa antes de correr o script, ou faça a primeira instalação noutra rede. |
@@ -310,7 +341,19 @@ Converter a mesma música outra vez substitui o ficheiro Guitar Pro e mantém o 
 - Tabs em texto com fonte proporcional (não monoespaçada) desalinham as colunas.
 - Nas imagens não são lidos as quiálteras nem os nomes das secções, e as técnicas lidas devem ser conferidas. Tab em texto numa imagem também não é lida.
 - O ritmo estimado pelo espaçamento é uma aproximação: confira-o na partitura.
-- Acordes por extenso, rit./accel. e quintinas/septinas não são convertidos com exatidão.
 - Uma track por PDF, no máximo 7 tracks.
+- **Corrigir notas** muda o traste ou apaga a nota; não muda a corda, não acrescenta notas e não mexe no ritmo.
+
+**Ainda não suportado** (em nenhum tipo de ficheiro, ou só em parte):
+
+- Quiálteras (tercinas, quintinas…): são detetadas, mas o ritmo desse compasso é estimado.
+- Notas de ornamento (grace notes), swing, compassos de anacruse e armações de clave.
+- Acentos, staccato, dedilhação, crescendo/decrescendo (forquilhas) e marcas de palhetada (⊓ / V).
+- Trilos, tremolo picking, alavanca (dips e dives), vibrato largo, volume swell e bend + release + bend.
+- Slap/pop, rasgueado e harmónicos em PDFs exportados por editores (nas tabs em texto, `<12>` funciona).
+- Mudanças graduais de tempo (rit. / accel.).
+- Capo, nomes e diagramas de acordes, uma segunda voz na mesma pauta e bateria.
+
+A lista completa, técnica a técnica, está em [`NOTACAO.md`](NOTACAO.md).
 
 Para os detalhes técnicos (API, configuração, segurança), veja a [documentação técnica](TECNICO.md).

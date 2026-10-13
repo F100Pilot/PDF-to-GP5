@@ -19,6 +19,7 @@ and YouTube video in sync, an A–B loop, a metronome and a library of your song
 - **Reads tabs in many forms**: text tabs (`e|--0--3h5--|`), PDFs exported by Guitar Pro, MuseScore, TuxGuitar or Songsterr, and pictures of tabs (PNG, JPEG, WebP or scanned PDFs, read by OCR on your computer).
 - **Finds the song's details**: title, artist, tempo, time signature, tuning, rhythm, techniques (bends, slides, hammer-ons, vibrato, palm mute…), repeats and lyrics.
 - **Writes Guitar Pro files**: `.gp5`, or `.gp` (Guitar Pro 7/8) with the song's audio inside. Up to 7 tracks, 4 to 8 strings.
+- **Correct notes on the tab**: click a wrong number, type the right fret or delete the note; the download and the library get the corrected file.
 - **Opens Guitar Pro files** (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`) to play them.
 - **Practice player**: staff and tab, 3D highway, speed, A–B loop that can speed up each pass, metronome and count-in.
 - **Plays along with the real song**: an audio file or a YouTube video, lined up with the notation.
@@ -37,7 +38,7 @@ and YouTube video in sync, an A–B loop, a metronome and a library of your song
 
 **Limitations of pictures and image PDFs**
 - **Quality matters.** Use the whole page, at least 1000 px wide, without the browser's bars around it. Small, blurred or heavily compressed (JPEG) pictures give wrong numbers, extra notes or missing bars.
-- **Numbers can be misread** (a bold 0 read as 6 or 9, for example). The report warns you to check them.
+- **Numbers can be misread** (a bold 0 read as 6 or 9, for example). The report warns you to check them, and **Correct notes** fixes them on the tab.
 - **Rhythm** is read from the drawn stems, beams and rests when they are clear; otherwise it is estimated from the spacing of the notes, bar by bar.
 - **Not read in pictures yet:** tuplets, section names (Intro, Verse…), and tabs written as plain text (`e|--0--3--|`) inside a picture.
 - **One picture is one track.** To combine several screenshots of the same part, put them in one PDF.

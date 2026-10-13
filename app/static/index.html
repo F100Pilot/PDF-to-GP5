@@ -210,16 +210,26 @@
                 <input id="score-3d-side" type="range" min="-100" max="100" value="0">
               </label>
               <div class="score-player">
+                <button id="score-edit" type="button" aria-pressed="false" title="Clicar num número da tab para o mudar ou apagar">✎ Corrigir notas</button>
+                <button id="score-undo" type="button" title="Desfazer a última correção" hidden>↶ Desfazer</button>
                 <button id="video-toggle" type="button" aria-pressed="false" title="Ligar ou desligar o vídeo (desligado: fica em pausa e volta o som da partitura)">Vídeo YouTube</button>
               </div>
             </div>
             <div id="score-tracks" class="score-tracks"></div>
             <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
+            <p id="note-edit-hint" class="hint" hidden>Corrigir notas: clique num número da tab, escreva o traste certo e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.</p>
             <div id="score-stage" class="score-stage">
               <div class="score-main">
                 <div id="highway" class="highway" hidden></div>
                 <p id="highway-legend" class="hint" hidden>Pista 3D: linhas claras = compassos (com o número), linhas ténues = tempos; em cima, o compasso atual, o progresso e a letra (sílaba atual a amarelo) · nome do acorde por cima do quadro (calculado pelas notas) · ao tocar, a nota brilha e o número fica na corda enquanto soa · rasto a subir = bend (↑1 = um tom), ↑↓ bend e release, PB pre-bend · rasto inclinado = slide (nota de destino translúcida = não se ataca) · H/P hammer-on/pull-off · PM palm mute · losango = harmónico (AH/PH/TH/SH) · rasto ondulado = vibrato · T tapping · (n) ghost note · X nota morta · ↓/↑ ao lado do acorde = rasgueado.</p>
                 <div id="score" class="score"></div>
+                <form id="note-editor" class="note-editor" aria-label="Corrigir a nota" hidden>
+                  <span id="note-editor-where"></span>
+                  <label>Traste <input id="note-editor-fret" type="number" min="0" max="30" step="1" required></label>
+                  <button type="submit">OK</button>
+                  <button id="note-editor-delete" type="button" class="secondary">Apagar nota</button>
+                  <button id="note-editor-close" type="button" class="icon" title="Fechar (Esc)" aria-label="Fechar">✕</button>
+                </form>
               </div>
               <button id="audio-reopen" type="button" class="side-reopen" aria-controls="audio-panel" title="Mostrar o painel do áudio" hidden><span aria-hidden="true">◂</span> Áudio</button>
               <div class="score-side">

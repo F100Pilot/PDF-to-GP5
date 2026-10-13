@@ -451,5 +451,20 @@
  "Metrónomo": "Metronome",
  "Prática": "Practice",
  "Um clique em cada tempo, com o acento no primeiro do compasso": "A click on every beat, accented on the first of the bar",
- "Um compasso de cliques antes de começar a tocar (não quando o áudio ou o vídeo da música acompanham: começariam um compasso antes da partitura)": "One bar of clicks before playing starts (not when the song's audio or video plays along: they would start a bar before the score)"
+ "Um compasso de cliques antes de começar a tocar (não quando o áudio ou o vídeo da música acompanham: começariam um compasso antes da partitura)": "One bar of clicks before playing starts (not when the song's audio or video plays along: they would start a bar before the score)",
+ "Clicar num número da tab para o mudar ou apagar": "Click a number on the tab to change or delete it",
+ "✎ Corrigir notas": "✎ Correct notes",
+ "Desfazer a última correção": "Undo the last correction",
+ "↶ Desfazer": "↶ Undo",
+ "Corrigir notas: clique num número da tab, escreva o traste certo e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.": "Correct notes: click a number on the tab, type the right fret and press Enter (Esc closes). The corrections go into the file to download and into the library.",
+ "Corrigir a nota": "Correct the note",
+ "Traste": "Fret",
+ "OK": "OK",
+ "Apagar nota": "Delete note",
+ "Fechar (Esc)": "Close (Esc)",
+ "Só é possível corrigir notas em ficheiros .gp5, .gp4 ou .gp3.": "Notes can only be corrected in .gp5, .gp4 or .gp3 files.",
+ "Esta nota não pode ser corrigida aqui.": "This note cannot be corrected here.",
+ "Compasso {bar}, corda {string}": "Bar {bar}, string {string}",
+ "A corrigir a nota…": "Correcting the note…",
+ "Não foi possível corrigir a nota.": "Could not correct the note."
 };

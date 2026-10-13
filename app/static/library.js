@@ -462,9 +462,21 @@
     }
   }
 
+  let openRecord = null; // what is stored for the open song, but its file (to store a corrected file)
+
   document.addEventListener("song-converted", async (event) => {
     const { title, artist, tempo, gp5, filename, report, fromLibrary, pdfHandle } = event.detail;
     currentKey = songKey(title || filename, artist); // untitled songs: by file name
+    openRecord = {
+      key: currentKey,
+      title: title || "",
+      artist: artist || "",
+      tempo: tempo || null,
+      measures: report.measures,
+      trackNames: report.tracks.map((track) => track.name),
+      filename,
+      report,
+    };
     if (fromLibrary || !gp5) {
       render();
       return;
@@ -488,6 +500,21 @@
       if (folder === null && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
       await refresh();
       if (!hadCover) findCover(currentKey, artist, title, true);
+    } catch {
+      setStatus(folder !== null
+        ? T("Não foi possível guardar a música na pasta da biblioteca.")
+        : T("Não foi possível guardar a música na biblioteca."));
+    }
+  });
+
+  // Notes corrected on the score: the open song is stored again with the corrected file (its audio
+  // and cover stay).
+  document.addEventListener("song-edited", async (event) => {
+    if (!openRecord) return;
+    await ready;
+    try {
+      await saveSong({ ...openRecord, savedAt: Date.now(), gp5: new Blob([event.detail.gp5], { type: "application/octet-stream" }) });
+      await refresh();
     } catch {
       setStatus(folder !== null
         ? T("Não foi possível guardar a música na pasta da biblioteca.")

@@ -46,6 +46,13 @@ server reads them in memory.
 
 The status of every note and technique is listed in [`NOTATION.md`](NOTATION.md).
 
+### Which files work best
+
+- **The most reliable is a PDF with real text**: a text tab, or a PDF exported by Guitar Pro, MuseScore, TuxGuitar or printed from Songsterr. The numbers, lines and symbols are in the file itself, at their exact places, with no guessing.
+- **A picture, or a PDF that is only a picture** (screenshot, photo, scan), is read by OCR: the result depends on how sharp it is, and must always be checked.
+- **Quick test**: open the PDF and try to select a number with the mouse. If you can, the PDF has real text. If the page selects as one block, or nothing selects, it is a picture.
+- If you have both versions of the same tab, always use the PDF with text.
+
 ## 2. Install and start
 
 ### Requirements
@@ -134,6 +141,13 @@ Open **Settings** in the menu on the left.
 - One picture is one track. To combine several screenshots of the same part, put them in one PDF.
 - Always check the notes: the report warns you when something is uncertain.
 
+**Limitations of pictures**
+
+- **Quality matters**: small, blurred or heavily compressed (JPEG) pictures give wrong numbers, extra notes or missing bars. Prefer PNG and crop out the browser's bars.
+- **Misread numbers**: a bold 0 can come out as 6 or 9, a "(1)" as "11". Correct them on the score with **Correct notes** ([section 6](#correct-notes)).
+- **Rhythm**: it is read from the stems, beams and rests when they are clear; otherwise it is estimated from the spacing of the notes, bar by bar.
+- **Not read in pictures yet**: tuplets, section names, and tabs written as plain text (`e|--0--3--|`) inside a picture.
+
 ### Open a Guitar Pro file
 
 Choose or drop a `.gp`, `.gpx`, `.gp5`, `.gp4` or `.gp3` file on the same area. It opens straight
@@ -164,6 +178,7 @@ To save the song:
 - **View**: *Staff and tab*, *Tab only*, *Staff only* or *3D highway (Rocksmith)*. Keys 1–4 also switch the view.
 - **Tracks**: pick the track to show. Each track's 🔊 button mutes or unmutes it.
 - **Click a note** to start playing from there.
+- **Correct notes**: fix wrong numbers right on the tab (see below).
 
 The bar at the bottom is always visible:
 
@@ -177,6 +192,22 @@ The bar at the bottom is always visible:
 - **Speed up the loop**: with the A–B loop on, each pass is 5 % faster, from the chosen speed up to 100 %. You could start at 75 %, for example.
 
 The metronome, count-in and loop choices are remembered by the browser.
+
+### Correct notes
+
+To fix a misread number (mostly in tab pictures) without leaving the app:
+
+1. Press **✎ Correct notes** above the score. The score gets a dashed outline.
+2. Click the wrong number on the tab. A box opens with the bar, the string (1 = the highest) and the fret.
+3. Type the right fret and press **Enter** (or **OK**). To take out a note that should not be there, use **Delete note**. **Esc** closes the box without changing anything.
+4. The score is drawn again with the correction, at the same place.
+
+- **↶ Undo** goes back one correction at a time.
+- The corrections go into the file from **Download** and into the song saved in the **Library**.
+- A tied note (in brackets on the tab) is the same sound as the note it comes from: it changes, or is deleted, with it.
+- It works on `.gp5`, `.gp4` and `.gp3` files (every converted song is a `.gp5`). A `.gp` or `.gpx` opened as it is cannot be corrected here.
+- It changes the fret or deletes the note. Moving a note to another string, adding notes or changing the rhythm is done in Guitar Pro or TuxGuitar.
+- It does not work on the 3D highway: pick a view with tab.
 
 ## 7. 3D highway
 
@@ -307,7 +338,7 @@ Converting the same song again replaces its Guitar Pro file and keeps the audio 
 | The 3D highway does not appear | Start the app with `start.bat` / `start_env.bat`: they turn on hardware acceleration in Chrome. In another browser, check that hardware acceleration is on. |
 | "Processing the PDF exceeded the time limit." | This happens with very large PDFs read by OCR on a slow computer. Split the PDF, or use fewer pages. |
 | Title or artist not detected | Type them into the fields before converting. |
-| Wrong notes from a picture | Use a bigger picture (whole page, at least 1000 px wide) and check the notes. |
+| Wrong notes from a picture | Use a bigger picture (whole page, at least 1000 px wide), or the PDF with text if you have it. Numbers still wrong are fixed with **Correct notes** ([section 6](#correct-notes)). |
 | A YouTube video gives no audio | The page shows the cause: private video, age restriction, a request to confirm you are not a robot, or a missing JavaScript runtime (use Install in Settings). |
 | The video says it cannot be played outside YouTube | The owner does not allow it. Choose another video. |
 | Installing fails with an SSL or proxy error (company network) | pip has to reach the internet. Set the `HTTPS_PROXY` variable to the company proxy's address before running the script, or do the first install on another network. |
@@ -318,7 +349,19 @@ Converting the same song again replaces its Guitar Pro file and keeps the audio 
 - Text tabs set in a proportional (not monospaced) font have misaligned columns.
 - Pictures: tuplets and section names are not read, and the techniques that are read should be checked. Text tabs inside a picture are not read either.
 - Rhythm estimated from spacing is an approximation: check it in the notation.
-- Spelled-out chords, rit./accel., quintuplets and septuplets are not converted exactly.
 - One track per PDF, 7 tracks at most.
+- **Correct notes** changes the fret or deletes the note; it does not change the string, add notes or touch the rhythm.
+
+**Not supported yet** (in any kind of file, or only in part):
+
+- Tuplets (triplets, quintuplets…): detected, but the rhythm of that bar is estimated.
+- Grace notes, swing feel, pickup bars and key signatures.
+- Accents, staccato, fingering, crescendo/decrescendo hairpins, and pick-stroke marks (⊓ / V).
+- Trills, tremolo picking, whammy bar (dips and dives), wide vibrato, volume swells, and bend + release + bend.
+- Slap/pop, rasgueado, and harmonics in PDFs exported by editors (in text tabs, `<12>` works).
+- Gradual tempo changes (rit. / accel.).
+- Capo, chord names and diagrams, a second voice in the same staff, and drums.
+
+The full list, technique by technique, is in [`NOTATION.md`](NOTATION.md).
 
 For technical details (API, configuration, security), see the [technical documentation](TECHNICAL.md).

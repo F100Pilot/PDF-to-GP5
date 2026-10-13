@@ -19,6 +19,7 @@ from multiprocessing.connection import Connection
 
 from . import i18n
 from .converter import ConversionError, ConversionOptions, ConversionResult, convert_many, inspect, set_progress
+from .gp_edit import apply_edits, parse_edits
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ def _worker(
     job: str,
     cpu_seconds: int,
     lang: str = i18n.DEFAULT,
+    edits: list | None = None,
 ) -> None:
     i18n.use(lang)  # the child writes its warnings and errors in the user's language
     sent = [-1]
@@ -175,6 +177,10 @@ def _worker(
         _limit_resources(memory_mb, cpu_seconds)
         if job == "inspect":
             _reply(conn, status="ok", gp5="", report=inspect(pdfs[0], options))
+            return
+        if job == "edit":  # pdfs[0] is a Guitar Pro file, `edits` the notes to correct in it
+            edited = apply_edits(pdfs[0], parse_edits(edits))
+            _reply(conn, status="ok", gp5=base64.b64encode(edited).decode("ascii"), report={})
             return
         result = convert_many(pdfs, options)
         _reply(conn, status="ok", gp5=base64.b64encode(result.gp5).decode("ascii"), report=result.report)
@@ -232,8 +238,12 @@ def run_isolated(
     job: str = "convert",
     on_progress: Callable[[int], None] | None = None,
     total_s: int | None = None,
+    edits: list | None = None,
 ) -> ConversionResult:
-    """Run ``job`` ("convert" or "inspect") in a child process; inspect returns an empty gp5.
+    """Run ``job`` ("convert", "inspect" or "edit") in a child process; inspect returns an empty gp5.
+
+    "edit" corrects notes of the Guitar Pro file ``pdfs[0]`` (``edits``: the list the page sent,
+    checked in the child by ``gp_edit.parse_edits``) and returns the corrected file as gp5.
 
     ``pdfs`` is one PDF per track (inspect uses the first). ``on_progress`` gets the percent of
     the job done, as the child reports it. ``timeout_s`` is how long the child may go without
@@ -242,14 +252,16 @@ def run_isolated(
     (default: ``timeout_s``).
     """
     total_s = max(timeout_s, total_s if total_s is not None else timeout_s)
-    if job not in ("convert", "inspect"):
+    if job not in ("convert", "inspect", "edit"):
         raise ValueError(f"unknown job {job!r}")
     if isinstance(pdfs, bytes):
         pdfs = [pdfs]
     receiver, sender = _CTX.Pipe(duplex=False)
     process = _CTX.Process(
         target=_worker,
-        args=(sender, pdfs, options, memory_mb, job, max(1, int(total_s)) + 5, i18n.current()),
+        # The edits only for an "edit" job: the worker's arguments for conversions stay as they were.
+        args=(sender, pdfs, options, memory_mb, job, max(1, int(total_s)) + 5, i18n.current())
+        + ((edits,) if job == "edit" else ()),
         daemon=True,
     )
     try:

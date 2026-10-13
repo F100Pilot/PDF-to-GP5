@@ -32,7 +32,7 @@ from .extract.raster_tab import image_kind
 from .gp5_writer import MAX_TRACKS, TRACK_COLORS
 from .i18n import LanguageMiddleware, tr
 from .installer import installation, ocr_ready
-from .library_store import LibraryError, LibraryStore
+from .library_store import LibraryError, LibraryStore, guitar_pro_extension
 from .presence import PAGE_ID, Presence
 from .sandbox import ConversionTimeout, ConversionUnavailable, run_isolated
 from .security import (
@@ -69,7 +69,7 @@ audio_limiter = RateLimiter(settings.audio_jobs_per_minute)
 _slots = asyncio.Semaphore(settings.max_concurrent)
 presence = Presence()  # enabled by the local launcher (python -m app)
 library = LibraryStore(settings.library_dir)
-_JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect"}
+_JOB_PATHS = {"/api/convert", "/api/convert/gp5", "/api/inspect", "/api/edit"}
 
 
 async def _reject(send, status: int, detail: str) -> None:
@@ -92,7 +92,8 @@ class AdmissionMiddleware:
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] == "http" and scope["method"] == "POST" and scope["path"] in _JOB_PATHS:
-            limiter = inspect_limiter if scope["path"] == "/api/inspect" else rate_limiter
+            # Inspecting a PDF and correcting a note are quick and come in bursts: the larger allowance.
+            limiter = inspect_limiter if scope["path"] in ("/api/inspect", "/api/edit") else rate_limiter
             client = scope.get("client")
             if not limiter.allow(client_key(client[0] if client else None)):
                 await _reject(
@@ -463,7 +464,11 @@ async def job_progress(progress_id: str) -> dict:
 
 
 async def _run_job(
-    pdfs: list[bytes], options: ConversionOptions, job: str, progress_id: str | None = None
+    pdfs: list[bytes],
+    options: ConversionOptions,
+    job: str,
+    progress_id: str | None = None,
+    edits: list | None = None,
 ) -> ConversionResult:
     if _slots.locked():
         raise HTTPException(
@@ -492,6 +497,7 @@ async def _run_job(
                 job,
                 on_progress,
                 settings.max_job_timeout_s,
+                **({} if edits is None else {"edits": edits}),
             )
         except ConversionUnavailable:
             raise HTTPException(
@@ -566,6 +572,37 @@ async def convert_binary(request: Request, file: FilesField, form: FormFields) -
             "X-Conversion-Warnings": str(len(result.report["warnings"])),
         },
     )
+
+
+_GP_EDITABLE = (".gp5", ".gp4", ".gp3")
+_MAX_EDITS_JSON = 64 * 1024
+
+
+@app.post("/api/edit")
+async def edit_notes(
+    file: Annotated[UploadFile, File(description="Ficheiro Guitar Pro 3/4/5")],
+    edits: Annotated[str, Form(max_length=_MAX_EDITS_JSON, description="Lista JSON das notas a corrigir")],
+) -> Response:
+    """Correct notes of a Guitar Pro 3/4/5 file (another fret, or the note removed); returns the file."""
+    data = await file.read(settings.max_upload_bytes + 1)
+    if len(data) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail=tr("Ficheiro demasiado grande.", "File too large."))
+    if guitar_pro_extension(data) not in _GP_EDITABLE:
+        raise HTTPException(
+            status_code=415,
+            detail=tr(
+                "Só é possível corrigir notas em ficheiros .gp5, .gp4 ou .gp3.",
+                "Notes can only be corrected in .gp5, .gp4 or .gp3 files.",
+            ),
+        )
+    try:
+        parsed = json.loads(edits)
+    except ValueError:
+        raise HTTPException(
+            status_code=422, detail=tr("Correção de notas inválida.", "Invalid note correction.")
+        ) from None
+    result = await _run_job([data], ConversionOptions(), "edit", edits=parsed)
+    return Response(content=result.gp5, media_type="application/octet-stream")
 
 
 class AudioJobRequest(BaseModel):

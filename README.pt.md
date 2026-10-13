@@ -29,6 +29,7 @@ pratique-as no browser, com:
 - **Cria ficheiros Guitar Pro**:
   - `.gp5`, ou `.gp` (Guitar Pro 7/8) com o áudio da música lá dentro;
   - até 7 tracks, de 4 a 8 cordas.
+- **Corrige notas na tab**: clique num número errado e escreva o traste certo, ou apague a nota; o download e a biblioteca ficam com o ficheiro corrigido.
 - **Abre ficheiros Guitar Pro** (`.gp`, `.gpx`, `.gp5`, `.gp4`, `.gp3`) para os tocar.
 - **Leitor para praticar**:
   - pauta e tab, ou pista 3D;
@@ -51,7 +52,7 @@ pratique-as no browser, com:
 
 **Limitações das imagens e dos PDFs de imagem**
 - **A qualidade conta.** Use a página inteira, com pelo menos 1000 px de largura, sem as barras do browser à volta. Imagens pequenas, desfocadas ou muito comprimidas (JPEG) dão números errados, notas a mais ou compassos em falta.
-- **Os números podem ser mal lidos** (um 0 a negrito lido como 6 ou 9, por exemplo). O relatório avisa para os conferir.
+- **Os números podem ser mal lidos** (um 0 a negrito lido como 6 ou 9, por exemplo). O relatório avisa para os conferir, e **Corrigir notas** corrige-os na tab.
 - **O ritmo** é lido das hastes, barras e pausas desenhadas quando estão nítidas; senão é estimado pelo espaçamento das notas, compasso a compasso.
 - **Ainda não é lido nas imagens:** quiálteras, nomes das secções (Intro, Verse…) e tabs escritas em texto (`e|--0--3--|`) dentro de uma imagem.
 - **Uma imagem é uma track.** Para juntar vários prints da mesma parte, ponha-os num só PDF.

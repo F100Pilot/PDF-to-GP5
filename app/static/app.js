@@ -558,6 +558,13 @@
   }
   window.App = { openSong, pdfFolder: () => songHandle };
 
+  // Notes corrected on the score: the download is the corrected file.
+  document.addEventListener("song-edited", (event) => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(new Blob([event.detail.gp5], { type: "application/octet-stream" }));
+    download.href = objectUrl;
+  });
+
   function base64ToBytes(b64) {
     const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);

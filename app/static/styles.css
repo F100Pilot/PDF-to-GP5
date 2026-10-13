@@ -460,7 +460,7 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .side-head button { padding: 2px 8px; line-height: 1.2; }
 .side-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 #audio-toggle { margin: 0; }
-.transport #audio-toggle[aria-pressed="true"], .score-player #video-toggle[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.transport #audio-toggle[aria-pressed="true"], .score-player #video-toggle[aria-pressed="true"], .score-player #score-edit[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .volume input { padding: 0; width: 100%; cursor: pointer; }
 .volume { gap: 2px; }
 .volume-head { display: flex; justify-content: space-between; gap: 8px; }
@@ -497,7 +497,30 @@ button.mark { justify-self: start; padding: 6px 12px; }
 .tempo-row { display: flex; align-items: center; gap: 6px; }
 .tempo-row .audio-offset { flex: 1; }
 .tempo-row button { padding: 4px 10px; font-size: 0.85rem; }
-.score-main { min-width: 0; }
+.score-main { min-width: 0; position: relative; }
+/* Correcting notes: a small form by the clicked note (placed from the script, as CSSOM, which the CSP allows). */
+.score.editing { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.note-editor {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 8px);
+  padding: 8px 10px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-size: 0.875rem;
+}
+.note-editor[hidden] { display: none; }
+.note-editor label { flex-direction: row; align-items: center; gap: 6px; }
+.note-editor input { width: 4.5em; }
+.note-editor button { margin: 0; padding: 6px 12px; }
+.note-editor button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 /* minmax(0, 1fr): long result titles must not widen the panel past the screen */
 .video-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
 .video-panel select, .video-panel input:not([type="checkbox"]) { width: 100%; min-width: 0; text-overflow: ellipsis; }

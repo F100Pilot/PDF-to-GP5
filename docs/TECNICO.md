@@ -123,6 +123,10 @@ Depois de converter, pode escolher o áudio da música (mp3, ogg ou wav, até 10
 
 A letra impressa no PDF vai completa para o GP5 numa track própria, "Letra (voz)", silenciada (volume 0): uma nota por sílaba, no sítio onde a sílaba está impressa. Assim o Guitar Pro, o TuxGuitar e os conversores de GP5 para o Rocksmith (PSARC) leem a letra toda. Com 7 tracks já ocupadas, a letra vai para a track que toca em mais compassos com letra e a página avisa dos compassos que ficam sem ela.
 
+## Corrigir notas
+
+"✎ Corrigir notas", por cima da partitura, corrige números errados diretamente na tab: um clique numa nota abre uma caixa com o traste, que pode ser mudado ou a nota apagada; "↶ Desfazer" volta atrás uma correção de cada vez. A página envia o ficheiro mostrado e a nota para `POST /api/edit` (multipart: `file`, o `.gp5`/`.gp4`/`.gp3`; `edits`, JSON `[{"track", "bar", "voice", "beat", "string", "expected", "fret"}]` — índices a partir de 0, `string` 1 = a corda mais aguda, como no Guitar Pro, `expected` o traste que a nota tem agora, `fret` o novo ou `null` para a apagar). O servidor (`app/gp_edit.py`, com PyGuitarPro, no mesmo processo isolado das conversões) só muda a nota se ela ainda estiver lá com esse traste, muda ou apaga com ela as notas ligadas, e devolve o ficheiro na sua versão (GP5, GP4 ou GP3). A página mostra o ficheiro corrigido no mesmo sítio da partitura e do leitor; o download e a música na biblioteca passam a ser esse ficheiro. Um `.gp`/`.gpx` aberto tal como está não pode ser corrigido (o PyGuitarPro só lê GP3–GP5). O PyGuitarPro lê com o traste 0 uma nota ligada no primeiro tempo de um compasso; o traste é reposto a partir da nota de onde vem antes de corrigir e de gravar.
+
 ## Partitura
 
 Depois de converter, a página mostra a partitura do GP5 gerado (pauta e tab, só tab ou só pauta), com todas as tracks ou só as escolhidas, cada uma com a sua cor, e toca-a (tocar/pausa/parar, velocidade, silenciar tracks; clicar numa nota começa a tocar daí). Usa o [alphaTab](https://alphatab.net) 1.8.4, incluído em `app/static/vendor/alphatab/` (funciona sem internet) e carregado só quando há um resultado para mostrar. Licenças: alphaTab MPL-2.0, fonte Bravura SIL OFL 1.1, sons Sonivox Apache-2.0 (ficheiros de licença na mesma pasta). O botão "Vídeo YouTube" liga e desliga o vídeo (desligado, fica em pausa e o som da partitura volta; a escolha é lembrada). A barra de tempo por baixo dos botões mostra o tempo atual e a duração da música; clicar ou arrastar nela avança ou recua (o vídeo e a pista 3D acompanham).
@@ -146,6 +150,7 @@ A quota gratuita dá cerca de 100 pesquisas por dia (cada música é pesquisada 
 | `POST` | `/api/inspect` | JSON: título, artista, BPM e compasso detetados (sem converter) |
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (avisos, pré-visualização) |
 | `POST` | `/api/convert/gp5` | ficheiro `.gp5` |
+| `POST` | `/api/edit` | o ficheiro Guitar Pro 3/4/5 enviado, com notas corrigidas (ver "Corrigir notas") |
 
 Campos (multipart):
 - `file` (obrigatório; PDF, PNG, JPEG ou WebP; repetir para várias tracks, até 7, pela ordem das tracks).

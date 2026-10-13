@@ -122,6 +122,10 @@ After converting, you can choose the song's audio (mp3, ogg or wav, up to 100 MB
 
 The lyrics printed in the PDF go in full into the GP5 on a track of their own, "Lyrics (vocals)", muted (volume 0): one note per syllable, where the syllable is printed. This way Guitar Pro, TuxGuitar and the GP5-to-Rocksmith (PSARC) converters read all the lyrics. With 7 tracks already in use, the lyrics go to the track that plays in the most bars with lyrics and the page warns about the bars left without them.
 
+## Correct notes
+
+"✎ Correct notes", above the score, fixes wrong numbers right on the tab: a click on a note opens a box with its fret, which can be changed, or the note deleted; "↶ Undo" goes back one correction at a time. The page sends the file shown and the note to `POST /api/edit` (multipart: `file`, the `.gp5`/`.gp4`/`.gp3`; `edits`, JSON `[{"track", "bar", "voice", "beat", "string", "expected", "fret"}]` — 0-based indices, `string` 1 = the highest string, as in Guitar Pro, `expected` the fret the note has now, `fret` the new one or `null` to delete it). The server (`app/gp_edit.py`, with PyGuitarPro, in the same isolated process as conversions) changes the note only if it is still there with that fret, changes or deletes the notes tied to it along with it, and returns the file in its own version (GP5, GP4 or GP3). The page shows the corrected file at the same place in the score and the player; the download and the song in the library become that file. A `.gp`/`.gpx` opened as it is cannot be corrected (PyGuitarPro only reads GP3–GP5). PyGuitarPro reads a tied note on the first beat of a bar with fret 0; the fret is restored from the note it comes from before correcting and writing.
+
 ## Score
 
 After converting, the page shows the generated GP5's score (staff and tab, tab only or staff only), with all the tracks or only the chosen ones, each in its own colour, and plays it (play/pause/stop, speed, muting tracks; clicking a note starts playing from there). It uses [alphaTab](https://alphatab.net) 1.8.4, included in `app/static/vendor/alphatab/` (works offline) and loaded only when there is a result to show. Licences: alphaTab MPL-2.0, Bravura font SIL OFL 1.1, Sonivox sounds Apache-2.0 (licence files in the same folder). The "YouTube video" button turns the video on and off (off, it stays paused and the score's sound comes back; the choice is remembered). The time bar below the buttons shows the current time and the song's duration; clicking or dragging on it skips ahead or back (the video and the 3D highway follow).
@@ -145,6 +149,7 @@ The free quota gives about 100 searches per day (each song is searched at most o
 | `POST` | `/api/inspect` | JSON: detected title, artist, BPM and time signature (without converting) |
 | `POST` | `/api/convert` | JSON: `filename`, `gp5_base64`, `report` (warnings, preview) |
 | `POST` | `/api/convert/gp5` | `.gp5` file |
+| `POST` | `/api/edit` | the Guitar Pro 3/4/5 file sent, with notes corrected (see "Correct notes") |
 
 Fields (multipart):
 - `file` (required; PDF, PNG, JPEG or WebP; repeat for several tracks, up to 7, in track order).

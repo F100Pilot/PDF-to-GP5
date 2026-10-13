@@ -33,6 +33,15 @@
   const TRAINER_STEP = 0.05; // each round of the A–B loop this much faster…
   const TRAINER_TOP = 1; // …up to normal speed
   const LOOP_LABEL = T("Loop A–B");
+  const editButton = document.getElementById("score-edit");
+  const undoButton = document.getElementById("score-undo");
+  const editHint = document.getElementById("note-edit-hint");
+  const editor = document.getElementById("note-editor");
+  const editorWhere = document.getElementById("note-editor-where");
+  const editorFret = document.getElementById("note-editor-fret");
+  const editorDelete = document.getElementById("note-editor-delete");
+  const editorClose = document.getElementById("note-editor-close");
+  const MAX_UNDO = 50;
 
   let loading = null;
   let api = null;
@@ -46,6 +55,12 @@
   let notesVolume = 1; // volume of the score's sounds (0…1), set beside the song's audio
   // Tempo the score plays at ÷ its printed tempo, to follow a recording at another tempo.
   let tempoFactor = 1;
+  let editing = false; // "Corrigir notas" is on: a click on a note opens the note editor
+  let picked = null; // the note in the editor
+  let pointer = { x: 0, y: 0 }; // where the score was last clicked, to place the editor there
+  let undoStack = []; // the file as it was before each correction
+  // While a corrected file replaces the one shown: where the page and the player were, to stay there.
+  let reloading = null;
 
   function applySpeed() {
     if (api) api.playbackSpeed = Number(speedSelect.value) * tempoFactor;
@@ -274,7 +289,7 @@
   function createApi() {
     api = new alphaTab.AlphaTabApi(container, {
       // Canvas rendering: the SVG engine writes inline style attributes, which the page's CSP forbids.
-      core: { engine: "html5", fontDirectory: `${VENDOR}font/`, useWorkers: true },
+      core: { engine: "html5", fontDirectory: `${VENDOR}font/`, useWorkers: true, includeNoteBounds: true },
       display: { staveProfile: notationView, scale: 0.9 },
       notation: { rhythmMode: rhythmModeFor(notationView) },
       player: {
@@ -290,19 +305,31 @@
       drawn = true;
       setStatus(T("A desenhar a partitura…"));
     });
-    api.renderFinished.on(() => setStatus(notice));
+    api.renderFinished.on(() => {
+      setStatus(notice);
+      if (reloading && reloading.scroll !== null) {
+        window.scrollTo(window.scrollX, reloading.scroll);
+        reloading.scroll = null;
+        if (reloading.tick === null) reloading = null;
+      }
+    });
     // midiLoad fires once the playing order (tickCache) is built. Not midiLoaded: subscribing to it
     // recurses forever inside alphaTab 1.8.4 (loadedMidiInfo) and the score never loads.
     api.midiLoad.on(() => buildSections());
+    api.noteMouseDown.on((note) => {
+      if (editing && note) openEditor(note);
+    });
     api.scoreLoaded.on((score) => {
       drawn = false;
       applyVolume();
       applyClicks();
-      tempoFactor = 1;
+      if (!reloading) tempoFactor = 1; // a corrected file is the same song: its sync stays
       applySpeed();
-      window.AudioSync.songLoaded(score.tempo, [score.artist, score.title].filter(Boolean).join(" - "));
-      window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
-        [score.artist, score.title].filter(Boolean).join(" "));
+      if (!reloading) {
+        window.AudioSync.songLoaded(score.tempo, [score.artist, score.title].filter(Boolean).join(" - "));
+        window.VideoSync.setSong(`${score.artist} - ${score.title}`, (muted) => muteFor("video", muted),
+          [score.artist, score.title].filter(Boolean).join(" "));
+      }
       buildTrackBar(score);
       buildHighwayTracks(score);
       if (in3D()) showHighway();
@@ -319,6 +346,11 @@
       if (e.total) setStatus(T("A carregar os sons… {percent}%", { percent: Math.round((100 * e.loaded) / e.total) }));
     });
     api.playerReady.on(() => {
+      if (reloading && reloading.tick !== null) { // a corrected file: the player stays where it was
+        api.tickPosition = reloading.tick;
+        reloading.tick = null;
+        if (reloading.scroll === null) reloading = null;
+      }
       playButton.disabled = false;
       stopButton.disabled = false;
       seekInput.disabled = false;
@@ -466,6 +498,8 @@
 
   viewSelect.addEventListener("change", () => {
     if (!in3D()) notationView = viewSelect.value;
+    editButton.hidden = in3D(); // notes are corrected on the notation
+    if (in3D()) setEditing(false);
     if (!api || !api.score) return;
     if (in3D()) showHighway();
     else showNotation();
@@ -523,6 +557,14 @@
   // `lyricsTrack`: the file ends with the lyrics track (after the `trackCount` instrument tracks).
   async function show(bytes, trackCount, trackColors, lyrics, lyricsTrack = false) {
     lastBytes = bytes;
+    reloading = null;
+    undoStack = [];
+    undoButton.hidden = true;
+    setEditing(false);
+    editButton.disabled = !editable(bytes);
+    editButton.title = editButton.disabled
+      ? T("Só é possível corrigir notas em ficheiros .gp5, .gp4 ou .gp3.")
+      : T("Clicar num número da tab para o mudar ou apagar");
     colors = trackColors || [];
     timedLyrics = Array.isArray(lyrics) ? lyrics : null;
     notice = "";
@@ -551,10 +593,130 @@
   }
 
   function hide() {
+    setEditing(false);
     if (api) api.stop();
     window.Highway3D.hide();
     box.hidden = true;
   }
+
+  // Correcting notes ("Corrigir notas"). The server changes the file (PyGuitarPro, app/gp_edit.py)
+  // and the page shows the corrected file; the download and the library get it too ("song-edited").
+
+  // Guitar Pro 3/4/5 (their header names the version): the files the server can correct.
+  function editable(bytes) {
+    const head = String.fromCharCode(...bytes.subarray(0, 23));
+    return /^\x18FICHIER GUITAR PRO v[345]\./.test(head); // i18n-skip: file header
+  }
+
+  function setEditing(on) {
+    editing = Boolean(on) && !editButton.disabled;
+    editButton.setAttribute("aria-pressed", String(editing));
+    container.classList.toggle("editing", editing);
+    editHint.hidden = !editing;
+    if (!editing) closeEditor();
+  }
+
+  function closeEditor() {
+    editor.hidden = true;
+    picked = null;
+  }
+
+  function openEditor(note) {
+    const staff = note.beat.voice.bar.staff;
+    if (staff.isPercussion || note.beat.graceType !== alphaTab.model.GraceType.None) {
+      setStatus(T("Esta nota não pode ser corrigida aqui."));
+      return;
+    }
+    picked = note;
+    editorWhere.textContent = T("Compasso {bar}, corda {string}", {
+      bar: note.beat.voice.bar.index + 1,
+      string: staff.tuning.length - note.string + 1, // 1 = the highest string, as in Guitar Pro
+    });
+    editorFret.value = String(note.fret);
+    editor.hidden = false;
+    const area = editor.offsetParent.getBoundingClientRect();
+    const left = Math.min(Math.max(pointer.x - area.left - 24, 0), Math.max(area.width - editor.offsetWidth, 0));
+    editor.style.left = `${left}px`;
+    editor.style.top = `${pointer.y - area.top + 16}px`;
+    editorFret.focus();
+    editorFret.select();
+  }
+
+  // Where `note` is in the file, as the server finds it (app/gp_edit.py: NoteEdit). alphaTab numbers the
+  // strings from the lowest (1) and adds grace notes as beats of their own; Guitar Pro numbers them
+  // from the highest and keeps grace notes inside the beat.
+  function noteEdit(note, fret) {
+    const beat = note.beat;
+    const voice = beat.voice;
+    const staff = voice.bar.staff;
+    const plain = voice.beats.filter((b) => b.graceType === alphaTab.model.GraceType.None);
+    return {
+      track: staff.track.index,
+      bar: voice.bar.index,
+      voice: voice.index,
+      beat: plain.indexOf(beat),
+      string: staff.tuning.length - note.string + 1,
+      expected: note.fret,
+      fret,
+    };
+  }
+
+  // `fret`: the new fret, or null to remove the note.
+  async function correct(fret) {
+    if (!picked || !lastBytes) return;
+    const body = new FormData();
+    body.append("file", new Blob([lastBytes], { type: "application/octet-stream" }), "song.gp5");
+    body.append("edits", JSON.stringify([noteEdit(picked, fret)]));
+    for (const control of editor.elements) control.disabled = true;
+    setStatus(T("A corrigir a nota…"));
+    try {
+      const response = await fetch("/api/edit", { method: "POST", body });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(typeof payload.detail === "string" ? payload.detail : T("Não foi possível corrigir a nota."));
+      }
+      undoStack.push(lastBytes);
+      if (undoStack.length > MAX_UNDO) undoStack.shift();
+      replaceFile(new Uint8Array(await response.arrayBuffer()));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : T("Não foi possível corrigir a nota."));
+    } finally {
+      for (const control of editor.elements) control.disabled = false;
+    }
+  }
+
+  // Show `bytes` (the same song, corrected) where the page and the player are now.
+  function replaceFile(bytes) {
+    closeEditor();
+    lastBytes = bytes;
+    undoButton.hidden = undoStack.length === 0;
+    if (api.playerState === alphaTab.synth.PlayerState.Playing) api.pause();
+    reloading = { scroll: window.scrollY, tick: api.tickPosition };
+    api.load(bytes, [...shown]);
+    document.dispatchEvent(new CustomEvent("song-edited", { detail: { gp5: bytes } }));
+  }
+
+  container.addEventListener("pointerdown", (event) => {
+    pointer = { x: event.clientX, y: event.clientY };
+  }, true);
+  editButton.addEventListener("click", () => setEditing(!editing));
+  undoButton.addEventListener("click", () => {
+    if (undoStack.length && api) replaceFile(undoStack.pop());
+  });
+  editor.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const fret = Number(editorFret.value);
+    if (picked && fret === picked.fret) closeEditor();
+    else correct(fret);
+  });
+  editorDelete.addEventListener("click", () => correct(null));
+  editorClose.addEventListener("click", closeEditor);
+  editor.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closeEditor();
+    }
+  });
 
   // The converted song as a Guitar Pro 7/8 file (.gp) with `audio` (mp3/ogg/wav bytes) as its audio
   // track, bar 1 starting `offsetMs` into the audio (one sync point; Guitar Pro follows the tempo,
