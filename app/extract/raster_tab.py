@@ -375,7 +375,7 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
                 segments.append(Segment(xc * k, xc * k, top * k, bottom * k))
 
     glyph = dark & ~on_line
-    chars = _frets(glyph, groups, spacing, k) if frets else []
+    chars = _frets(glyph, groups, spacing, k, gray) if frets else []
     signatures = _time_signatures(gray, glyph, groups, bars, spacing, k)
     numbers = _bar_numbers(gray, dark, groups, bars, spacing, k) if frets else []
     labels = _tuning_labels(dark, groups, spacing, k)  # also when inspecting: the form shows the tuning
@@ -474,7 +474,7 @@ def _split_chords(blobs, line_ys: list[float], spacing: float, glyph=None):
             yield x, y, w, h, area
 
 
-def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
+def _frets(glyph, groups, spacing: float, k: float, gray=None) -> list[Char]:
     """Fret numbers: digit-sized blobs centred on a staff line, read by the recogniser. What is
     under a staff, from 3/4 of a space past its last line, is left out: stems and beams there (a tab
     book draws its stems from the digits) would join a chord's digits to its neighbours'. (Not over
@@ -514,7 +514,7 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
         else:
             numbers.append([c])
 
-    boxes, crops, brackets = [], [], []
+    boxes, crops, brackets, masks = [], [], [], []
     pad = int(spacing * 0.4)
     for left, blobs, right in _chord_brackets([g for g in numbers if not _stacked(g)], spacing):
         brackets.append((left, right))
@@ -535,12 +535,9 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
             pixels[band, cols[-1] + 1 :] = False
             gx0, gx1 = gx0 + int(cols[0]), gx0 + int(cols[-1]) + 1
             pixels = pixels[:, cols[0] : cols[-1] + 1]
-        crop = np.full((gy1 - gy0 + 2 * pad, gx1 - gx0 + 2 * pad), 255, np.uint8)
-        crop[pad : pad + gy1 - gy0, pad : pad + gx1 - gx0][pixels] = 0
-        scale = 48 / crop.shape[0]
-        crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-        crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
+        crops.append(_digit_crop(pixels, pad, cv2, np))
         boxes.append((gx0, gx1, gy0, gy1))
+        masks.append(pixels)
     chars: list[Char] = []
     if crops:
         results = _recognize(crops)  # free reading, then _clean: better than digits only here
@@ -550,6 +547,8 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
         again = [i for i, text in enumerate(results) if not _clean(text) and _misread_digit(text)]
         for i, text in zip(again, _read_digits([crops[i] for i in again]), strict=True):
             results[i] = text
+        if gray is not None:
+            _bold_zeros(results, boxes, masks, gray, pad, cv2, np)
         for (gx0, gx1, gy0, gy1), (left, right), text in zip(boxes, brackets, results, strict=True):
             text = _clean(text)
             if left or right:
@@ -564,6 +563,36 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
                     bx, _, bw, _, _ = bracket
                     chars.append(Char(symbol, bx * k, (bx + bw) * k, gy0 * k, gy1 * k))
     return chars
+
+
+def _digit_crop(pixels, pad: int, cv2, np):
+    """The recogniser's picture of a number: black on white, padded, 48 px tall."""
+    height, width = pixels.shape
+    crop = np.full((height + 2 * pad, width + 2 * pad), 255, np.uint8)
+    crop[pad : pad + height, pad : pad + width][pixels] = 0
+    crop = cv2.resize(crop, None, fx=48 / crop.shape[0], fy=48 / crop.shape[0], interpolation=cv2.INTER_AREA)
+    return cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR)
+
+
+def _bold_zeros(results: list[str], boxes, masks, gray, pad: int, cv2, np) -> None:
+    """A bold 0 in a blurred print (a JPEG of a tab book) reaches the recogniser nearly filled in,
+    its hole closed by the grey around the strokes, and is read as 4, 5, 6, 8 or 9. Such a digit,
+    its box nearly filled in, is read again from its darkest pixels only, which open the hole: it becomes a 0 only if that
+    reading is a 0 (a real 6 or 9 keeps its tail)."""
+    suspects = [
+        i
+        for i, text in enumerate(results)
+        if _clean(text) in ("4", "5", "6", "8", "9") and masks[i].mean() >= 0.7  # nearly filled in
+    ]
+    if not suspects:
+        return
+    thin = []
+    for i in suspects:
+        gx0, gx1, gy0, gy1 = boxes[i]
+        thin.append(_digit_crop(masks[i] & (gray[gy0:gy1, gx0:gx1] < _CORE), pad, cv2, np))
+    for i, text in zip(suspects, _read_digits(thin), strict=True):
+        if _clean(text) == "0":
+            results[i] = "0"
 
 
 def _tuning_labels(dark, groups, spacing: float, k: float) -> list[Char]:

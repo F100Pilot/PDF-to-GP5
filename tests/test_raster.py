@@ -940,3 +940,27 @@ def test_a_tall_lone_seven_in_the_staff_is_an_8th_rest():
     short = seven(800, ys[2] - 6, 13)  # a digit's height: a fret
     rests, _, misread = _rests(empty, empty, groups, spacing, k, [lone, stacked, neighbour, short])
     assert [c.text for c in rests] == [""] and misread == [lone]
+
+
+def test_a_bold_blurred_zero_is_read_again_from_its_darkest_pixels():
+    """A bold 0 in a JPEG of a tab book: the grey around its strokes closes the hole, the box is
+    nearly filled in and the recogniser reads a 6. Read again from the darkest pixels it is a 0. A
+    crisp 6 (its box far from filled) is left as read."""
+    import cv2
+    import numpy as np
+
+    from app.extract.raster_tab import _bold_zeros
+
+    def ink_box(gray):
+        ys, xs = np.nonzero(gray < 200)
+        return gray[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+
+    zero = np.full((40, 30), 255, np.uint8)
+    cv2.ellipse(zero, (15, 20), (9, 15), 0, 0, 360, 170, 9)  # the grey that closes the hole
+    cv2.ellipse(zero, (15, 20), (8, 14), 0, 0, 360, 40, 4)  # the stroke, the hole open
+    six = np.full((40, 30), 255, np.uint8)
+    cv2.putText(six, "6", (2, 36), cv2.FONT_HERSHEY_SIMPLEX, 1.4, 40, 4)
+    for gray, expected in ((ink_box(zero), "0"), (ink_box(six), "6")):
+        results = ["6"]
+        _bold_zeros(results, [(0, gray.shape[1], 0, gray.shape[0])], [gray < 200], gray, 6, cv2, np)
+        assert results == [expected]
