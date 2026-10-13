@@ -12,7 +12,7 @@ and YouTube video in sync, an A–B loop, a metronome and a library of your song
 
 [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/F100Pilot)
 
-![The 3D highway](docs/manual/en/4-highway.png)
+![Demo: two tab PDFs converted, then the notation and the 3D highway playing](docs/media/demo-en.gif)
 
 ## Features
 

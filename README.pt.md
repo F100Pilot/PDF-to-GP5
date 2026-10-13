@@ -17,7 +17,7 @@ pratique-as no browser, com:
 
 [![Paga-me um café](https://img.shields.io/badge/Paga--me%20um%20caf%C3%A9-PayPal-0070ba?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/F100Pilot)
 
-![A pista 3D](docs/manual/pt/4-highway.png)
+![Demonstração: dois PDFs de tabs convertidos, a partitura e a pista 3D a tocar](docs/media/demo-pt.gif)
 
 ## O que faz
 
