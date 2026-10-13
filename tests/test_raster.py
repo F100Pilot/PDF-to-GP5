@@ -918,6 +918,40 @@ def test_rhythm_printed_as_in_a_tab_book():
     assert durations == [[q, q, r8, e8, q], [e8, e8, e8, e8, q, q], [q, q, r8, e8, q]]
 
 
+def test_half_notes_ringed_as_in_a_tab_book():
+    """A tab book rings the numbers of a half note (an empty ring with a stem: a half note tied
+    over from the chord before), and hangs each stem from the chord's lowest number, so a chord's stem crosses the strings
+    under it; the flag of a lone 8th rises from its short stem back to the staff. Every bar keeps
+    the printed rhythm, every number is read and no stem or flag becomes a number."""
+    import guitarpro
+
+    from tests.pdf_factory import songbook_tab_pdf
+
+    a = [(2, 2), (3, 2), (4, 2), (5, 0)]
+    g = [(2, 0), (3, 0), (4, 0)]
+    d = [(1, 2), (2, 3), (3, 2), (4, 0)]
+    measures = [
+        [("2", a), ("8", g), ("8", d), ("4", g)],
+        [("2t",), ("8f", g), ("r8",), ("4", d)],
+        [("4", a), ("4", g), ("2", d)],
+    ]
+    result = convert(tab_png(songbook_tab_pdf(measures), 1300), ConversionOptions())
+    assert result.report["tracks"][0]["rhythm_from_notation"] == 3
+    song = guitarpro.parse(io.BytesIO(result.gp5))
+    read = [
+        [
+            (beat.duration.value, beat.status.name == "rest", sorted((n.string, n.value) for n in beat.notes))
+            for beat in m.voices[0].beats
+        ]
+        for m in song.tracks[0].measures
+    ]
+    assert read == [
+        [(2, False, a), (8, False, g), (8, False, d), (4, False, g)],
+        [(2, False, g), (8, False, g), (8, True, []), (4, False, d)],  # the ring tied over: the G goes on
+        [(4, False, a), (4, False, g), (2, False, d)],
+    ]
+
+
 def test_a_tall_lone_seven_in_the_staff_is_an_8th_rest():
     """An 8th rest read whole as a "7", its shape joined to something else so of no rest's size:
     taller than a digit and alone in its column, it is an 8th rest. A "7" stacked in a chord is not."""

@@ -17,6 +17,7 @@ from .pdf_reader import Char, Page, Segment
 # SMuFL code points (https://w3c.github.io/smufl/latest/) mapped to 32nd-note units.
 REST_UNITS = {"": 32, "": 16, "": 8, "": 4, "": 2, "": 1}
 FLAG_UNITS = {"": 4, "": 4, "": 2, "": 2, "": 1, "": 1}
+HALF_RING = "\ue0a3"  # the ring a tab book draws around a half note's numbers (raster_tab)
 AUGMENTATION_DOT = ""
 BEAM_UNITS = {1: 4, 2: 2, 3: 1}
 _DOTTED = {1: None, 2: 3, 4: 6, 8: 12, 16: 24, 32: 48}
@@ -44,40 +45,37 @@ def _on_common_end(stem: Segment, stems: list[Segment], below: bool, spacing: fl
     return abs((stem.bottom if below else stem.top) - common) <= 0.3 * spacing
 
 
-def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[Segment]:
+def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> tuple[list[Segment], bool]:
     """Stems below the staff (or above it, if that side has more, or if those below are a
-    neighbouring staff's), all ending on one line, or (a tab book's) all starting at the staff.
+    neighbouring staff's), and whether they hang from their numbers.
 
-    Half-note stems are shorter but share the far end with the others; requiring
-    that common end keeps out unrelated ticks (e.g. the end of a "P.M." line).
+    An editor prints every stem to one line (half notes' are shorter, starting further from the
+    staff); requiring that common end keeps out unrelated ticks (e.g. the end of a "P.M." line).
+    A tab book hangs each stem from the chord's lowest number, through the staff's last line: they
+    end where they may.
     """
 
-    def candidates(below: bool) -> list[Segment]:
+    def start(seg: Segment, below: bool) -> float:
+        return seg.top - bottom if below else top - seg.bottom
+
+    def candidates(below: bool) -> tuple[list[Segment], bool]:
         found = []
         for seg in page.segments:
             length = seg.bottom - seg.top
             if not seg.is_vertical or not (x0 < seg.x0 < x1) or not (0.5 * spacing <= length <= 4 * spacing):
                 continue
-            near = seg.top - bottom if below else top - seg.bottom
-            if 0.1 * spacing <= near <= 3 * spacing:
+            if 0.1 * spacing <= start(seg, below) <= 3 * spacing:
                 found.append(seg)
         if not found:
-            return []
+            return [], False
+        # a tab book's stems hang from the numbers through the staff's last line (an editor's start
+        # 2/3 of a space under it); a chord whose lowest number is on that line hangs its stem from
+        # under the number's box
+        if sum(start(s, below) <= 0.25 * spacing for s in found) >= 0.3 * len(found):
+            return [s for s in found if start(s, below) <= 0.75 * spacing], True
+        return [s for s in found if _on_common_end(s, found, below, spacing)], False
 
-        # A tab book draws each stem from its lowest note down to where it may: the ends differ, but
-        # the stems start at the staff (or just under a digit on its outer line).
-        def starting_within(reach: float) -> list[Segment]:
-            return [s for s in found if (s.top - bottom if below else top - s.bottom) <= reach * spacing]
-
-        if len(attached := starting_within(0.35)) >= 0.6 * len(found):
-            return attached
-        on_common = [s for s in found if _on_common_end(s, found, below, spacing)]
-        if len(on_common) >= 0.6 * len(found):
-            return on_common
-        hanging = starting_within(0.75)
-        return hanging if len(hanging) >= 0.6 * len(found) else on_common
-
-    below, above = candidates(True), candidates(False)
+    (below, below_hang), (above, above_hang) = candidates(True), candidates(False)
     if below and above:
         # Staves printed close together: the stems hanging from the staff above can reach this
         # one, their ends two spaces or more away. A staff's own stems start within 2/3 of a
@@ -85,8 +83,8 @@ def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing:
         far_below = median(s.top - bottom for s in below) >= 2 * spacing
         far_above = median(top - s.bottom for s in above) >= 2 * spacing
         if far_below != far_above:
-            return above if far_below else below
-    return below if len(below) >= len(above) else above
+            return (above, above_hang) if far_below else (below, below_hang)
+    return (below, below_hang) if len(below) >= len(above) else (above, above_hang)
 
 
 def _beam_shapes(page: Page, spacing: float) -> list[Segment]:
@@ -152,7 +150,7 @@ def _apply_dot(units: int | None, dotted: bool) -> int | None:
 
 def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[RhythmMark]:
     """Rhythm marks for one tab staff, or [] when the staff has no stems."""
-    stems = _stems(page, top, bottom, x0, x1, spacing)
+    stems, hanging = _stems(page, top, bottom, x0, x1, spacing)
     if not stems:
         return []
     below = stems[0].top > bottom
@@ -162,11 +160,9 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     # A half note's shorter stem starts further from the staff and ends where the others do; in a
     # tab book every stem hangs from its note, ending where it may: a short one is still a quarter.
     usual_end = median(s.bottom if below else s.top for s in stems)
-    hanging = all((s.top - bottom if below else top - s.bottom) <= 0.35 * spacing for s in stems) or (
-        sum(_on_common_end(s, stems, below, spacing) for s in stems) < 0.6 * len(stems)
-    )
     beams = _beam_shapes(page, spacing)
     flag_chars = [c for c in page.chars if c.text in FLAG_UNITS]
+    rings = [c for c in page.chars if c.text == HALF_RING and c.top <= bottom and c.bottom >= top]
     dots = _dot_candidates(page, spacing)
     zone_low = min(s.top for s in stems)
     zone_high = max(s.bottom for s in stems)
@@ -212,7 +208,8 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
                 units = min(flags)
             else:
                 short = (stem.bottom - stem.top) <= 0.7 * typical
-                units = 16 if short and not hanging and abs(end - usual_end) <= 0.5 * spacing else 8
+                ringed = any(c.x0 - 0.3 * spacing <= x <= c.x1 + 0.3 * spacing for c in rings)
+                units = 16 if ringed or (short and not hanging and abs(end - usual_end) <= 0.5 * spacing) else 8
         units = _apply_dot(units, _has_dot(x, stem.top, stem.bottom, dots, spacing))
         if any(abs(t - x) <= 1.5 * spacing for t in tuplet_xs):
             units = None

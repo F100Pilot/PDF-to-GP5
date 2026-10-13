@@ -269,8 +269,9 @@ def songbook_tab_pdf(measures: list[list[tuple]], font_size: float = 9.5) -> byt
     the lowest digit down 2.5 spaces (so stems end at different heights), a lone 8th's flag rising
     from the stem's end back up beside it, 8ths in a row beamed at the shortest one's end, and an
     8th rest (a dot with a tail) between the middle lines. Each measure is a list of items:
-    ("4" | "8" | "8f", [(string, fret), ...]) — a quarter, a beamed 8th, a flagged 8th — or ("r8",).
-    Digits as tall as the space between the strings, as chord_tab_pdf."""
+    ("4" | "8" | "8f" | "2", [(string, fret), ...]) — a quarter, a beamed 8th, a flagged 8th, a half
+    note (its numbers ringed) — or ("r8",), or ("2t",): a half note tied over, an empty ring with a
+    stem. Digits as tall as the space between the strings, as chord_tab_pdf."""
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     spacing, x0, x1, top = 7.0, 60.0, 540.0, A4[1] - 120
@@ -285,6 +286,9 @@ def songbook_tab_pdf(measures: list[list[tuple]], font_size: float = 9.5) -> byt
         xs = [x0 + m * width + step * (i + 1) for i in range(len(items))]
         ends: list[float | None] = []
         for x, item in zip(xs, items, strict=True):
+            if item[0] == "2t":
+                ends.append(None)
+                continue
             if item[0] == "r8":
                 y = top - 2.3 * spacing
                 pdf.circle(x - 0.2 * spacing, y, 0.18 * spacing, stroke=0, fill=1)
@@ -303,13 +307,28 @@ def songbook_tab_pdf(measures: list[list[tuple]], font_size: float = 9.5) -> byt
                 pdf.setFillColorRGB(0, 0, 0)
                 pdf.drawCentredString(x, y - 0.36 * font_size, str(fret))
             lowest = top - (max(string for string, _ in item[1]) - 1) * spacing
+            if item[0] == "2":
+                lowest = bottom + 0.2 * spacing  # the stem hangs from the ring
             ends.append(lowest - 0.5 * spacing - 2.5 * spacing)
+        for x, item in zip(xs, items, strict=True):  # rings over the numbers' blanked lines
+            if item[0] in ("2", "2t"):
+                pdf.setLineWidth(2.0)
+                pdf.ellipse(
+                    x - 1.1 * spacing, bottom - 0.6 * spacing, x + 1.1 * spacing, top + 0.75 * spacing, stroke=1, fill=0
+                )
+                pdf.setLineWidth(1)
+                if item[0] == "2t":
+                    pdf.setLineWidth(0.6)
+                    pdf.line(x - 1.1 * spacing, bottom, x - 1.1 * spacing, bottom - 2.5 * spacing)
+                    pdf.setLineWidth(1)
         beamed = [i for i, item in enumerate(items) if item[0] == "8"]
         beam_y = min((ends[i] for i in beamed), default=None)
         for i, (x, item, end) in enumerate(zip(xs, items, ends, strict=True)):
             if end is None:
                 continue
             lowest = top - (max(string for string, _ in item[1]) - 1) * spacing
+            if item[0] == "2":
+                lowest = bottom + 0.2 * spacing
             stem_end = beam_y if item[0] == "8" else end
             pdf.setLineWidth(0.6)
             pdf.line(x, lowest - 0.5 * spacing, x, stem_end)
