@@ -361,11 +361,14 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         # bar lines: thin columns dark over the whole staff height
         xs = np.where(dark[ya : yb + 1, x0:x1].mean(axis=0) >= 0.92)[0]
         for cols in np.split(xs, np.where(np.diff(xs) > 1)[0] + 1) if len(xs) else []:
-            if len(cols) <= max(3, spacing * 0.35) and _ruled(
-                dark, ya, yb, x0 + int(cols[0]), x0 + int(cols[-1]), group
-            ):
+            if len(cols) > max(3, spacing * 0.35):
+                continue
+            kind = _column_kind(dark, ya, yb, x0 + int(cols[0]), x0 + int(cols[-1]), group)
+            if kind:
+                on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True  # not a digit
+                if kind == "stem":
+                    continue
                 xc = x0 + float(cols.mean())
-                on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True
                 if bars[-1] and xc - bars[-1][-1] < 0.6 * spacing:
                     continue  # the second stroke of a double bar line: one bar line
                 bars[-1].append(xc)
@@ -402,11 +405,12 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
     return page, head
 
 
-def _ruled(dark, top: int, bottom: int, c0: int, c1: int, group) -> bool:
-    """A column dark over the whole staff height is a bar line when, between the staff lines, the
-    ink there is no wider than the column itself. The digits of a chord that touch one above the
-    other (a small print) can also be dark all the way down, along one stroke of each digit, but
-    the digits around that stroke are wider."""
+def _column_kind(dark, top: int, bottom: int, c0: int, c1: int, group) -> str | None:
+    """What a column dark over the whole staff height is: "bar" (a bar line), "stem" (a tab book's
+    stem drawn through the staff, for a chord tied over with no digits shown: it goes on under the
+    staff to its beam), or None: the digits of a chord touching one above the other (a small print)
+    can be dark all the way down along one stroke of each, but between the lines the ink there is
+    wider than the column."""
     np = _cv()[1]
     between = np.ones(bottom - top + 1, bool)
     for _, a, b, _, _ in group:
@@ -420,15 +424,40 @@ def _ruled(dark, top: int, bottom: int, c0: int, c1: int, group) -> bool:
         while b + 1 < len(ink) and ink[b + 1]:
             b += 1
         widths.append(b - a + 1)
-    return not widths or float(np.median(widths)) <= c1 - c0 + 2
+    if widths and float(np.median(widths)) > c1 - c0 + 2:
+        return None
+    under = dark[bottom + 2 : bottom + 2 + round(0.6 * (bottom - top) / max(1, len(group) - 1)), c0 : c1 + 1]
+    return "stem" if under.size and under.any(axis=1).all() else "bar"
 
 
-def _split_chords(blobs, line_ys: list[float], spacing: float):
+def _without_stem(glyph, x: int, y: int, w: int, h: int, inside: list[float], spacing: float):
+    """(bottom, stem columns) of the blob without a stem stuck under its lowest digit (tab books
+    draw the stem from there): what reaches more than half a space under the lowest string, when it
+    is only a stem's few columns wide. Stem columns: (first, last), or None. (Not over the staff: a
+    bend's curve rising from its note would be cut into pieces read as 1s.)"""
+    _, np = _cv()
+    edge = round(inside[-1] + 0.5 * spacing)
+    part = glyph[edge : y + h, x : x + w]
+    columns = np.flatnonzero(part.any(axis=0)) if part.size else []
+    if 0 < len(columns) <= max(3, 0.3 * spacing):
+        return min(y + h, edge), (x + int(columns[0]), x + int(columns[-1]))
+    return y + h, None
+
+
+def _split_chords(blobs, line_ys: list[float], spacing: float, glyph=None):
     """The blobs, with the digits of a chord that touch (one above the other, on neighbouring
-    strings, in a small picture) cut apart halfway between their strings. Three or more only when
-    the column is digit-wide: a stroke crossing the staff is not a pile of 1s."""
+    strings, in a small picture) cut apart halfway between their strings, and a stem stuck under the
+    lowest digit left out (with where it crosses a string that has no digit: within the stem's
+    columns). Three or more only when the column is digit-wide: a stroke crossing the staff is not a
+    pile of 1s."""
+    _, np = _cv()
     for x, y, w, h, area in blobs:
         inside = [ly for ly in line_ys if y < ly < y + h]
+        stem = None
+        if inside and glyph is not None:
+            bottom, stem = _without_stem(glyph, x, y, w, h, inside, spacing)
+            h = bottom - y
+            inside = [ly for ly in inside if y < ly < y + h]
         if (
             len(inside) >= 2
             and 1.25 * spacing < h <= (len(inside) + 0.6) * spacing
@@ -437,14 +466,27 @@ def _split_chords(blobs, line_ys: list[float], spacing: float):
         ):
             cuts = [y, *(round((a + b) / 2) for a, b in itertools.pairwise(inside)), y + h]
             for top, bottom in itertools.pairwise(cuts):
+                columns = np.flatnonzero(glyph[top:bottom, x : x + w].any(axis=0)) + x if stem else []
+                if stem and len(columns) and stem[0] - 1 <= columns[0] and columns[-1] <= stem[1] + 1:
+                    continue  # the stem crossing a string with no digit
                 yield x, top, w, bottom - top, area
         else:
             yield x, y, w, h, area
 
 
 def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
-    """Fret numbers: digit-sized blobs centred on a staff line, read by the recogniser."""
+    """Fret numbers: digit-sized blobs centred on a staff line, read by the recogniser. What is
+    under a staff, from 3/4 of a space past its last line, is left out: stems and beams there (a tab
+    book draws its stems from the digits) would join a chord's digits to its neighbours'. (Not over
+    it: a bend's curve cut from its arrowhead would leave strokes on the lines, read as 1s.)"""
     cv2, np = _cv()
+    keep = np.ones(glyph.shape[0], bool)
+    tops = sorted(group[0][0] for group in groups)
+    for group in groups:
+        start = round(group[-1][0] + 0.75 * spacing)
+        stop = min([round(t - 3 * spacing) for t in tops if t > group[-1][0]] + [round(start + 4.5 * spacing)])
+        keep[start : max(start, stop)] = False
+    glyph = glyph & keep[:, None]
     count, _, stats, _ = cv2.connectedComponentsWithStats(glyph.astype(np.uint8), connectivity=8)
     line_ys = [line[0] for group in groups for line in group]
     line_rows = {line[0]: (line[1], line[2]) for group in groups for line in group}
@@ -455,7 +497,7 @@ def _frets(glyph, groups, spacing: float, k: float) -> list[Char]:
         for line in group
     }
     candidates = []  # digit-sized blobs centred on a staff line: (x, y, w, h, line y)
-    for x, y, w, h, area in _split_chords(stats[1:count], line_ys, spacing):
+    for x, y, w, h, area in _split_chords(stats[1:count], line_ys, spacing, glyph):
         # a digit is taller than wide (a wide blob is a rest or a beam)
         if area < 4 or not (0.45 * spacing <= h <= 1.25 * spacing and w <= 1.6 * spacing and w <= h):
             continue
@@ -609,7 +651,9 @@ def _rhythm(dark, groups, spacing: float, k: float) -> tuple[list[Segment], list
                 if not (thick <= max(3, 0.35 * spacing) and 0.8 * spacing <= sh <= 4 * spacing and near <= 2 * spacing):
                     continue
                 column = sx + int(heights.argmax())
-                if _alone(zone, column, sy, sy + sh, below, spacing):
+                if _alone(zone, column, sy, sy + sh, below, spacing) or (
+                    below and _hooked(zone, column, sy, sy + sh, spacing)
+                ):
                     found.append((column, sy, sy + sh))
             if not found:
                 continue
@@ -641,9 +685,11 @@ def _rhythm(dark, groups, spacing: float, k: float) -> tuple[list[Segment], list
                     and 0.12 * spacing <= bh <= 0.4 * spacing
                     and fill >= 0.5
                     and any(c + 3 <= bx <= c + 1.2 * spacing and a <= by + bh / 2 <= b for c, a, b in found)
+                    and abs(y0 + by + bh / 2 - (bottom if below else top)) >= 0.6 * spacing
                 ):
                     # an augmentation dot: right of a stem, beside it (not a stray bit of
-                    # lyrics punctuation under it)
+                    # lyrics punctuation under it), away from the staff (not the half of a digit
+                    # on the outer line that hangs over it, as tab books print them)
                     shapes.append(_dot(x0 + bx + bw / 2, y0 + by + bh / 2, spacing, k))
                 else:
                     flag = _flag_count(labels[by : by + bh, bx : bx + bw] == index, bx, by, found, below, spacing)
@@ -722,10 +768,14 @@ def _rests(dark, glyph, groups, spacing: float, k: float, frets: list[Char]):
                 and frets[inside[0]].text == "1"
                 and boxes[inside[0]][3] - boxes[inside[0]][2] <= 0.7 * bh
             )
-            if inside and not piece:
+            # an 8th rest read whole is a "7" (its shape): taller than a digit, so of a rest's size
+            seven = len(inside) == 1 and frets[inside[0]].text == "7"
+            if inside and not piece and not seven:
                 continue
             w, h = bw / spacing, bh / spacing
             text = next((t for t, (w0, w1), (h0, h1) in _RESTS if w0 <= w <= w1 and h0 <= h <= h1), None)
+            if seven and text != "\ue4e6":
+                continue
             # (the line it touches went with the staff lines: its fill is measured with them)
             if (
                 text is None
@@ -789,6 +839,39 @@ def _alone(zone, column: int, a: int, b: int, below: bool, spacing: float) -> bo
         if not zone[r, max(0, left - reach) : left].all() and not zone[r, right + 1 : right + 1 + reach].all()
     ]
     return not rows or zone[np.ix_(rows, sides)].mean() < 0.15
+
+
+def _hooked(zone, column: int, a: int, b: int, spacing: float) -> bool:
+    """A short stem under the staff whose flag rises from its far end back to the staff, beside the
+    stem's half nearer the staff (as tab books print an 8th): nothing left of the stem, and right of
+    it one stroke per column, leaving the stem away from the staff and climbing steadily towards it.
+    (Over the staff a bend's curve rising to its arrow would look the same.)
+    A letter's bowl beside its stroke ("b") crosses each column twice."""
+    _, np = _cv()
+    width = zone.shape[1]
+    right = column  # the stem's own width, where the flag has not joined it yet
+    for near in range(a, a + 3):
+        edge = column
+        while edge < width - 1 and zone[near, edge + 1] and edge - column < 3:
+            edge += 1
+        right = max(right, edge)
+    left_side = [c for c in (column - 3, column - 2) if 0 <= c < width]
+    if left_side and zone[a:b, left_side].mean() >= 0.15:
+        return False
+    centres = []
+    for c in range(right + 1, min(width, right + 1 + round(0.6 * spacing))):
+        rows = np.flatnonzero(zone[a:b, c])
+        if not len(rows):
+            break
+        if rows[-1] - rows[0] + 1 != len(rows):
+            return False  # two strokes in this column
+        centres.append((rows[0] + rows[-1]) / 2)
+    if len(centres) < 0.4 * spacing or centres[0] < 0.3 * (b - a):
+        return False
+    return (
+        all(later <= earlier + 1 for earlier, later in itertools.pairwise(centres))
+        and centres[-1] < centres[0] - 0.2 * spacing
+    )
 
 
 def _flag_count(mask, bx: int, by: int, stems, below: bool, spacing: float):

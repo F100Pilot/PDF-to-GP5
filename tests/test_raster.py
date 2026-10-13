@@ -888,3 +888,31 @@ def test_chords_whose_digits_touch(width):
         chords[-1].append((string, fret))
     assert [sorted(chord) for chord in chords] == [sorted(chord) for bar in measures for chord in bar]
     assert convert(picture, ConversionOptions()).report["measures"] == 3
+
+
+def test_rhythm_printed_as_in_a_tab_book():
+    """A tab book's rhythm: each stem hangs from the chord's lowest digit (so the stems end at
+    different heights, and a short one is still a quarter), a lone 8th's flag rises from the stem's
+    end, 8ths are beamed, an 8th rest sits between the middle lines. Every bar keeps the printed
+    rhythm, not one estimated from the spacing."""
+    import guitarpro
+
+    from tests.pdf_factory import songbook_tab_pdf
+
+    a = [(2, 2), (3, 2), (4, 2), (5, 0)]
+    d = [(1, 2), (2, 3), (3, 2), (4, 0)]
+    e = [(1, 0), (2, 0), (3, 1), (4, 2), (5, 2), (6, 0)]
+    measures = [
+        [("4", a), ("4", a), ("r8",), ("8f", d), ("4", d)],
+        [("8", e)] * 4 + [("4", e), ("4", e)],
+        [("4", a), ("4", d), ("r8",), ("8f", e), ("4", e)],
+    ]
+    result = convert(tab_png(songbook_tab_pdf(measures), 1300), ConversionOptions())
+    assert result.report["tracks"][0]["rhythm_from_notation"] == 3
+    song = guitarpro.parse(io.BytesIO(result.gp5))
+    durations = [
+        [(beat.duration.value, beat.status.name == "rest") for beat in measure.voices[0].beats]
+        for measure in song.tracks[0].measures
+    ]
+    q, e8, r8 = (4, False), (8, False), (8, True)
+    assert durations == [[q, q, r8, e8, q], [e8, e8, e8, e8, q, q], [q, q, r8, e8, q]]

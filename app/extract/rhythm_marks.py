@@ -37,9 +37,16 @@ def _near(char: Char, y: float, tolerance: float) -> bool:
     return any(abs(candidate - y) <= tolerance for candidate in glyph_ys(char))
 
 
+def _on_common_end(stem: Segment, stems: list[Segment], below: bool, spacing: float) -> bool:
+    """The stem ends where most of ``stems`` do (to a quarter of a space)."""
+    ends = Counter(round((s.bottom if below else s.top) / (0.25 * spacing)) for s in stems)
+    common = ends.most_common(1)[0][0] * 0.25 * spacing
+    return abs((stem.bottom if below else stem.top) - common) <= 0.3 * spacing
+
+
 def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing: float) -> list[Segment]:
     """Stems below the staff (or above it, if that side has more, or if those below are a
-    neighbouring staff's), all ending on one line.
+    neighbouring staff's), all ending on one line, or (a tab book's) all starting at the staff.
 
     Half-note stems are shorter but share the far end with the others; requiring
     that common end keeps out unrelated ticks (e.g. the end of a "P.M." line).
@@ -56,9 +63,19 @@ def _stems(page: Page, top: float, bottom: float, x0: float, x1: float, spacing:
                 found.append(seg)
         if not found:
             return []
-        ends = Counter(round((s.bottom if below else s.top) / (0.25 * spacing)) for s in found)
-        common = ends.most_common(1)[0][0] * 0.25 * spacing
-        return [s for s in found if abs((s.bottom if below else s.top) - common) <= 0.3 * spacing]
+
+        # A tab book draws each stem from its lowest note down to where it may: the ends differ, but
+        # the stems start at the staff (or just under a digit on its outer line).
+        def starting_within(reach: float) -> list[Segment]:
+            return [s for s in found if (s.top - bottom if below else top - s.bottom) <= reach * spacing]
+
+        if len(attached := starting_within(0.35)) >= 0.6 * len(found):
+            return attached
+        on_common = [s for s in found if _on_common_end(s, found, below, spacing)]
+        if len(on_common) >= 0.6 * len(found):
+            return on_common
+        hanging = starting_within(0.75)
+        return hanging if len(hanging) >= 0.6 * len(found) else on_common
 
     below, above = candidates(True), candidates(False)
     if below and above:
@@ -142,6 +159,12 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     # Half notes have shorter stems than the rest; a line of only half notes must not take them for
     # the norm (stems are about two staff spaces long).
     typical = max(median(s.bottom - s.top for s in stems), 1.5 * spacing)
+    # A half note's shorter stem starts further from the staff and ends where the others do; in a
+    # tab book every stem hangs from its note, ending where it may: a short one is still a quarter.
+    usual_end = median(s.bottom if below else s.top for s in stems)
+    hanging = all((s.top - bottom if below else top - s.bottom) <= 0.35 * spacing for s in stems) or (
+        sum(_on_common_end(s, stems, below, spacing) for s in stems) < 0.6 * len(stems)
+    )
     beams = _beam_shapes(page, spacing)
     flag_chars = [c for c in page.chars if c.text in FLAG_UNITS]
     dots = _dot_candidates(page, spacing)
@@ -188,7 +211,8 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
             if flags:
                 units = min(flags)
             else:
-                units = 16 if (stem.bottom - stem.top) <= 0.7 * typical else 8
+                short = (stem.bottom - stem.top) <= 0.7 * typical
+                units = 16 if short and not hanging and abs(end - usual_end) <= 0.5 * spacing else 8
         units = _apply_dot(units, _has_dot(x, stem.top, stem.bottom, dots, spacing))
         if any(abs(t - x) <= 1.5 * spacing for t in tuplet_xs):
             units = None

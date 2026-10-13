@@ -6,6 +6,8 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
+### Added
+- Tab pictures: rhythm printed the way tab books print it is now read. There each stem hangs from the chord's lowest digit (stems end at different heights, and a short one is still a quarter, not a half note), a lone 8th's flag rises from the stem's end to the staff, an 8th rest is read whole as a "7", and the stem of a chord tied over with no digits crosses the staff (it is not a bar line). Chord digits whose stem or beam touches the lowest digit are no longer lost either. In a phone screenshot of a tab book page: from 3 to 10 of the 15 bars with the printed rhythm, and 15 bars instead of 17.
 ### Fixed
 - Tab pictures with chords printed as tab books do (digits as tall as the space between the strings, touching each other in a small print): a chord's column of digits was taken for a bar line, and touching digits on 3 to 6 strings were lost. A bar line must now be as narrow between the lines as its dark column, and touching digits are split string by string. In a phone screenshot of a tab book page: from 39 to 17 bars and from 56 to 118 notes.
 - Title and artist of a screenshot with the browser's address bar (or of a printed web page): the address, bigger than the title, prevented detection. Web addresses no longer count as the title.

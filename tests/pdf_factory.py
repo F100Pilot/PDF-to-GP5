@@ -264,6 +264,76 @@ def chord_tab_pdf(measures: list[list[list[tuple[int, int]]]], font_size: float 
     return buffer.getvalue()
 
 
+def songbook_tab_pdf(measures: list[list[tuple]], font_size: float = 9.5) -> bytes:
+    """One tab staff of chords with the rhythm a tab book prints: each stem drawn from just under
+    the lowest digit down 2.5 spaces (so stems end at different heights), a lone 8th's flag rising
+    from the stem's end back up beside it, 8ths in a row beamed at the shortest one's end, and an
+    8th rest (a dot with a tail) between the middle lines. Each measure is a list of items:
+    ("4" | "8" | "8f", [(string, fret), ...]) — a quarter, a beamed 8th, a flagged 8th — or ("r8",).
+    Digits as tall as the space between the strings, as chord_tab_pdf."""
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    spacing, x0, x1, top = 7.0, 60.0, 540.0, A4[1] - 120
+    bottom = top - 5 * spacing
+    for s in range(6):
+        pdf.line(x0, top - s * spacing, x1, top - s * spacing)
+    width = (x1 - x0) / len(measures)
+    for m in range(len(measures) + 1):
+        pdf.line(x0 + m * width, top, x0 + m * width, bottom)
+    for m, items in enumerate(measures):
+        step = width / (len(items) + 1)
+        xs = [x0 + m * width + step * (i + 1) for i in range(len(items))]
+        ends: list[float | None] = []
+        for x, item in zip(xs, items, strict=True):
+            if item[0] == "r8":
+                y = top - 2.3 * spacing
+                pdf.circle(x - 0.2 * spacing, y, 0.18 * spacing, stroke=0, fill=1)
+                pdf.setLineWidth(0.9)
+                pdf.line(x - 0.2 * spacing, y, x + 0.45 * spacing, y + 0.05 * spacing)
+                pdf.line(x + 0.45 * spacing, y + 0.05 * spacing, x - 0.05 * spacing, y - 1.0 * spacing)
+                pdf.setLineWidth(1)
+                ends.append(None)
+                continue
+            pdf.setFont("Helvetica", font_size)
+            for string, fret in item[1]:
+                y = top - (string - 1) * spacing
+                half = pdf.stringWidth(str(fret), "Helvetica", font_size) / 2 + 0.4
+                pdf.setFillColorRGB(1, 1, 1)
+                pdf.rect(x - half, y - spacing / 2, 2 * half, spacing, stroke=0, fill=1)
+                pdf.setFillColorRGB(0, 0, 0)
+                pdf.drawCentredString(x, y - 0.36 * font_size, str(fret))
+            lowest = top - (max(string for string, _ in item[1]) - 1) * spacing
+            ends.append(lowest - 0.5 * spacing - 2.5 * spacing)
+        beamed = [i for i, item in enumerate(items) if item[0] == "8"]
+        beam_y = min((ends[i] for i in beamed), default=None)
+        for i, (x, item, end) in enumerate(zip(xs, items, ends, strict=True)):
+            if end is None:
+                continue
+            lowest = top - (max(string for string, _ in item[1]) - 1) * spacing
+            stem_end = beam_y if item[0] == "8" else end
+            pdf.setLineWidth(0.6)
+            pdf.line(x, lowest - 0.5 * spacing, x, stem_end)
+            pdf.setLineWidth(1)
+            if item[0] == "8f":
+                path = pdf.beginPath()
+                path.moveTo(x, stem_end)
+                path.curveTo(
+                    x + 0.5 * spacing,
+                    stem_end + 0.4 * spacing,
+                    x + 0.65 * spacing,
+                    stem_end + 0.8 * spacing,
+                    x + 0.6 * spacing,
+                    stem_end + 1.2 * spacing,
+                )
+                pdf.setLineWidth(1.4)
+                pdf.drawPath(path, stroke=1, fill=0)
+                pdf.setLineWidth(1)
+        if len(beamed) >= 2:
+            pdf.rect(xs[beamed[0]], beam_y, xs[beamed[-1]] - xs[beamed[0]], 0.35 * spacing, stroke=0, fill=1)
+    pdf.save()
+    return buffer.getvalue()
+
+
 def rhythm_tab_pdf(measures: list[list[tuple]], strings: int = 6) -> bytes:
     """One tab staff with rhythm drawn under it, as MuseScore prints "tab with stems".
 
