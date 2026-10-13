@@ -2,13 +2,54 @@ name: Bug report · Relatar um erro
 description: Something does not work as expected · Algo não funciona como devia
 labels: [bug]
 body:
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source of the tab · Origem da tab
+      options:
+        - Text tab (e|--0--3h5--|) · Tab em texto
+        - PDF exported by an editor (Guitar Pro, MuseScore, TuxGuitar…) · PDF exportado por um editor
+        - Web page printed to PDF · Página web impressa em PDF
+        - Scan or screenshot (OCR) · Digitalização ou print (OCR)
+        - Guitar Pro file opened in the app · Ficheiro Guitar Pro aberto na aplicação
+        - Not about a conversion · Não é sobre uma conversão
+    validations:
+      required: true
   - type: textarea
     id: what
     attributes:
       label: What happened? · O que aconteceu?
-      description: What you did, what you expected and what you got. · O que fez, o que esperava e o que obteve.
+      description: What you did and what went wrong. · O que fez e o que correu mal.
     validations:
       required: true
+  - type: input
+    id: bars
+    attributes:
+      label: Affected bars · Compassos afetados
+      description: Bar numbers as shown in the player. · Números dos compassos, como aparecem no leitor.
+      placeholder: 12–14
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected notes · Notas esperadas
+      description: >-
+        What the tab shows in those bars (string/fret, rhythm, techniques). · O que a tab mostra nesses
+        compassos (corda/traste, ritmo, técnicas).
+      placeholder: "e|--5--7b9--| eighth notes · colcheias"
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual output · O que saiu
+      description: >-
+        What the converted file has instead. "Detected tab lines" on the Result page helps. · O que o ficheiro
+        convertido tem em vez disso. As "Linhas de tab detetadas", na página Resultado, ajudam.
+  - type: dropdown
+    id: repeats
+    attributes:
+      label: '"Write out repeats in full" · "Escrever as repetições por extenso"'
+      options:
+        - "Off · Desligado"
+        - "On · Ligado"
   - type: input
     id: version
     attributes:
@@ -23,10 +64,9 @@ body:
       label: System and browser · Sistema e browser
       placeholder: Windows 11, Chrome 140
   - type: textarea
-    id: source
+    id: file
     attributes:
-      label: The tab · A tab
+      label: The file · O ficheiro
       description: >-
-        Where it came from (Guitar Pro, MuseScore, Songsterr, a text site, a screenshot…). Attach the file only if you
-        have the right to share it. · De onde veio (Guitar Pro, MuseScore, Songsterr, um site em texto, um print…).
-        Anexe o ficheiro só se tiver o direito de o partilhar.
+        Attach the PDF or picture only if you have the right to share it; otherwise describe where it came from. ·
+        Anexe o PDF ou a imagem só se tiver o direito de os partilhar; senão, diga de onde vieram.
