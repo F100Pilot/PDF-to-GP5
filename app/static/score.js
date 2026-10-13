@@ -154,6 +154,7 @@
       ? lookup.masterBars.map((bar) => ({
         start: bar.start,
         end: bar.end,
+        index: bar.masterBar ? bar.masterBar.index : -1,
         name: bar.masterBar && bar.masterBar.section ? bar.masterBar.section.text : "",
       }))
       : [];
@@ -763,6 +764,14 @@
     if (api && !playButton.disabled) api.stop();
   }
 
+  // Put the player at bar `number` (1-based, as the file numbers its bars; its first pass) and show it.
+  function goToBar(number) {
+    const bar = bars.find((b) => b.index === number - 1);
+    if (!api || !bar) return;
+    api.tickPosition = bar.start;
+    if (typeof api.scrollToCursor === "function") setTimeout(() => api.scrollToCursor(), 300); // once the page shows
+  }
+
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]; // i18n-skip: note names
 
   // A Guitar Pro file opened as it is (.gp, .gpx, .gp5, .gp4, .gp3): read by alphaTab, and summed
@@ -833,7 +842,7 @@
 
   window.ScoreView = {
     show, hide, exportGp, describe, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
-    stop, stepBar, toggleLoop, setView,
+    stop, stepBar, toggleLoop, setView, goToBar,
     tempoFactor: () => tempoFactor,
     clicks: () => (api ? { metronome: api.metronomeVolume, countIn: api.countInVolume } : null),
     ready: () => Boolean(api) && !playButton.disabled,

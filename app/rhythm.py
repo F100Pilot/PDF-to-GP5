@@ -405,6 +405,17 @@ def _segment_measures(
             stats.estimated += 1
     if notated is not None:
         return _sequence(notated, units)
+    estimated = _spaced_measures(system, cols, start, end, units, warnings)
+    for measure in estimated:
+        measure.rhythm_estimated = True
+    return estimated
+
+
+def _spaced_measures(
+    system: TabSystem, cols: list[_Column], start: float, end: float, units: int, warnings: list[str]
+) -> list[ScoreMeasure]:
+    """The bar's durations estimated from where its notes sit between the bar lines."""
+    unit_width = system.char_width
     if len(cols) > units:
         warnings.append(
             tr(

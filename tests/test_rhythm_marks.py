@@ -169,3 +169,32 @@ def test_stems_of_the_staff_above_are_not_taken():
     above = [Segment(x, x, TOP - 45, TOP - 25) for x in (30, 60, 90)]  # their ends 2.5 spaces up
     marks = _read(segments=[*above, _stem(40), _stem(80)])
     assert [m.x for m in marks] == [40, 80]
+
+
+def test_bars_whose_rhythm_is_estimated_are_named_for_review():
+    """A bar whose drawn rhythm cannot be read (three quarters in 4/4) falls back to the spacing of
+    its notes: the report names it, so it can be checked before the playback is trusted."""
+    from app.converter import ConversionOptions, convert
+    from tests.pdf_factory import rhythm_tab_pdf
+
+    def quarters(string, frets):
+        return [("4", string, fret) for fret in frets]
+
+    pdf = rhythm_tab_pdf([quarters(1, [0, 3, 5, 7]), quarters(2, [1, 3, 5]), quarters(1, [0, 3, 5, 7])])
+    report = convert(pdf, ConversionOptions()).report
+    track = report["tracks"][0]
+    assert (track["rhythm_from_notation"], track["rhythm_estimated"]) == (2, 1)
+    assert track["rhythm_estimated_bars"] == [2]
+    assert "estimado pelo espaçamento das notas no compasso 2: confira-o" in " ".join(report["warnings"])
+
+
+def test_estimated_bars_follow_the_bars_as_played():
+    """With the repeats written out, the bars named are the ones the player shows; a tab with no
+    printed rhythm lists every bar but warns only once (everything is estimated)."""
+    from app.converter import ConversionOptions, convert
+    from tests.pdf_factory import ascii_tab_pdf
+    from tests.test_repeats import TAB
+
+    report = convert(ascii_tab_pdf([TAB]), ConversionOptions(expand_repeats=True)).report
+    assert report["tracks"][0]["rhythm_estimated_bars"] == [1, 2, 3, 4]
+    assert not any("confira-o" in w for w in report["warnings"])

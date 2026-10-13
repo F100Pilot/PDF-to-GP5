@@ -162,6 +162,7 @@ A página **Resultado** mostra:
 - O resumo da música: título, artista, BPM, compasso, tracks, compassos, notas, secções e letra.
 - Os **avisos**: o que foi estimado ou ignorado e deve ser conferido.
 - Os detalhes de cada track: ficheiro, cordas, afinação, som, ritmo e formato lido. Abra "Linhas de tab detetadas" para ver a pré-visualização em texto.
+- **Compassos com o ritmo estimado**: quando a tab tem ritmo desenhado mas num compasso não foi possível lê-lo, esse compasso fica com o ritmo estimado pelo espaçamento das notas. Esses compassos aparecem nos avisos e nos detalhes da track, com a numeração do leitor; um clique num deles abre o leitor nesse compasso. São os primeiros a conferir antes de confiar na reprodução.
 
 Para guardar a música:
 

@@ -163,6 +163,7 @@ class ScoreMeasure:
     tempo: int | None = None  # BPM from the start of this bar (a tempo change printed here)
     sign: str | None = None  # jump target at this bar: "Segno", "Coda"; or "Fine" (the song ends after it)
     jump: str | None = None  # after this bar: "Da Capo", "Da Segno al Coda", … or "Da Coda" (To Coda)
+    rhythm_estimated: bool = False  # durations estimated from the note spacing (no printed rhythm read)
 
     @property
     def units(self) -> int | Fraction:

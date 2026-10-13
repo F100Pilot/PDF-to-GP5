@@ -306,6 +306,8 @@ button.icon:disabled { opacity: 0.4; cursor: default; }
 .track-result .summary { margin: 8px 0; }
 .track-result .summary div { background: var(--panel-2); padding: 10px 12px; }
 .track-result .summary dd { font-family: var(--font); font-size: 0.9375rem; }
+.estimated-bars { margin: 4px 0 10px; font-size: 0.875rem; color: var(--warn); }
+.estimated-bars button { margin: 0 6px 6px 0; padding: 2px 10px; background: var(--warn-bg); color: var(--text); border: 1px solid var(--warn); font-weight: 600; }
 .track-result details summary { cursor: pointer; }
 
 .score-box { margin-top: 20px; }

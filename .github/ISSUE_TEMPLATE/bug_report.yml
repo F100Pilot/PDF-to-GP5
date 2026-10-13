@@ -44,6 +44,19 @@ body:
         What the converted file has instead. "Detected tab lines" on the Result page helps. · O que o ficheiro
         convertido tem em vez disso. As "Linhas de tab detetadas", na página Resultado, ajudam.
   - type: dropdown
+    id: rhythm_case
+    attributes:
+      label: Kind of rhythm problem · Tipo de problema de ritmo
+      description: >-
+        One case per report, with its own example: a change can fix one case and worsen another. ·
+        Um caso por relatório, com o seu exemplo: uma alteração pode corrigir um caso e piorar outro.
+      options:
+        - Not about rhythm · Não é sobre o ritmo
+        - Tuplets (triplets, quintuplets…) · Quiálteras (tercinas, quintinas…)
+        - Unusual rests (dotted, multi-bar, inside a chord, in a second voice) · Pausas fora do comum (com ponto, de vários compassos, dentro de um acorde, numa segunda voz)
+        - A bar the report lists as estimated from the spacing · Um compasso que o relatório indica como estimado pelo espaçamento
+        - Other rhythm problem · Outro problema de ritmo
+  - type: dropdown
     id: repeats
     attributes:
       label: '"Write out repeats in full" · "Escrever as repetições por extenso"'

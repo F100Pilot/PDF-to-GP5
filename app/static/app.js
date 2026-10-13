@@ -438,6 +438,42 @@
     return dl;
   }
 
+  // [3, 4, 5, 9] -> [[3, 5], [9, 9]]
+  function barRanges(numbers) {
+    const ranges = [];
+    for (const n of numbers) {
+      const last = ranges[ranges.length - 1];
+      if (last && n === last[1] + 1) last[1] = n;
+      else ranges.push([n, n]);
+    }
+    return ranges;
+  }
+
+  // The bars whose rhythm was estimated from the spacing in a part that prints rhythm elsewhere:
+  // the ones to check before trusting the playback. Each opens the player at that bar.
+  function estimatedBars(track) {
+    const numbers = track.rhythm_estimated_bars || [];
+    if (!numbers.length || !track.rhythm_from_notation) return null;
+    const box = document.createElement("p");
+    box.className = "estimated-bars";
+    box.append(T("Ritmo estimado pelo espaçamento (confira antes de confiar na reprodução):"), " ");
+    const MAX_SHOWN = 40;
+    const ranges = barRanges(numbers);
+    for (const [first, last] of ranges.slice(0, MAX_SHOWN)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = first === last ? String(first) : `${first}–${last}`;
+      button.title = T("Abrir o leitor no compasso {n}", { n: first });
+      button.addEventListener("click", () => {
+        window.location.hash = "#/tocar";
+        if (window.ScoreView) window.ScoreView.goToBar(first);
+      });
+      box.appendChild(button);
+    }
+    if (ranges.length > MAX_SHOWN) box.append("…");
+    return box;
+  }
+
   function renderTrackResult(track, index) {
     const details = document.createElement("details");
     details.className = "track-result";
@@ -453,6 +489,8 @@
       [T("Som"), INSTRUMENT_LABELS[track.instrument] || track.instrument], [T("Ritmo"), rhythm],
       [T("Formato"), track.sources.map((s) => (s === "ascii" ? T("texto") : s === "image" ? T("imagem (OCR)") : s === "guitarpro" ? "Guitar Pro" : T("gravada"))).join(", ")],
     ]));
+    const estimated = estimatedBars(track);
+    if (estimated) details.appendChild(estimated);
     const table = document.createElement("table");
     table.className = "systems";
     const head = document.createElement("tr");

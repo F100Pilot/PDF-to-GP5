@@ -466,5 +466,7 @@
  "Esta nota não pode ser corrigida aqui.": "This note cannot be corrected here.",
  "Compasso {bar}, corda {string}": "Bar {bar}, string {string}",
  "A corrigir a nota…": "Correcting the note…",
- "Não foi possível corrigir a nota.": "Could not correct the note."
+ "Não foi possível corrigir a nota.": "Could not correct the note.",
+ "Ritmo estimado pelo espaçamento (confira antes de confiar na reprodução):": "Rhythm estimated from the spacing (check before trusting the playback):",
+ "Abrir o leitor no compasso {n}": "Open the player at bar {n}"
 };

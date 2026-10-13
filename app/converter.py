@@ -537,15 +537,6 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     system_measures: list[int] = []
     stats = RhythmStats()
     measures = build_measures(kept, rhythm, warnings, system_measures, stats)
-    if stats.notated and stats.estimated:
-        warnings.append(
-            tr(
-                f"Ritmo lido da partitura em {stats.notated} compasso(s); "
-                f"{stats.estimated} compasso(s) estimados pelo espaçamento.",
-                f"Rhythm read from the score in {stats.notated} bar(s); "
-                f"{stats.estimated} bar(s) estimated from the spacing.",
-            )
-        )
     note_count = sum(len(b.notes) for m in measures for b in m.beats if not all(n.tie for n in b.notes))
     if note_count == 0:
         raise ConversionError(
@@ -616,6 +607,33 @@ def _ranges(numbers: list[int]) -> str:
         values = [n for _, n in group]
         parts.append(f"{values[0]}–{values[-1]}" if len(values) > 1 else str(values[0]))
     return ", ".join(parts)
+
+
+def _flag_estimated_rhythm(score: Score, report: dict) -> None:
+    """The bars (numbered as the file plays them) whose rhythm was estimated from the spacing.
+
+    Listed in the report, and in a warning when the part prints rhythm elsewhere: there a bar
+    estimated from the spacing is the one to check before trusting the playback."""
+    bars = [number for number, measure in enumerate(score.measures, start=1) if measure.rhythm_estimated]
+    report["rhythm_estimated_bars"] = bars
+    if not bars or not report["rhythm_from_notation"]:
+        return
+    read = report["rhythm_from_notation"]
+    if len(bars) == 1:
+        message = tr(
+            f"Ritmo lido da partitura em {read} compasso(s); estimado pelo espaçamento das notas no "
+            f"compasso {bars[0]}: confira-o antes de confiar na reprodução.",
+            f"Rhythm read from the score in {read} bar(s); estimated from the spacing of the notes in "
+            f"bar {bars[0]}: check it before trusting the playback.",
+        )
+    else:
+        message = tr(
+            f"Ritmo lido da partitura em {read} compasso(s); estimado pelo espaçamento das notas nos "
+            f"compassos {_ranges(bars)}: confira-os antes de confiar na reprodução.",
+            f"Rhythm read from the score in {read} bar(s); estimated from the spacing of the notes in "
+            f"bars {_ranges(bars)}: check them before trusting the playback.",
+        )
+    report["warnings"].append(message)
 
 
 def _align_by_numbers(score: Score) -> list[int] | None:
@@ -964,6 +982,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         if name:
             sections.append({"bar": index + 1, "name": name})
 
+    for score, report in zip(scores[: len(track_reports)], track_reports, strict=True):  # not the lyrics track
+        _flag_estimated_rhythm(score, report)
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))
     warnings = (
         [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]]
