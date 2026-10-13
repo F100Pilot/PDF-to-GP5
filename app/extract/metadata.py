@@ -172,10 +172,10 @@ _SITE_TITLES = (
         r"^[\s_\"'“”]*(?P<t>.+?)[\s_\"'“”]*\s+(?:\w+\s+)?(?:Tab|Tabs|Chords)\s+by\s+(?P<a>.+?)\s*[_|]\s*Songsterr",
         re.IGNORECASE,
     ),
-    # "OFFICIAL YOURE A GOD CHORDS & TABS by Vertical Horizon @ Ultimate-Guitar.Com"
+    # "OFFICIAL SONG CHORDS & TABS by Artist @ Site.Com"
     re.compile(
         r"^(?:OFFICIAL\s+)?(?P<t>.+?)\s+(?:CHORDS\s*&\s*TABS|CHORDS|TABS?|BASS\s+TABS?|PRO)\s+(?:\(ver\s*\d+\)\s+)?"
-        r"by\s+(?P<a>.+?)\s*@\s*Ultimate[- ]Guitar",
+        r"by\s+(?P<a>.+?)\s*@\s*\w[\w -]*\.(?:com|net|org)\b",
         re.IGNORECASE,
     ),
 )

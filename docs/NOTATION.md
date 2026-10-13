@@ -149,7 +149,7 @@ Columns:
 | Free text over notes | ⬜ | ⬜ | ✅ | — | |
 | Second voice | ⬜ | ⬜ | ✅ | — | Today: one voice per track |
 | Drums / percussion | ⬜ | ⬜ | ✅ | — | Out of scope for now |
-| Tab as an image (PNG/JPEG/WebP, PDF with images only) | ⬜ | 🟡 | — | Jet Lag (Ultimate Guitar screenshot) | OCR: numbers, string lines, bar lines, drawn rhythm and techniques written as words (H/P, P.M., let ring, PH/AH/N.H.), slides, vibrato, ties, legato arcs and bends (with release, pre-bend and amount). Text tab inside an image not yet |
+| Tab as an image (PNG/JPEG/WebP, PDF with images only) | ⬜ | 🟡 | — | Jet Lag (web page screenshot) | OCR: numbers, string lines, bar lines, drawn rhythm and techniques written as words (H/P, P.M., let ring, PH/AH/N.H.), slides, vibrato, ties, legato arcs and bends (with release, pre-bend and amount). Text tab inside an image not yet |
 
 ---
 

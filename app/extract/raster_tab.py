@@ -638,7 +638,7 @@ def _rhythm(dark, groups, spacing: float, k: float) -> tuple[list[Segment], list
 
 
 # Rests drawn on a tab staff, by their size in staff spaces (width, height), as MuseScore draws
-# them (and the Ultimate Guitar prints made with it), with their SMuFL glyphs.
+# them (and the web prints made with it), with their SMuFL glyphs.
 _RESTS = (
     ("\ue4e5", (0.5, 0.82), (1.7, 2.3)),  # quarter: a narrow zigzag
     ("\ue4e7", (0.85, 1.1), (1.65, 2.1)),  # 16th: two hooks

@@ -525,8 +525,8 @@ def test_song_and_artist_from_the_title_of_a_printed_web_page():
     info = {"Title": "_NIGHTFALL_ Tab by Varia _ Songsterr Tabs with Rhythm", "Author": "Paulo"}
     meta = detect_metadata([page], info)
     assert (meta.title, meta.artist) == ("NIGHTFALL", "Varia")  # not the computer's user
-    info = {"Title": "OFFICIAL YOURE A GOD CHORDS & TABS by Vertical Horizon @ Ultimate-Guitar.Com"}
-    assert detect_metadata([page], info).artist == "Vertical Horizon"
+    info = {"Title": "OFFICIAL DEMO SONG CHORDS & TABS by Demo Artist @ Example-Tabs.Com"}
+    assert (detect_metadata([page], info).title, detect_metadata([page], info).artist) == ("DEMO SONG", "Demo Artist")
     assert detect_metadata([page], {"Title": "My Song", "Author": "Me"}).artist == "Me"
 
 

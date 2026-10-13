@@ -171,7 +171,7 @@ def test_written_tuning_and_custom_octaves():
     assert _detect_tuning(["Afinação: Drop D"]) == ("E", "B", "G", "D", "A", "D")
     assert _detect_tuning(["Tuning: half step down"])[0] == "D#"
     assert _detect_tuning(["Tuning is great"]) == ()
-    # printed without spaces (Ultimate Guitar, printed to PDF)
+    # printed without spaces (a tab web page printed to PDF)
     assert _detect_tuning(["Tuning:D♯G♯C♯F♯A♯D♯"]) == ("D#", "A#", "F#", "C#", "G#", "D#")
     assert _detect_tuning(["Tuning: D♯ G♯ C♯ F♯A♯ D♯"]) == ("D#", "A#", "F#", "C#", "G#", "D#")
     assert _detect_tuning(["Tuning: EADGBE"]) == ("E", "B", "G", "D", "A", "E")
