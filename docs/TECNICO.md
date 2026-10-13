@@ -164,7 +164,7 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 
 - A aplicação não guarda ficheiros: os PDFs e as imagens são processados em memória. Uploads acima de 1 MB são colocados pelo servidor (Starlette) num ficheiro temporário, apagado no fim do pedido.
 - Validação: tamanho máximo (cabeçalho `Content-Length` **e** contagem em streaming), assinatura `%PDF-` (ou PNG/JPEG/WebP), limite de páginas, de páginas lidas por OCR, de píxeis por imagem e de notas, campos validados.
-- Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux/macOS; Job Object em Windows); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
+- Cada conversão corre num processo filho com **timeout** por pedido (processo morto) e **limite de memória** (`RLIMIT_AS` + `RLIMIT_CPU` em Linux; Job Object em Windows; no macOS, que recusa o limite de memória, só `RLIMIT_CPU`); o resultado volta em JSON (nunca `pickle`) com tamanho máximo. Número de compassos limitado.
 - Concorrência limitada (HTTP 503) e rate limiting por IP (HTTP 429; IPv6 agrupado por /64), verificados antes de ler o corpo do pedido; inspeção com orçamento próprio.
 - Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
 - Cabeçalhos: CSP estrita sem scripts nem estilos inline (os dois blocos de estilo do alphaTab são autorizados pelo hash; workers só do próprio site; só o leitor youtube-nocookie.com pode ser embebido), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.

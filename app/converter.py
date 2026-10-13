@@ -133,11 +133,11 @@ _PICTURE_WEIGHT = 8
 def _image_warning() -> str:
     return tr(
         "Tablatura lida de uma imagem (OCR): confira as notas. O ritmo é lido das hastes, barras e pausas quando "
-        "estão desenhadas, e senão estimado pelo espaçamento das notas; bends, slides, ligaduras e outras técnicas "
-        "não são lidos.",
+        "estão desenhadas, e senão estimado pelo espaçamento das notas; confira também as técnicas (bends, slides, "
+        "ligaduras, vibrato…).",
         "Tablature read from an image (OCR): check the notes. The rhythm is read from the stems, beams and rests "
-        "where they are drawn, and otherwise estimated from the spacing of the notes; bends, slides, ties and other "
-        "techniques are not read.",
+        "where they are drawn, and otherwise estimated from the spacing of the notes; check the techniques too (bends, "
+        "slides, ties, vibrato…).",
     )
 
 

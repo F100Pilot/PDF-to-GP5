@@ -6,6 +6,9 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
+### Fixed
+- macOS: no conversion worked ("current limit exceeds maximum limit"). The process that converts asked the system for a memory limit macOS refuses; on macOS it now has only the CPU-time limit and the per-request time limit. On any system, a refused limit no longer stops the conversion (a warning goes to the server log).
+- The tab-picture warning said bends, slides and ties are not read; they are now, and the warning asks to check them.
 
 ## [0.8.0] - 2026-10-13
 ### Added

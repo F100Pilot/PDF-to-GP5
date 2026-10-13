@@ -42,15 +42,37 @@ class ConversionUnavailable(Exception):
     """The worker process could not be started (e.g. too many processes/files)."""
 
 
+def _set_limit(resource, which: int, soft: int, hard: int) -> None:
+    """setrlimit without asking for more than the hard limit already in place (only root may raise it)."""
+    _, current_hard = resource.getrlimit(which)
+    if current_hard != resource.RLIM_INFINITY:
+        hard = min(hard, current_hard)
+        soft = min(soft, hard)
+    resource.setrlimit(which, (soft, hard))
+
+
 def _limit_resources(megabytes: int, cpu_seconds: int) -> None:
-    """POSIX: cap address space and CPU time inside the child (Windows: see _windows_job)."""
+    """POSIX: cap address space and CPU time inside the child (Windows: see _windows_job).
+
+    A limit the system refuses is skipped with a warning: the job still has the wall-clock
+    timeout (the parent kills the child) and the other limit."""
     try:
         import resource
     except ImportError:  # Windows: the parent assigns the child to a Job Object
         return
-    limit = megabytes * 1024 * 1024
-    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds + 5))
+    # macOS refuses an address-space cap below what the process has already reserved (every
+    # process reserves far more than any sensible cap: setrlimit raises ValueError), and does not
+    # enforce RLIMIT_AS reliably anyway: there, only CPU time and the wall clock are limited.
+    if sys.platform != "darwin":
+        limit = megabytes * 1024 * 1024
+        try:
+            _set_limit(resource, resource.RLIMIT_AS, limit, limit)
+        except (ValueError, OSError) as exc:
+            logger.warning("Memory limit for the conversion not applied: %s", exc)
+    try:
+        _set_limit(resource, resource.RLIMIT_CPU, cpu_seconds, cpu_seconds + 5)
+    except (ValueError, OSError) as exc:
+        logger.warning("CPU limit for the conversion not applied: %s", exc)
 
 
 def _windows_job(process: mp.process.BaseProcess, megabytes: int) -> object | None:

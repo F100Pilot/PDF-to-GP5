@@ -6,6 +6,9 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
+### Corrigido
+- macOS: nenhuma conversão funcionava ("current limit exceeds maximum limit"). O processo que converte pedia ao sistema um limite de memória que o macOS recusa; no macOS passa a ter só o limite de tempo de CPU e o tempo máximo por pedido. Em qualquer sistema, um limite recusado deixa de impedir a conversão (fica um aviso no registo do servidor).
+- O aviso das tabs em imagem dizia que os bends, slides e ligaduras não são lidos; já são, e o aviso passa a pedir para os conferir.
 
 ## [0.8.0] - 2026-10-13
 ### Adicionado
