@@ -7,6 +7,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Corrigido
+- Tabs em imagem com acordes impressos como nos livros de tabs (números tão altos como o espaço entre as cordas, que num print pequeno se tocam uns aos outros): a coluna de números de um acorde era tomada por uma barra de compasso, e os números colados de 3 a 6 cordas perdiam-se. Agora uma barra de compasso tem de ser tão estreita entre as linhas como a coluna escura, e os números colados são separados corda a corda. Num print de telemóvel de uma página de livro: de 39 para 17 compassos e de 56 para 118 notas.
+- Título e artista de um print com a barra de endereço do browser (ou de uma página web impressa): o endereço, maior do que o título, impedia a deteção. Os endereços web deixam de contar como título.
 - macOS: nenhuma conversão funcionava ("current limit exceeds maximum limit"). O processo que converte pedia ao sistema um limite de memória que o macOS recusa; no macOS passa a ter só o limite de tempo de CPU e o tempo máximo por pedido. Em qualquer sistema, um limite recusado deixa de impedir a conversão (fica um aviso no registo do servidor).
 - O aviso das tabs em imagem dizia que os bends, slides e ligaduras não são lidos; já são, e o aviso passa a pedir para os conferir.
 

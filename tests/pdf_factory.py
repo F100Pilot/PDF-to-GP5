@@ -236,6 +236,34 @@ def engraved_tab_pdf(
     return buffer.getvalue()
 
 
+def chord_tab_pdf(measures: list[list[list[tuple[int, int]]]], font_size: float = 9.5) -> bytes:
+    """One tab staff of chords printed as some songbooks do: digits as tall as the space between
+    the strings, the line blanked behind each, so in a small picture the digits of a chord touch
+    one above the other. Each measure is a list of chords, each a list of (string, fret)."""
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    spacing, x0, x1, top = 7.0, 60.0, 540.0, A4[1] - 120
+    for s in range(6):
+        pdf.line(x0, top - s * spacing, x1, top - s * spacing)
+    width = (x1 - x0) / len(measures)
+    for m in range(len(measures) + 1):
+        pdf.line(x0 + m * width, top, x0 + m * width, top - 5 * spacing)
+    pdf.setFont("Helvetica", font_size)
+    for m, chords in enumerate(measures):
+        step = width / (len(chords) + 1)
+        for c, chord in enumerate(chords):
+            x = x0 + m * width + step * (c + 1)
+            for string, fret in chord:
+                y = top - (string - 1) * spacing
+                half = pdf.stringWidth(str(fret), "Helvetica", font_size) / 2 + 0.4
+                pdf.setFillColorRGB(1, 1, 1)
+                pdf.rect(x - half, y - spacing / 2, 2 * half, spacing, stroke=0, fill=1)
+                pdf.setFillColorRGB(0, 0, 0)
+                pdf.drawCentredString(x, y - 0.36 * font_size, str(fret))
+    pdf.save()
+    return buffer.getvalue()
+
+
 def rhythm_tab_pdf(measures: list[list[tuple]], strings: int = 6) -> bytes:
     """One tab staff with rhythm drawn under it, as MuseScore prints "tab with stems".
 

@@ -51,6 +51,14 @@ def test_credit_line_is_preferred_for_artist():
     assert (meta.title, meta.artist) == ("Song Name", "Jane Doe")
 
 
+def test_a_web_address_is_not_the_title():
+    """A browser's address bar in a screenshot, or a printed page's header: bigger than the title."""
+    meta = _detect(
+        _pdf([("cdn.example-shop.com/s-abc", 30, "l"), ("Wild Song", 26, "c"), ("Words and Music by Jane Doe", 9, "c")])
+    )
+    assert (meta.title, meta.artist) == ("Wild Song", "Jane Doe")
+
+
 def test_labelled_fields_win_and_uniform_text_has_no_visual_title():
     meta = _detect(_pdf([("Song: Blue Sky", 10, "l"), ("Band: The Clouds", 10, "l")]))
     assert (meta.title, meta.artist) == ("Blue Sky", "The Clouds")

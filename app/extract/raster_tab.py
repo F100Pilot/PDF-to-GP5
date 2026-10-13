@@ -361,7 +361,9 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
         # bar lines: thin columns dark over the whole staff height
         xs = np.where(dark[ya : yb + 1, x0:x1].mean(axis=0) >= 0.92)[0]
         for cols in np.split(xs, np.where(np.diff(xs) > 1)[0] + 1) if len(xs) else []:
-            if len(cols) <= max(3, spacing * 0.35):
+            if len(cols) <= max(3, spacing * 0.35) and _ruled(
+                dark, ya, yb, x0 + int(cols[0]), x0 + int(cols[-1]), group
+            ):
                 xc = x0 + float(cols.mean())
                 on_line[ya : yb + 1, x0 + int(cols[0]) : x0 + int(cols[-1]) + 1] = True
                 if bars[-1] and xc - bars[-1][-1] < 0.6 * spacing:
@@ -400,15 +402,42 @@ def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> 
     return page, head
 
 
+def _ruled(dark, top: int, bottom: int, c0: int, c1: int, group) -> bool:
+    """A column dark over the whole staff height is a bar line when, between the staff lines, the
+    ink there is no wider than the column itself. The digits of a chord that touch one above the
+    other (a small print) can also be dark all the way down, along one stroke of each digit, but
+    the digits around that stroke are wider."""
+    np = _cv()[1]
+    between = np.ones(bottom - top + 1, bool)
+    for _, a, b, _, _ in group:
+        between[max(0, a - 1 - top) : max(0, b + 2 - top)] = False
+    widths = []
+    for row in np.where(between)[0] + top:
+        ink = dark[row]
+        a, b = c0, c1
+        while a > 0 and ink[a - 1]:
+            a -= 1
+        while b + 1 < len(ink) and ink[b + 1]:
+            b += 1
+        widths.append(b - a + 1)
+    return not widths or float(np.median(widths)) <= c1 - c0 + 2
+
+
 def _split_chords(blobs, line_ys: list[float], spacing: float):
-    """The blobs, with two digits of a chord that touch (one above the other, on neighbouring
-    strings, in a small picture) cut apart halfway between their strings."""
+    """The blobs, with the digits of a chord that touch (one above the other, on neighbouring
+    strings, in a small picture) cut apart halfway between their strings. Three or more only when
+    the column is digit-wide: a stroke crossing the staff is not a pile of 1s."""
     for x, y, w, h, area in blobs:
         inside = [ly for ly in line_ys if y < ly < y + h]
-        if 1.25 * spacing < h <= 2.6 * spacing and len(inside) == 2 and inside[1] - inside[0] < 1.3 * spacing:
-            cut = round((inside[0] + inside[1]) / 2)
-            yield x, y, w, cut - y, area
-            yield x, cut, w, y + h - cut, area
+        if (
+            len(inside) >= 2
+            and 1.25 * spacing < h <= (len(inside) + 0.6) * spacing
+            and all(b - a < 1.3 * spacing for a, b in itertools.pairwise(inside))
+            and (len(inside) == 2 or w >= 0.3 * spacing)
+        ):
+            cuts = [y, *(round((a + b) / 2) for a, b in itertools.pairwise(inside)), y + h]
+            for top, bottom in itertools.pairwise(cuts):
+                yield x, top, w, bottom - top, area
         else:
             yield x, y, w, h, area
 

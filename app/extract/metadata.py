@@ -138,8 +138,17 @@ def _NOTE_NAMES_OF(midi: tuple[int, ...]) -> tuple[str, ...]:
     return tuple(names[m % 12] for m in midi)
 
 
+# A web address: the header of a printed web page, or a browser's address bar in a screenshot,
+# often in bigger letters than the title.
+_WEB_ADDRESS = re.compile(r"https?://|www\.|\b[\w-]+\.(?:com|net|org|io)\b", re.IGNORECASE)
+
+
 def _visual_title_artist(page: Page, lines: list[TextLine]) -> tuple[str | None, str | None]:
-    """Largest text near the top is the title; the next credit-like line is the artist."""
+    """Largest text near the top is the title; the next credit-like line is the artist. A web
+    address is neither, and does not count among the text sizes."""
+    lines = [line for line in lines if not _WEB_ADDRESS.search(line_text(line))]
+    if not lines:
+        return None, None
     top_area = [line for line in lines if line.top < 0.3 * page.height]
     candidates = [
         line for line in top_area if re.search(r"[A-Za-zÀ-ÿ]{2,}", line_text(line)) and not _is_music_glyph(line.text)

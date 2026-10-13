@@ -7,6 +7,8 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 
 ## [Unreleased]
 ### Fixed
+- Tab pictures with chords printed as tab books do (digits as tall as the space between the strings, touching each other in a small print): a chord's column of digits was taken for a bar line, and touching digits on 3 to 6 strings were lost. A bar line must now be as narrow between the lines as its dark column, and touching digits are split string by string. In a phone screenshot of a tab book page: from 39 to 17 bars and from 56 to 118 notes.
+- Title and artist of a screenshot with the browser's address bar (or of a printed web page): the address, bigger than the title, prevented detection. Web addresses no longer count as the title.
 - macOS: no conversion worked ("current limit exceeds maximum limit"). The process that converts asked the system for a memory limit macOS refuses; on macOS it now has only the CPU-time limit and the per-request time limit. On any system, a refused limit no longer stops the conversion (a warning goes to the server log).
 - The tab-picture warning said bends, slides and ties are not read; they are now, and the warning asks to check them.
 

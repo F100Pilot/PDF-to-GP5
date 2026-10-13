@@ -862,3 +862,29 @@ def test_an_arrowhead_is_a_triangle_narrowing_to_a_point():
         """
     )
     assert _arrowhead(small, 1, (4, 6), 16, np) is None
+
+
+@pytest.mark.parametrize("width", [900, 1300])
+def test_chords_whose_digits_touch(width):
+    """A songbook print: the digits of each chord as tall as the space between the strings, so in a
+    small picture they touch one above the other. The column they make is not a bar line, and each
+    digit is read on its own string."""
+    from app.extract.engraved_tab import extract_engraved_systems
+    from app.extract.raster_tab import read_image
+    from tests.pdf_factory import chord_tab_pdf
+
+    a = [(2, 2), (3, 2), (4, 2), (5, 0)]
+    d = [(1, 2), (2, 3), (3, 2), (4, 0)]
+    e = [(1, 0), (2, 0), (3, 1), (4, 2), (5, 2), (6, 0)]
+    measures = [[a, a, d, d], [e, e, e, e], [a, d, e, a]]
+    picture = tab_png(chord_tab_pdf(measures), width=width)
+    page, _ = read_image(picture, 40_000_000)
+    systems = extract_engraved_systems(page)
+    events = sorted((ev.x, ev.string, ev.fret) for s in systems for ev in s.events if ev.fret is not None)
+    chords: list[list[tuple[int, int]]] = []  # the digits of a chord are within a few units of each other
+    for i, (x, string, fret) in enumerate(events):
+        if not i or x - events[i - 1][0] > 3:
+            chords.append([])
+        chords[-1].append((string, fret))
+    assert [sorted(chord) for chord in chords] == [sorted(chord) for bar in measures for chord in bar]
+    assert convert(picture, ConversionOptions()).report["measures"] == 3
