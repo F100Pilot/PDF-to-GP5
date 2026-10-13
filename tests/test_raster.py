@@ -916,3 +916,27 @@ def test_rhythm_printed_as_in_a_tab_book():
     ]
     q, e8, r8 = (4, False), (8, False), (8, True)
     assert durations == [[q, q, r8, e8, q], [e8, e8, e8, e8, q, q], [q, q, r8, e8, q]]
+
+
+def test_a_tall_lone_seven_in_the_staff_is_an_8th_rest():
+    """An 8th rest read whole as a "7", its shape joined to something else so of no rest's size:
+    taller than a digit and alone in its column, it is an 8th rest. A "7" stacked in a chord is not."""
+    import numpy as np
+
+    from app.extract.pdf_reader import Char
+    from app.extract.raster_tab import _rests
+
+    spacing, k = 16.0, 7 / 16
+    ys = [100 + i * spacing for i in range(6)]
+    groups = [[(y, round(y), round(y), 50, 950) for y in ys]]
+    empty = np.zeros((300, 1000), bool)
+
+    def seven(x, top, height):
+        return Char("7", x * k, (x + 13) * k, top * k, (top + height) * k)
+
+    lone = seven(300, ys[2] - 2, 18)  # between the middle lines, 1.1 spaces tall
+    stacked = seven(600, ys[2] - 2, 18)
+    neighbour = Char("2", 601 * k, 613 * k, (ys[3] + 1) * k, (ys[3] + 15) * k)
+    short = seven(800, ys[2] - 6, 13)  # a digit's height: a fret
+    rests, _, misread = _rests(empty, empty, groups, spacing, k, [lone, stacked, neighbour, short])
+    assert [c.text for c in rests] == [""] and misread == [lone]

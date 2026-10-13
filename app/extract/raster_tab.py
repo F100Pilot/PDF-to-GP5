@@ -796,6 +796,20 @@ def _rests(dark, glyph, groups, spacing: float, k: float, frets: list[Char]):
                     if bx + bw < dx <= bx + bw + spacing
                     and by - 0.6 * spacing <= dy + dh / 2 <= by + bh + 0.6 * spacing
                 )
+    # an 8th rest read whole as a "7" but joined to something else (its shape no rest's size): a
+    # "7" taller than a digit, alone in its column (a chord's digits are stacked), in the staff
+    for i, (fx0, fx1, ftop, fbottom) in enumerate(boxes):
+        char = frets[i]
+        if char.text != "7" or char in misread or not (1.05 * spacing <= fbottom - ftop <= 1.5 * spacing):
+            continue
+        centre = (fx0 + fx1) / 2
+        if not 0.6 * spacing <= fx1 - fx0 <= 1.0 * spacing or any(
+            j != i and abs((bx0 + bx1) / 2 - centre) < 0.6 * spacing for j, (bx0, bx1, _, _) in enumerate(boxes)
+        ):
+            continue
+        if any(group[1][0] <= (ftop + fbottom) / 2 <= group[-2][0] for group in groups):
+            out.append(Char("\ue4e6", char.x0, char.x1, char.top, char.bottom))
+            misread.append(char)
     return out, dots, misread
 
 
