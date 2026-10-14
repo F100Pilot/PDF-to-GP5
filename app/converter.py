@@ -609,13 +609,42 @@ def _ranges(numbers: list[int]) -> str:
     return ", ".join(parts)
 
 
-def _flag_estimated_rhythm(score: Score, report: dict) -> None:
+def _pass_notes(passes: list[dict]) -> tuple[str, str]:
+    """ "bar 12 (plays 2 times); bar 14 (ending 1)", in Portuguese and English (the first 20)."""
+    notes_pt, notes_en = [], []
+    for item in passes[:20]:
+        pt, en = [], []
+        if item["endings"]:
+            numbers = ", ".join(str(e) for e in item["endings"])
+            pt.append(f"volta {numbers}" if len(item["endings"]) == 1 else f"voltas {numbers}")
+            en.append(f"ending {numbers}" if len(item["endings"]) == 1 else f"endings {numbers}")
+        if item["plays"] != 1:
+            pt.append(f"toca {item['plays']} vezes" if item["plays"] else "não chega a tocar")
+            en.append(f"plays {item['plays']} times" if item["plays"] else "is never played")
+        notes_pt.append(f"compasso {item['bar']} ({', '.join(pt)})")
+        notes_en.append(f"bar {item['bar']} ({', '.join(en)})")
+    more = "; …" if len(passes) > 20 else ""
+    return "; ".join(notes_pt) + more, "; ".join(notes_en) + more
+
+
+def _flag_estimated_rhythm(
+    score: Score, report: dict, plays: Counter[int] | None, song_measures: list[ScoreMeasure]
+) -> None:
     """The bars (numbered as the file plays them) whose rhythm was estimated from the spacing.
 
     Listed in the report, and in a warning when the part prints rhythm elsewhere: there a bar
-    estimated from the spacing is the one to check before trusting the playback."""
+    estimated from the spacing is the one to check before trusting the playback. Where the file
+    keeps its repeats (``plays``: times each bar is heard, None when written out), each such bar
+    that is not heard exactly once, or belongs to a volta, says so: the reviewer then knows the
+    rhythm comes round again, or on which pass it is heard."""
     bars = [number for number, measure in enumerate(score.measures, start=1) if measure.rhythm_estimated]
     report["rhythm_estimated_bars"] = bars
+    passes = [
+        {"bar": bar, "plays": plays[bar - 1], "endings": list(song_measures[bar - 1].endings)}
+        for bar in bars
+        if plays is not None and (plays[bar - 1] != 1 or song_measures[bar - 1].endings)
+    ]
+    report["rhythm_estimated_passes"] = passes
     if not bars or not report["rhythm_from_notation"]:
         return
     read = report["rhythm_from_notation"]
@@ -633,6 +662,9 @@ def _flag_estimated_rhythm(score: Score, report: dict) -> None:
             f"Rhythm read from the score in {read} bar(s); estimated from the spacing of the notes in "
             f"bars {_ranges(bars)}: check them before trusting the playback.",
         )
+    if passes:
+        notes_pt, notes_en = _pass_notes(passes)
+        message += tr(f" Com as repetições: {notes_pt}.", f" With the repeats: {notes_en}.")
     report["warnings"].append(message)
 
 
@@ -982,8 +1014,11 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
         if name:
             sections.append({"bar": index + 1, "name": name})
 
+    # Times each bar is heard, where the file keeps its repeats, voltas and jumps.
+    kept = not expanded and (repeats or navigation or any(m.endings for m in scores[0].measures))
+    plays = Counter(playback_order(scores[0].measures, options.max_measures * 4)) if kept else None
     for score, report in zip(scores[: len(track_reports)], track_reports, strict=True):  # not the lyrics track
-        _flag_estimated_rhythm(score, report)
+        _flag_estimated_rhythm(score, report, plays, scores[0].measures)
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))
     warnings = (
         [f"{r['name']}: {w}" if multi else w for r in track_reports for w in r["warnings"]]

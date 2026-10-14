@@ -438,32 +438,48 @@
     return dl;
   }
 
-  // [3, 4, 5, 9] -> [[3, 5], [9, 9]]
-  function barRanges(numbers) {
+  // [3, 4, 5, 9] -> [[3, 5], [9, 9]]; with `key`, a run also breaks where key(bar) changes.
+  function barRanges(numbers, key = () => "") {
     const ranges = [];
     for (const n of numbers) {
       const last = ranges[ranges.length - 1];
-      if (last && n === last[1] + 1) last[1] = n;
+      if (last && n === last[1] + 1 && key(n) === key(last[0])) last[1] = n;
       else ranges.push([n, n]);
     }
     return ranges;
   }
 
   // The bars whose rhythm was estimated from the spacing in a part that prints rhythm elsewhere:
-  // the ones to check before trusting the playback. Each opens the player at that bar.
+  // the ones to check before trusting the playback. Each opens the player at that bar. Where the
+  // file keeps its repeats, a bar heard more than once (or in a volta) says so.
   function estimatedBars(track) {
     const numbers = track.rhythm_estimated_bars || [];
     if (!numbers.length || !track.rhythm_from_notation) return null;
+    const passes = new Map((track.rhythm_estimated_passes || []).map((p) => [p.bar, p]));
+    const passKey = (bar) => JSON.stringify(passes.get(bar) ? [passes.get(bar).plays, passes.get(bar).endings] : null);
     const box = document.createElement("p");
     box.className = "estimated-bars";
     box.append(T("Ritmo estimado pelo espaçamento (confira antes de confiar na reprodução):"), " ");
     const MAX_SHOWN = 40;
-    const ranges = barRanges(numbers);
+    const ranges = barRanges(numbers, passKey);
     for (const [first, last] of ranges.slice(0, MAX_SHOWN)) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = first === last ? String(first) : `${first}–${last}`;
-      button.title = T("Abrir o leitor no compasso {n}", { n: first });
+      let label = first === last ? String(first) : `${first}–${last}`;
+      const titles = [T("Abrir o leitor no compasso {n}", { n: first })];
+      const pass = passes.get(first);
+      if (pass && pass.endings.length) {
+        label += ` · ${T("volta {n}", { n: pass.endings.join(", ") })}`;
+        titles.push(T("Ouve-se só na passagem da volta {n}.", { n: pass.endings.join(", ") }));
+      }
+      if (pass && pass.plays > 1) {
+        label += ` ×${pass.plays}`;
+        titles.push(T("Toca {n} vezes: o ritmo volta a ouvir-se; o leitor abre na primeira.", { n: pass.plays }));
+      } else if (pass && pass.plays === 0) {
+        titles.push(T("Não chega a tocar."));
+      }
+      button.textContent = label;
+      button.title = titles.length > 1 ? `${titles[0]}. ${titles.slice(1).join(" ")}` : titles[0];
       button.addEventListener("click", () => {
         window.location.hash = "#/tocar";
         if (window.ScoreView) window.ScoreView.goToBar(first);

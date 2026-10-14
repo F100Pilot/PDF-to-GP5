@@ -468,5 +468,9 @@
  "A corrigir a nota…": "Correcting the note…",
  "Não foi possível corrigir a nota.": "Could not correct the note.",
  "Ritmo estimado pelo espaçamento (confira antes de confiar na reprodução):": "Rhythm estimated from the spacing (check before trusting the playback):",
- "Abrir o leitor no compasso {n}": "Open the player at bar {n}"
+ "Abrir o leitor no compasso {n}": "Open the player at bar {n}",
+ "volta {n}": "ending {n}",
+ "Ouve-se só na passagem da volta {n}.": "Heard only on the pass of ending {n}.",
+ "Toca {n} vezes: o ritmo volta a ouvir-se; o leitor abre na primeira.": "Plays {n} times: the rhythm comes round again; the player opens at the first.",
+ "Não chega a tocar.": "Is never played."
 };

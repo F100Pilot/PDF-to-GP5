@@ -198,3 +198,43 @@ def test_estimated_bars_follow_the_bars_as_played():
     report = convert(ascii_tab_pdf([TAB]), ConversionOptions(expand_repeats=True)).report
     assert report["tracks"][0]["rhythm_estimated_bars"] == [1, 2, 3, 4]
     assert not any("confira-o" in w for w in report["warnings"])
+
+
+def test_an_estimated_bar_in_a_kept_repeat_says_how_often_it_plays():
+    """Where the file keeps its repeats, an estimated bar inside one says it comes round again;
+    written out, every pass is a bar of its own and there is nothing to add."""
+    from app.converter import ConversionOptions, convert
+    from tests.pdf_factory import ascii_tab_pdf
+    from tests.test_repeats import TAB  # bar 1 played 3 times, then bar 2
+
+    kept = convert(ascii_tab_pdf([TAB]), ConversionOptions()).report["tracks"][0]
+    assert kept["rhythm_estimated_passes"] == [{"bar": 1, "plays": 3, "endings": []}]
+    written = convert(ascii_tab_pdf([TAB]), ConversionOptions(expand_repeats=True)).report["tracks"][0]
+    assert written["rhythm_estimated_passes"] == []
+
+
+def test_the_warning_names_the_passes_and_the_voltas():
+    from collections import Counter
+
+    from app.converter import _flag_estimated_rhythm
+    from app.model import Score, ScoreBeat, ScoreMeasure
+    from app.repeats import playback_order
+
+    def bar(**kwargs):
+        return ScoreMeasure([ScoreBeat(32)], rhythm_estimated=True, **kwargs)
+
+    # |: 1 | 2 |1. 3 :|2. 4 |  →  heard 1 2 3 1 2 4
+    measures = [bar(repeat_open=True), bar(), bar(endings=(1,), repeat_times=2), bar(endings=(2,))]
+    measures[0].rhythm_estimated = False
+    score = Score(6, [64] * 6, measures, 4, 4)
+    report = {"rhythm_from_notation": 1, "warnings": []}
+    _flag_estimated_rhythm(score, report, Counter(playback_order(measures)), measures)
+    assert report["rhythm_estimated_bars"] == [2, 3, 4]
+    assert report["rhythm_estimated_passes"] == [
+        {"bar": 2, "plays": 2, "endings": []},
+        {"bar": 3, "plays": 1, "endings": [1]},
+        {"bar": 4, "plays": 1, "endings": [2]},
+    ]
+    assert report["warnings"][0].endswith(
+        "Com as repetições: compasso 2 (toca 2 vezes); compasso 3 (volta 1); compasso 4 (volta 2)."
+    )

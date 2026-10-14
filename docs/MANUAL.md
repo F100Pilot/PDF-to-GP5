@@ -162,7 +162,7 @@ A página **Resultado** mostra:
 - O resumo da música: título, artista, BPM, compasso, tracks, compassos, notas, secções e letra.
 - Os **avisos**: o que foi estimado ou ignorado e deve ser conferido.
 - Os detalhes de cada track: ficheiro, cordas, afinação, som, ritmo e formato lido. Abra "Linhas de tab detetadas" para ver a pré-visualização em texto.
-- **Compassos com o ritmo estimado**: quando a tab tem ritmo desenhado mas num compasso não foi possível lê-lo, esse compasso fica com o ritmo estimado pelo espaçamento das notas. Esses compassos aparecem nos avisos e nos detalhes da track, com a numeração do leitor; um clique num deles abre o leitor nesse compasso. Com as repetições por extenso, cada passagem é um compasso próprio e abre-se exatamente essa; sem elas, um compasso repetido aparece uma vez e abre-se na primeira passagem (é o mesmo compasso em todas). São os primeiros a conferir antes de confiar na reprodução.
+- **Compassos com o ritmo estimado**: quando a tab tem ritmo desenhado mas num compasso não foi possível lê-lo, esse compasso fica com o ritmo estimado pelo espaçamento das notas. Esses compassos aparecem nos avisos e nos detalhes da track, com a numeração do leitor; um clique num deles abre o leitor nesse compasso. Com as repetições por extenso, cada passagem é um compasso próprio e abre-se exatamente essa; sem elas, um compasso repetido aparece uma vez e abre-se na primeira passagem (é o mesmo compasso em todas), e indica quantas vezes toca (por exemplo "12 ×2") e, se for o caso, de que volta é ("14 · volta 1": ouve-se só nessa passagem). As repetições, as voltas e os saltos D.C./D.S./To Coda/Fine contam da mesma maneira. São os primeiros a conferir antes de confiar na reprodução.
 
 Para guardar a música:
 
