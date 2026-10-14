@@ -20,6 +20,11 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - macOS: nenhuma conversão funcionava ("current limit exceeds maximum limit"). O processo que converte pedia ao sistema um limite de memória que o macOS recusa; no macOS passa a ter só o limite de tempo de CPU e o tempo máximo por pedido. Em qualquer sistema, um limite recusado deixa de impedir a conversão (fica um aviso no registo do servidor).
 - O aviso das tabs em imagem dizia que os bends, slides e ligaduras não são lidos; já são, e o aviso passa a pedir para os conferir.
 
+### Segurança
+- Biblioteca no disco, instalação, chave do YouTube e download pessoal: um pedido que passa por um reverse proxy (cabeçalhos `Forwarded`, `X-Forwarded-*`, `X-Real-IP`) deixa de contar como "este computador"; e `LOCAL_FEATURES=0` desliga-os numa cópia publicada (um proxy que não acrescenta cabeçalhos não se distingue de um pedido local).
+- Áudio de um endereço: a proibição de endereços da rede local passa a valer para cada ligação do download (redirecionamentos, nomes resolvidos de novo, ligações dentro da página), não só para o endereço escrito; o FFmpeg só lê o ficheiro descarregado.
+- Importar biblioteca: um ficheiro que repetia a mesma música muitas vezes fazia o servidor ler o mesmo ficheiro grande vezes sem conta (dezenas de GB de memória a partir de um ZIP de poucos KB); cada ficheiro do ZIP passa a ser lido uma vez e músicas repetidas são recusadas.
+
 ## [0.8.0] - 2026-10-13
 ### Adicionado
 - Repositório pronto para distribuição pública: licença MIT (`LICENSE`), componentes de terceiros e as suas licenças (`THIRD_PARTY_NOTICES.md`), página principal em inglês (`README.md`) e em português (`README.pt.md`) com o botão para apoiar o projeto, documentação técnica, notação e guia da chave do YouTube também em inglês (`docs/TECHNICAL.md`, `docs/NOTATION.md`, `docs/YOUTUBE_KEY.md`; o antigo README passa a `docs/TECNICO.md`), `CONTRIBUTING.md`, `SECURITY.md` e modelos de issue. Os scripts de arranque mostram as mensagens em português e em inglês.

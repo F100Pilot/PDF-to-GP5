@@ -434,8 +434,9 @@ def test_health_reports_audio_download(client):
     assert body["audio_download"] is True and body["audio_download_problem"] == ""
 
 
-def test_real_ytdlp_and_ffmpeg_on_a_direct_file(tmp_path):
-    """yt-dlp (not faked) fetches a WAV from a local web server; FFmpeg makes the MP3."""
+def test_real_ytdlp_and_ffmpeg_on_a_direct_file(tmp_path, monkeypatch):
+    """yt-dlp (not faked) fetches a WAV from a local web server — declared as the owner's own
+    site, or the download may not reach it; FFmpeg makes the MP3."""
     import functools
     import http.server
     import tempfile
@@ -449,6 +450,10 @@ def test_real_ytdlp_and_ffmpeg_on_a_direct_file(tmp_path):
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=str(tmp_path)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
+        refused = ad.Job("d" * 32, f"http://127.0.0.1:{server.server_port}/tone.wav", 128, Path(tempfile.mkdtemp()))
+        ad.run_job(refused)
+        assert refused.status == "error" and "AUDIO_DOWNLOAD_HOSTS" in refused.error
+        monkeypatch.setattr(ad, "settings", dataclasses.replace(ad.settings, audio_download_hosts=("127.0.0.1",)))
         job = ad.Job("f" * 32, f"http://127.0.0.1:{server.server_port}/tone.wav", 128, Path(tempfile.mkdtemp()))
         ad.run_job(job)
         assert (job.status, job.reason) == ("done", "direct")
@@ -459,3 +464,36 @@ def test_real_ytdlp_and_ffmpeg_on_a_direct_file(tmp_path):
     finally:
         server.shutdown()
         shutil.rmtree(job.directory, ignore_errors=True)
+
+
+def test_a_download_cannot_reach_the_local_network_through_a_redirect(tmp_path, monkeypatch):
+    """validate_url checks the address typed; yt-dlp then connects on its own (redirects, a name
+    resolved again, media links in the page). While a job downloads, every connection of its
+    thread must reach a public address: yt-dlp asked for a local one gets the local-network error."""
+    import http.server
+    import socket
+    import threading
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}/a.mp3"  # where a redirect could lead
+        with ad._InternetOnly(), pytest.raises(ad.AudioDownloadError, match="rede local|local network"):
+            ad._probe(url, tmp_path, lambda status: None)
+        with ad._InternetOnly(), pytest.raises(ad._LocalAddress):
+            socket.getaddrinfo("localhost", 80)
+        assert socket.getaddrinfo("localhost", 80)  # other threads, and outside a job, are untouched
+        # A site of the owner's own, declared in AUDIO_DOWNLOAD_HOSTS, may be on the local network.
+        import dataclasses
+
+        monkeypatch.setattr(ad, "settings", dataclasses.replace(ad.settings, audio_download_hosts=("localhost",)))
+        with ad._InternetOnly():
+            assert socket.getaddrinfo("localhost", 80)
+    finally:
+        server.shutdown()
+
+
+def test_ffmpeg_reads_only_the_downloaded_file():
+    import inspect
+
+    assert '"-protocol_whitelist", "file"' in inspect.getsource(ad.convert_to_mp3)

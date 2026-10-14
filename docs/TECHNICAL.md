@@ -103,7 +103,7 @@ In "Song audio" → "Get the audio from an address (URL)": the server gets the a
 - **YouTube, for personal use**: the audio of a video, when the app is open on the same computer it runs on (`http://127.0.0.1:8021` or `localhost`, as the startup scripts open it). "On this computer" means both things: the request comes from this machine and is made to a local address — so a copy published on the internet (even behind a proxy on the same machine) does not become a YouTube converter for its visitors, and there it only accepts Creative Commons videos. YouTube's terms do not allow downloading outside YouTube's own features: use it only with music you have the right to.
 - **Other addresses**: a direct audio/video file, content under a Creative Commons licence or in the public domain (as the site indicates), or a site of your own declared in `AUDIO_DOWNLOAD_HOSTS`. Everything else is refused with the reason. No cookies, accounts or DRM formats are used.
 - **When it fails, it says why**: yt-dlp's warnings go to the server log (never to the page) and the recognized cause appears on the page — the JavaScript runtime is missing (install Deno), YouTube asked to confirm you are not a robot, age restriction, private or unavailable video, no audio format (update yt-dlp). Without the runtime or `yt-dlp-ejs`, a YouTube video is refused straight away when requested, saying what is missing.
-- Security: only `http(s)`, no credentials in the address, no local-network addresses (except declared sites); FFmpeg runs with arguments in a list (no shell); size and duration limits, maximum time per task; one temporary folder per task, deleted after the download, on error, or after 15 min.
+- Security: only `http(s)`, no credentials in the address, no local-network addresses (except declared sites) — checked on the address typed and again on every connection of the download (redirects, names resolved again, links inside the page; the computer's configured proxy only on its own port); FFmpeg reads only the downloaded file (`-protocol_whitelist file`) and runs with arguments in a list (no shell); size and duration limits, maximum time per task; one temporary folder per task, deleted after the download, on error, or after 15 min.
 - YouTube: accepts the link (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`) or just the video ID. The page sends only the ID; the server validates it again (11 characters `A–Z a–z 0–9 _ -`) and builds the address — no host, path or parameter (`list=`, `t=`) from the user reaches yt-dlp. Playlists and channels are refused.
 - Dependencies (installed by the startup scripts with `requirements.txt`): `yt-dlp[default]` (includes `yt-dlp-ejs`, the scripts YouTube needs, used locally — never downloaded at run time) and `imageio-ffmpeg`, which brings FFmpeg for Windows, macOS and Linux. Without them, the section warns that it is not available.
 - YouTube also needs a JavaScript runtime. `requirements.txt` installs the official **Deno** (the `deno` package from PyPI) in the app's Python environment, without administrator rights or winget, and the app finds it there. A Deno, Node.js, QuickJS or Bun installed on the PC (in the PATH) also works. Without any, the section warns and the other addresses keep working; `/api/health` reports the state in `audio_youtube`.
@@ -177,6 +177,8 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 
 Behind a reverse proxy, rate limiting uses the proxy's IP unless you configure `uvicorn --proxy-headers --forwarded-allow-ips=<proxy ip>`.
 
+**A copy published to other people sets `LOCAL_FEATURES=0`.** The on-disk library, installing, the YouTube key and personal-use downloads are only for whoever sits at the computer itself: the request comes from this machine, is made to a local name and carries no proxy header (`Forwarded`, `X-Forwarded-*`, `X-Real-IP`). A proxy that rewrites the `Host` to `127.0.0.1` without adding any of those headers cannot be told apart from a local request — so turn them off when publishing.
+
 ### Configuration (environment variables)
 
 | Variable | Default |
@@ -199,6 +201,8 @@ Behind a reverse proxy, rate limiting uses the proxy's IP unless you configure `
 | `VIDEO_SEARCH_PER_MINUTE` | 10 |
 | `ENABLE_DOCS` | off |
 | `ENABLE_HSTS` | off |
+| `COVER_SEARCH_PER_MINUTE` | 20 |
+| `LOCAL_FEATURES` (on-disk library, installing, the YouTube key, personal-use downloads; `0` on a published copy) | on |
 
 ## Known limitations
 

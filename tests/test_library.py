@@ -246,3 +246,21 @@ def test_a_guitar_pro_file_opened_as_it_is_keeps_its_format(store, local, data, 
 
 def test_other_files_are_not_kept(store, local):
     assert _save(local, gp5=b"%PDF-1.7 not a tab").status_code == 422
+
+
+def test_import_reads_each_file_of_the_zip_once(store, local):
+    """A manifest naming the same folder over and over would read one big file again and again
+    (40 MB × 1000 in memory from a ZIP of a few KB): the repeated song is refused."""
+    import io
+    import json
+    import zipfile
+
+    exported = zipfile.ZipFile(io.BytesIO(_export(local, [_save(local).json()["id"]]).content))
+    manifest = json.loads(exported.read("pdf-to-gp5-biblioteca.json"))
+    manifest["songs"] = manifest["songs"] * 3
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name in exported.namelist():
+            data = json.dumps(manifest) if name == "pdf-to-gp5-biblioteca.json" else exported.read(name)
+            archive.writestr(name, data)
+    assert _import(local, buffer.getvalue()).status_code == 422

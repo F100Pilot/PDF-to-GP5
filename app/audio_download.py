@@ -39,6 +39,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+from urllib.request import getproxies
 
 from .config import settings
 from .i18n import tr
@@ -69,6 +70,77 @@ class AudioDownloadError(Exception):
 def _resolve(host: str) -> list[str]:
     """IP addresses of ``host`` (monkeypatched in tests)."""
     return [info[4][0] for info in socket.getaddrinfo(host, None)]
+
+
+def _local_network_error() -> AudioDownloadError:
+    return AudioDownloadError(
+        tr(
+            "O endereço aponta para a rede local; só são aceites endereços da internet "
+            "(ou sites declarados em AUDIO_DOWNLOAD_HOSTS).",
+            "The address points to the local network; only internet addresses are accepted "
+            "(or sites declared in AUDIO_DOWNLOAD_HOSTS).",
+        )
+    )
+
+
+# --- Every connection of a download goes to the internet -----------------------------------------
+# validate_url checks the address typed; yt-dlp then connects on its own: it follows redirects,
+# resolves the name again (a name can answer a public address first and a local one next) and
+# follows media links inside the page. So, while a job downloads, every name its thread resolves
+# must give public addresses only — checked on the very addresses the connection then uses.
+
+
+class _LocalAddress(OSError):
+    """A download tried to reach the local network."""
+
+
+_public_only = threading.local()
+_system_getaddrinfo = socket.getaddrinfo
+
+
+def _proxies() -> set[tuple[str, int]]:
+    """The proxies configured for this computer (HTTPS_PROXY…), as (host, port): connecting to
+    them is allowed — to that port only, so a proxy on 127.0.0.1 does not open the rest of it."""
+    found = set()
+    for url in getproxies().values():
+        try:
+            parts = urlsplit(url if "://" in url else f"http://{url}")
+            port = parts.port or (443 if parts.scheme == "https" else 1080 if parts.scheme.startswith("socks") else 80)
+        except (TypeError, ValueError):
+            continue
+        if parts.hostname:
+            found.add((parts.hostname.lower(), port))
+    return found
+
+
+def _checked_getaddrinfo(host, port=None, *args, **kwargs):  # socket.getaddrinfo, checked
+    results = _system_getaddrinfo(host, port, *args, **kwargs)
+    if not getattr(_public_only, "on", False):
+        return results
+    name = (host.decode() if isinstance(host, bytes) else str(host or "")).lower()
+    try:
+        number = int(port) if port is not None else None
+    except (TypeError, ValueError):
+        number = None
+    if _declared(name) or (name, number) in _proxies():
+        return results
+    for *_, sockaddr in results:
+        if not ipaddress.ip_address(str(sockaddr[0]).split("%")[0]).is_global:
+            raise _LocalAddress(f"not a public address: {name}")
+    return results
+
+
+socket.getaddrinfo = _checked_getaddrinfo
+
+
+class _InternetOnly:
+    """While active, this thread's connections may only reach public addresses."""
+
+    def __enter__(self) -> None:
+        _public_only.on = True
+
+    def __exit__(self, *_exc: object) -> None:
+        _public_only.on = False
 
 
 def _is_youtube(host: str) -> bool:
@@ -127,14 +199,7 @@ def validate_url(url: str) -> str:
         for address in addresses:
             ip = ipaddress.ip_address(address.split("%")[0])
             if not ip.is_global:
-                raise AudioDownloadError(
-                    tr(
-                        "O endereço aponta para a rede local; só são aceites endereços da internet "
-                        "(ou sites declarados em AUDIO_DOWNLOAD_HOSTS).",
-                        "The address points to the local network; only internet addresses are accepted "
-                        "(or sites declared in AUDIO_DOWNLOAD_HOSTS).",
-                    )
-                )
+                raise _local_network_error()
     return url
 
 
@@ -458,6 +523,11 @@ def _options(directory: Path, hook: Callable[[dict], None]) -> dict:
         "noprogress": True,
         "logger": _QuietLogger(),
         "socket_timeout": 20,
+        # Fragments in this thread (its connections are checked: _InternetOnly), never handed to an
+        # external program such as FFmpeg, which would connect on its own.
+        "concurrent_fragment_downloads": 1,
+        "hls_prefer_native": True,
+        "external_downloader": {},
         "retries": 2,
         "fragment_retries": 2,
         "extractor_retries": 1,
@@ -482,6 +552,8 @@ def _probe(url: str, directory: Path, hook: Callable[[dict], None]) -> tuple[obj
         info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as exc:
         ydl.close()
+        if any(isinstance(e, _LocalAddress) for e in _chain(exc)):
+            raise _local_network_error() from exc
         raise AudioDownloadError(
             explain_failure(_messages(ydl, exc))
             or tr(
@@ -499,6 +571,8 @@ def _download(ydl: object, info: dict, directory: Path) -> Path:
     try:
         ydl.process_info(info)
     except yt_dlp.utils.DownloadError as exc:
+        if any(isinstance(e, _LocalAddress) for e in _chain(exc)):
+            raise _local_network_error() from exc
         raise AudioDownloadError(
             explain_failure(_messages(ydl, exc)) or tr("O download falhou.", "The download failed.")
         ) from exc
@@ -539,7 +613,9 @@ def convert_to_mp3(
         raise AudioDownloadError(tr("O FFmpeg não está disponível.", "FFmpeg is not available."))
     if bitrate not in BITRATES:
         raise AudioDownloadError(tr("Qualidade inválida.", "Invalid quality."))
-    args = [ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-sn", "-dn"]
+    # Only the downloaded file: a "file" that is really a playlist must not make FFmpeg fetch URLs.
+    args = [ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-protocol_whitelist", "file"]
+    args += ["-i", str(source), "-vn", "-sn", "-dn"]
     args += ["-map", "0:a:0", "-map_metadata", "-1", "-codec:a", "libmp3lame", "-b:a", f"{bitrate}k"]
     if title:
         args += ["-metadata", f"title={title}"]
@@ -706,53 +782,62 @@ def run_job(job: Job) -> None:
             job.progress = 0.05 + 0.6 * min(1.0, done / total)
 
     try:
-        job.status = "checking"
-        ydl, info = _probe(job.url, job.directory, hook)
-        try:
-            check_limits(info)
-            job.reason = authorize(info, job.url, job.personal)
-        except AudioDownloadError:
-            close = getattr(ydl, "close", None)
-            if close:
-                close()
-            raise
-        job.title = _CONTROL.sub("", str(info.get("title") or ""))[:200]
-        job.status = "downloading"
-        job.progress = 0.05
-        source = _download(ydl, info, job.directory)
-        if source.stat().st_size > settings.audio_max_bytes:
-            raise AudioDownloadError(tr("O ficheiro excede o tamanho máximo.", "The file exceeds the maximum size."))
-        job.status = "converting"
-        job.progress = 0.65
-        target = job.directory / "audio.mp3"
-        duration = info.get("duration") if isinstance(info.get("duration"), (int, float)) else None
-        convert_to_mp3(
-            source,
-            target,
-            job.bitrate,
-            duration,
-            deadline,
-            lambda fraction: setattr(job, "progress", 0.65 + 0.35 * fraction),
-            lambda: job.cancelled,
-            job.title,
-        )
-        source.unlink(missing_ok=True)  # only the MP3 is kept until it is downloaded
-        job.file = target
-        job.progress = 1.0
-        job.status = "done"
+        with _InternetOnly():
+            _fetch_and_convert(job, hook, deadline)
     except AudioDownloadError as exc:
         _fail(job, str(exc))
     except _Stop as exc:
         _fail(job, _stop_message(str(exc)))
     except Exception as exc:  # yt-dlp wraps hook exceptions, and pages can break it in many ways
-        stop = next((str(e) for e in _chain(exc) if isinstance(e, _Stop)), None)
+        causes = list(_chain(exc))
+        stop = next((str(e) for e in causes if isinstance(e, _Stop)), None)
         if stop:
             _fail(job, _stop_message(stop))
+        elif any(isinstance(e, _LocalAddress) for e in causes):
+            _fail(job, str(_local_network_error()))
         else:
             logger.warning("Audio job failed", exc_info=True)
             _fail(
                 job, tr("Não foi possível obter o áudio desse endereço.", "Could not get the audio from that address.")
             )
+
+
+def _fetch_and_convert(job: Job, hook: Callable[[dict], None], deadline: float) -> None:
+    """The job's download and conversion (run_job turns any failure into the job's error)."""
+    job.status = "checking"
+    ydl, info = _probe(job.url, job.directory, hook)
+    try:
+        check_limits(info)
+        job.reason = authorize(info, job.url, job.personal)
+    except AudioDownloadError:
+        close = getattr(ydl, "close", None)
+        if close:
+            close()
+        raise
+    job.title = _CONTROL.sub("", str(info.get("title") or ""))[:200]
+    job.status = "downloading"
+    job.progress = 0.05
+    source = _download(ydl, info, job.directory)
+    if source.stat().st_size > settings.audio_max_bytes:
+        raise AudioDownloadError(tr("O ficheiro excede o tamanho máximo.", "The file exceeds the maximum size."))
+    job.status = "converting"
+    job.progress = 0.65
+    target = job.directory / "audio.mp3"
+    duration = info.get("duration") if isinstance(info.get("duration"), (int, float)) else None
+    convert_to_mp3(
+        source,
+        target,
+        job.bitrate,
+        duration,
+        deadline,
+        lambda fraction: setattr(job, "progress", 0.65 + 0.35 * fraction),
+        lambda: job.cancelled,
+        job.title,
+    )
+    source.unlink(missing_ok=True)  # only the MP3 is kept until it is downloaded
+    job.file = target
+    job.progress = 1.0
+    job.status = "done"
 
 
 def _stop_message(reason: str) -> str:

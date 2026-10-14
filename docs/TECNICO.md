@@ -104,7 +104,7 @@ Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor ob
 - **YouTube, para uso pessoal**: o áudio de um vídeo, quando a aplicação está aberta no próprio computador onde corre (`http://127.0.0.1:8021` ou `localhost`, como abrem os scripts de arranque). "Neste computador" quer dizer as duas coisas: o pedido vem desta máquina e é feito a um endereço local — assim, uma cópia publicada na internet (mesmo atrás de um proxy na mesma máquina) não se torna um conversor do YouTube para quem a visita, e aí só aceita vídeos Creative Commons. Os termos do YouTube não permitem descarregar fora das funções do próprio YouTube: use só com música a que tem direito.
 - **Outros endereços**: um ficheiro de áudio/vídeo direto, conteúdo com licença Creative Commons ou de domínio público (conforme o site indica), ou um site seu declarado em `AUDIO_DOWNLOAD_HOSTS`. O resto é recusado com o motivo. Não são usados cookies, contas nem formatos com DRM.
 - **Quando falha, diz porquê**: os avisos do yt-dlp vão para o registo do servidor (nunca para a página) e a causa reconhecida aparece na página — falta o runtime JavaScript (instalar o Deno), o YouTube pediu para confirmar que não é um robô, restrição de idade, vídeo privado ou indisponível, nenhum formato de áudio (atualizar o yt-dlp). Sem o runtime ou o `yt-dlp-ejs`, um vídeo do YouTube é recusado logo ao pedir, com o que falta.
-- Segurança: só `http(s)`, sem credenciais no endereço, sem endereços da rede local (exceto sites declarados); o FFmpeg corre com argumentos em lista (sem shell); limite de tamanho e de duração, tempo máximo por tarefa; uma pasta temporária por tarefa, apagada depois do download, em caso de erro ou ao fim de 15 min.
+- Segurança: só `http(s)`, sem credenciais no endereço, sem endereços da rede local (exceto sites declarados) — verificado no endereço escrito e outra vez em cada ligação do download (redirecionamentos, nomes resolvidos de novo, ligações dentro da página; o proxy configurado no computador só na sua porta); o FFmpeg só lê o ficheiro descarregado (`-protocol_whitelist file`) e corre com argumentos em lista (sem shell); limite de tamanho e de duração, tempo máximo por tarefa; uma pasta temporária por tarefa, apagada depois do download, em caso de erro ou ao fim de 15 min.
 - YouTube: aceita o link (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`) ou só o ID do vídeo. A página envia apenas o ID; o servidor volta a validá-lo (11 caracteres `A–Z a–z 0–9 _ -`) e constrói o endereço — nenhum host, caminho ou parâmetro (`list=`, `t=`) do utilizador chega ao yt-dlp. Listas de reprodução e canais são recusados.
 - Dependências (instaladas pelos scripts de arranque com `requirements.txt`): `yt-dlp[default]` (inclui o `yt-dlp-ejs`, os scripts de que o YouTube precisa, usados localmente — nunca descarregados durante a execução) e `imageio-ffmpeg`, que traz o FFmpeg para Windows, macOS e Linux. Sem elas, a secção avisa que não está disponível.
 - O YouTube precisa também de um runtime JavaScript. O `requirements.txt` instala o **Deno** oficial (pacote `deno` do PyPI) no ambiente Python da aplicação, sem administrador nem winget, e a aplicação encontra-o aí. Também serve um Deno, Node.js, QuickJS ou Bun instalado no PC (no PATH). Sem nenhum, a secção avisa e os outros endereços continuam a funcionar; `/api/health` indica o estado em `audio_youtube`.
@@ -178,6 +178,8 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 
 Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se configure `uvicorn --proxy-headers --forwarded-allow-ips=<ip do proxy>`.
 
+**Uma cópia publicada para outras pessoas define `LOCAL_FEATURES=0`.** A biblioteca no disco, a instalação, a chave do YouTube e o download pessoal são só para quem está no próprio computador: o pedido vem desta máquina, é feito a um nome local e não traz cabeçalhos de proxy (`Forwarded`, `X-Forwarded-*`, `X-Real-IP`). Um proxy que reescreve o `Host` para `127.0.0.1` sem acrescentar nenhum desses cabeçalhos não se distingue de um pedido local — por isso, ao publicar, desligue-os.
+
 ### Configuração (variáveis de ambiente)
 
 | Variável | Por defeito |
@@ -200,6 +202,8 @@ Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se con
 | `VIDEO_SEARCH_PER_MINUTE` | 10 |
 | `ENABLE_DOCS` | desligado |
 | `ENABLE_HSTS` | desligado |
+| `COVER_SEARCH_PER_MINUTE` | 20 |
+| `LOCAL_FEATURES` (biblioteca no disco, instalação, chave do YouTube, download pessoal; `0` numa cópia publicada) | ligado |
 
 ## Limitações conhecidas
 

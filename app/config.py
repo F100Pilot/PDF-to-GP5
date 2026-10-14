@@ -20,8 +20,9 @@ def _int(name: str, default: int) -> int:
     return value
 
 
-def _bool(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
+def _bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    return default if not value else value in {"1", "true", "yes"}
 
 
 # Optional YouTube Data API key, for finding the song's video automatically: the environment
@@ -134,6 +135,9 @@ class Settings:
     library_dir: Path = Path(os.environ.get("LIBRARY_DIR") or Path.home() / "PDF-to-GP5" / "Biblioteca")
     library_max_audio_bytes: int = _int("LIBRARY_MAX_AUDIO_MB", 200) * 1024 * 1024
     enable_docs: bool = _bool("ENABLE_DOCS")
+    # What only the person at this computer may do (the on-disk library, installing, the YouTube
+    # key, personal-use downloads). Off for a copy published to others, so no proxy can open it.
+    local_features: bool = _bool("LOCAL_FEATURES", default=True)
     enable_hsts: bool = _bool("ENABLE_HSTS")
 
 

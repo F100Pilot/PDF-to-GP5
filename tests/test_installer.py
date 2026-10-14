@@ -74,3 +74,21 @@ def test_youtube_key_is_saved_and_used(local, tmp_path, monkeypatch):
     assert key_file.read_text(encoding="utf-8") == key + "\n"
     health = local.get("/api/health").json()
     assert health["video_search"] is True and key not in str(health)
+
+
+@pytest.mark.parametrize("header", ["X-Forwarded-For", "X-Real-IP", "Forwarded", "X-Forwarded-Host"])
+def test_a_request_through_a_reverse_proxy_is_not_this_computer(local, header):
+    """A proxy on the same machine that rewrites the Host to 127.0.0.1 still adds its own header."""
+    headers = {header: "203.0.113.9"}
+    assert local.get("/api/health", headers=headers).json()["can_install"] is False
+    assert local.post("/api/install", headers=headers).status_code == 403
+    assert local.get("/api/library", headers=headers).status_code == 404
+
+
+def test_local_features_can_be_turned_off_for_a_published_copy(local, monkeypatch):
+    import dataclasses
+
+    monkeypatch.setattr(main, "settings", dataclasses.replace(main.settings, local_features=False))
+    assert local.get("/api/health").json()["can_install"] is False
+    assert local.post("/api/install").status_code == 403
+    assert local.post("/api/youtube-key", json={"key": "AIza" + "x" * 35}).status_code == 403

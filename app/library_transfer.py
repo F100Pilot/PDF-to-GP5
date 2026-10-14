@@ -101,7 +101,10 @@ class ImportedSong:
 
 
 def _read(archive: zipfile.ZipFile, entries: dict, name: str, limit: int) -> bytes | None:
-    info = entries.get(name)
+    """The entry `name`, at most `limit` bytes. Each entry is read once (`entries` gives it up):
+    a manifest naming one folder many times would otherwise read the same file again and again,
+    past the archive's total size that was checked."""
+    info = entries.pop(name, None)
     if info is None or info.is_dir():
         return None
     if info.file_size > limit:
@@ -136,13 +139,15 @@ def read_export(data: bytes) -> list[ImportedSong]:
             if not isinstance(listed, list) or len(listed) > MAX_SONGS:
                 raise _not_ours()
             songs = []
+            keys: set[str] = set()
             for entry in listed:
                 folder = entry.get("folder") if isinstance(entry, dict) else None
                 if not isinstance(folder, str) or not folder or "/" in folder:
                     raise _not_ours()
                 meta = json.loads(_read(archive, entries, f"{folder}/{META}", MAX_META_BYTES) or b"null")
-                if not isinstance(meta, dict) or not isinstance(meta.get("key"), str):
+                if not isinstance(meta, dict) or not isinstance(meta.get("key"), str) or meta["key"] in keys:
                     raise _not_ours()
+                keys.add(meta["key"])
                 files = meta.get("files") if isinstance(meta.get("files"), dict) else {}
                 gp5_name = files.get("gp5")
                 gp5 = (

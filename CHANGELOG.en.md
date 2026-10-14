@@ -20,6 +20,11 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - macOS: no conversion worked ("current limit exceeds maximum limit"). The process that converts asked the system for a memory limit macOS refuses; on macOS it now has only the CPU-time limit and the per-request time limit. On any system, a refused limit no longer stops the conversion (a warning goes to the server log).
 - The tab-picture warning said bends, slides and ties are not read; they are now, and the warning asks to check them.
 
+### Security
+- On-disk library, installing, the YouTube key and personal-use downloads: a request that passes through a reverse proxy (`Forwarded`, `X-Forwarded-*`, `X-Real-IP` headers) no longer counts as "this computer"; and `LOCAL_FEATURES=0` turns them off on a published copy (a proxy that adds no headers cannot be told apart from a local request).
+- Audio from an address: the ban on local-network addresses now holds for every connection of the download (redirects, names resolved again, links inside the page), not only for the address typed; FFmpeg reads only the downloaded file.
+- Importing a library: a file that listed the same song many times made the server read the same big file over and over (tens of GB of memory from a ZIP of a few KB); each file in the ZIP is now read once, and repeated songs are refused.
+
 ## [0.8.0] - 2026-10-13
 ### Added
 - Repository ready for public distribution: MIT licence (`LICENSE`), third-party components and their licences (`THIRD_PARTY_NOTICES.md`), home page in English (`README.md`) and Portuguese (`README.pt.md`) with a button to support the project, technical documentation, notation and the YouTube key guide also in English (`docs/TECHNICAL.md`, `docs/NOTATION.md`, `docs/YOUTUBE_KEY.md`; the old README becomes `docs/TECNICO.md`), `CONTRIBUTING.md`, `SECURITY.md` and issue templates. The start scripts show their messages in Portuguese and English.

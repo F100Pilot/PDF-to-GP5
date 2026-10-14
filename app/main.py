@@ -618,10 +618,17 @@ def _loopback(host: str) -> bool:
         return host == "localhost"
 
 
+# Headers a reverse proxy adds: a request that carries one came from someone else, through it.
+_PROXY_HEADERS = ("forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip")
+
+
 def _used_on_this_computer(request: Request) -> bool:
     """The page was opened on the computer the server runs on (http://127.0.0.1…/localhost):
-    the request comes from this machine AND is addressed to a local name. Both, so a reverse
-    proxy on the same machine publishing the app under a public name does not count."""
+    the request comes from this machine AND is addressed to a local name AND did not pass
+    through a reverse proxy. A proxy that rewrites the Host to 127.0.0.1 and adds no header of
+    its own cannot be told apart: a copy published to others sets LOCAL_FEATURES=0."""
+    if not settings.local_features or any(name in request.headers for name in _PROXY_HEADERS):
+        return False
     client = request.client.host if request.client else ""
     return _loopback(client) and _loopback(request.url.hostname or "")
 
