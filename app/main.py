@@ -298,7 +298,6 @@ async def options() -> dict:
         "max_total_upload_mb": settings.max_total_upload_bytes // (1024 * 1024),
         "max_tracks": MAX_TRACKS,
         "track_colors": ["#{:02x}{:02x}{:02x}".format(*rgb) for rgb in TRACK_COLORS],
-        "max_pages": settings.max_pages,
     }
 
 
@@ -403,12 +402,19 @@ def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
         rhythm_mode=form.rhythm_mode,
         fixed_value=form.fixed_value,
         expand_repeats=form.expand_repeats,
-        max_pages=settings.max_pages,
-        max_image_pages=settings.max_image_pages,
-        max_image_pixels=settings.max_image_pixels,
-        max_events=settings.max_events,
-        max_measures=settings.max_measures,
+        **_limits(),
     )
+
+
+def _limits() -> dict[str, int]:
+    """The conversion limits from the settings, for every ConversionOptions the server builds."""
+    return {
+        "max_pages": settings.max_pages,
+        "max_image_pages": settings.max_image_pages,
+        "max_image_pixels": settings.max_image_pixels,
+        "max_events": settings.max_events,
+        "max_measures": settings.max_measures,
+    }
 
 
 async def _read_pdfs(files: list[UploadFile]) -> list[bytes]:
@@ -537,11 +543,7 @@ async def inspect_pdf(request: Request, file: FileField) -> JSONResponse:
     """Detect song metadata and the track's part so the form can be pre-filled."""
     options = ConversionOptions(
         tracks=(TrackOptions(filename=file.filename or ""),),
-        max_pages=settings.max_pages,
-        max_image_pages=settings.max_image_pages,
-        max_image_pixels=settings.max_image_pixels,
-        max_events=settings.max_events,
-        max_measures=settings.max_measures,
+        **_limits(),
     )
     result = await _run_job(await _read_pdfs([file]), options, "inspect", _progress_id(request))
     return JSONResponse(result.report)
@@ -754,19 +756,33 @@ def _stored(found: bool) -> None:
         )
 
 
+def _read_failed(exc: OSError) -> HTTPException:
+    return HTTPException(
+        status_code=500,
+        detail=tr(
+            f"Não foi possível ler a pasta da biblioteca: {exc.strerror}.",
+            f"Could not read the library folder: {exc.strerror}.",
+        ),
+    )
+
+
+def _write_failed(exc: OSError) -> HTTPException:
+    return HTTPException(
+        status_code=500,
+        detail=tr(
+            f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
+            f"Could not write to the library folder: {exc.strerror}.",
+        ),
+    )
+
+
 @app.get("/api/library")
 async def library_songs(request: Request) -> dict:
     store = _library(request)
     try:
         songs = await run_in_threadpool(store.songs)
     except OSError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=tr(
-                f"Não foi possível ler a pasta da biblioteca: {exc.strerror}.",
-                f"Could not read the library folder: {exc.strerror}.",
-            ),
-        ) from exc
+        raise _read_failed(exc) from exc
     return {"folder": str(store.root), "songs": songs}
 
 
@@ -779,7 +795,7 @@ async def library_save(
     try:
         data = json.loads(meta)
     except ValueError:
-        raise HTTPException(status_code=422, detail=tr("Dados da música inválidos.", "Invalid song data.")) from None
+        data = None
     if not isinstance(data, dict):
         raise HTTPException(status_code=422, detail=tr("Dados da música inválidos.", "Invalid song data."))
     content = await gp5.read()
@@ -788,23 +804,7 @@ async def library_save(
     except LibraryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=tr(
-                f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
-                f"Could not write to the library folder: {exc.strerror}.",
-            ),
-        ) from exc
-
-
-def _write_failed(exc: OSError) -> HTTPException:
-    return HTTPException(
-        status_code=500,
-        detail=tr(
-            f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
-            f"Could not write to the library folder: {exc.strerror}.",
-        ),
-    )
+        raise _write_failed(exc) from exc
 
 
 class ExportedSong(BaseModel):
@@ -826,13 +826,7 @@ async def library_export(request: Request, body: LibraryExport) -> Response:
     except LibraryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=tr(
-                f"Não foi possível ler a pasta da biblioteca: {exc.strerror}.",
-                f"Could not read the library folder: {exc.strerror}.",
-            ),
-        ) from exc
+        raise _read_failed(exc) from exc
     return Response(
         data,
         media_type="application/zip",
@@ -896,13 +890,7 @@ async def _library_change(request: Request, song_id: str, kind: str, data: bytes
     except LibraryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=tr(
-                f"Não foi possível gravar na pasta da biblioteca: {exc.strerror}.",
-                f"Could not write to the library folder: {exc.strerror}.",
-            ),
-        ) from exc
+        raise _write_failed(exc) from exc
     _stored(found)
     return Response(status_code=204)
 

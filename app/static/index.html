@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles.css">
   <script src="i18n-en.js" defer></script>
   <script src="i18n.js" defer></script>
+  <script src="health.js" defer></script>
   <script src="highway3d.js" defer></script>
   <script src="video.js" defer></script>
   <script src="gpzip.js" defer></script>
@@ -126,7 +127,7 @@
                     </select>
                   </label>
                   <label>Duração fixa
-                    <select name="fixed_value">
+                    <select name="fixed_value" id="fixed_value" title="Usada no modo Duração fixa e, no modo Automático, numa tab sem barras de compasso">
                       <option value="4">Semínima (1/4)</option>
                       <option value="8" selected>Colcheia (1/8)</option>
                       <option value="16">Semicolcheia (1/16)</option>
@@ -379,9 +380,6 @@
               <form id="audio-url-form" class="audio-url-form" novalidate>
                 <label class="audio-url-field">Endereço ou ID de vídeo do YouTube
                   <input id="audio-url" type="text" inputmode="url" maxlength="2048" placeholder="https://…/musica.mp3 ou https://youtu.be/…" autocomplete="off" spellcheck="false" required>
-                </label>
-                <label>Formato
-                  <select id="audio-format" disabled><option value="mp3" selected>MP3</option></select>
                 </label>
                 <label>Qualidade
                   <select id="audio-bitrate">

@@ -20,7 +20,7 @@ from .i18n import tr
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
 from .repeats import playback_order
-from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, signature_units, split_units
+from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, rest_bar, signature_units, split_units
 from .tunings import TUNINGS, resolve_tuning
 
 # MIDI velocities of the dynamic marks (ppp … fff); f is Guitar Pro's default.
@@ -557,17 +557,13 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
     )
     report = {
         "name": name,
-        "dynamics": sum(len(s.dynamics) for s in kept),
-        "hairpins": sum(len(s.hairpins) for s in kept),
         "filename": track.filename,
         "instrument": instrument,
         "strings": string_count,
         "tuning": _tuning_name(tuning),
         "measures": len(measures),
         "notes": note_count,
-        "systems": len(kept),
         "sources": sorted({s.source for s in kept}),
-        "pages": sorted({s.page for s in kept}),
         "rhythm_from_notation": stats.notated,
         "rhythm_estimated": stats.estimated,
         "warnings": warnings,
@@ -596,8 +592,7 @@ def _track_name(index: int, track: TrackOptions, parsed: _ParsedPdf, song: SongM
 
 
 def _rest_bar(score: Score) -> ScoreMeasure:
-    units = score.numerator * 32 // score.denominator
-    return ScoreMeasure([ScoreBeat(part) for part in split_units(units)])
+    return rest_bar(score.numerator * 32 // score.denominator)
 
 
 def _ranges(numbers: list[int]) -> str:

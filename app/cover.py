@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import json
 import re
-import threading
-import time
 import unicodedata
-from collections import OrderedDict
 from urllib.error import URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+
+from .cache import TtlCache
 
 SEARCH_URL = "https://itunes.apple.com/search"
 ARTWORK_HOST_SUFFIX = ".mzstatic.com"
@@ -23,8 +22,6 @@ SIZE = 600  # px; iTunes serves any size by name ("100x100bb.jpg" -> "600x600bb.
 MAX_REPLY_BYTES = 512 * 1024
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 TIMEOUT_S = 8
-CACHE_SIZE = 200
-CACHE_TTL_S = 24 * 3600
 _SIGNATURES = {b"\xff\xd8\xff": "image/jpeg", b"\x89PNG\r\n\x1a\n": "image/png"}
 _ARTWORK_SIZE = re.compile(r"/\d+x\d+(bb)?\.(jpg|jpeg|png)$", re.IGNORECASE)
 
@@ -33,8 +30,7 @@ class CoverError(Exception):
     """The cover could not be looked up (network, bad answer)."""
 
 
-_cache: OrderedDict[tuple[str, str], tuple[float, tuple[bytes, str] | None]] = OrderedDict()
-_cache_lock = threading.Lock()
+_cache = TtlCache()
 
 
 def _key(text: str) -> str:
@@ -105,16 +101,9 @@ def _lookup(artist: str, title: str) -> tuple[bytes, str] | None:
 def find_cover(artist: str, title: str) -> tuple[bytes, str] | None:
     """(image bytes, media type) of the song's cover, or None when there is none."""
     key = (_key(artist), _key(title))
-    now = time.monotonic()
-    with _cache_lock:
-        cached = _cache.get(key)
-        if cached and now - cached[0] < CACHE_TTL_S:
-            _cache.move_to_end(key)
-            return cached[1]
+    known, cached = _cache.get(key)
+    if known:
+        return cached
     found = _lookup(artist, title)
-    with _cache_lock:
-        _cache[key] = (now, found)
-        _cache.move_to_end(key)
-        while len(_cache) > CACHE_SIZE:
-            _cache.popitem(last=False)
+    _cache.put(key, found)
     return found

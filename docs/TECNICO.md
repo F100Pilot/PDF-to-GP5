@@ -155,7 +155,7 @@ A quota gratuita dá cerca de 100 pesquisas por dia (cada música é pesquisada 
 Campos (multipart):
 - `file` (obrigatório; PDF, PNG, JPEG ou WebP; repetir para várias tracks, até 7, pela ordem das tracks).
 - Por track (um valor por PDF, ou um só valor para todos): `track_name`, `tuning`, `instrument`.
-- Da música: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `parentheses` (`tie` = ligadura, `note` = nota normal).
+- Da música: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` ou `N/D`, ex. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16).
 
 Campos omitidos ou `auto` são detetados nos PDFs.
 

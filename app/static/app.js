@@ -626,6 +626,14 @@
     return bytes;
   }
 
+  // "Duração fixa" counts in the fixed mode and, in the automatic one, for a tab without bar
+  // lines; spacing alone never uses it.
+  const rhythmMode = document.getElementById("rhythm_mode");
+  const fixedValue = document.getElementById("fixed_value");
+  const syncFixedValue = () => { fixedValue.disabled = rhythmMode.value === "spacing"; };
+  rhythmMode.addEventListener("change", syncFixedValue);
+  syncFixedValue();
+
   // Remember the "repeats written out" choice (e.g. always on for Rocksmith).
   const expandRepeats = document.getElementById("expand_repeats");
   const EXPAND_KEY = "pdf-to-gp5.expand-repeats";
@@ -793,8 +801,7 @@
     start();
   }
 
-  fetch("/api/health")
-    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+  window.Health.get()
     .then((health) => {
       document.getElementById("version").textContent = health.revision
         ? T("Versão {version} ({revision})", { version: health.version, revision: health.revision })

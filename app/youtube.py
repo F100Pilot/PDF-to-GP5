@@ -9,28 +9,24 @@ from __future__ import annotations
 import html
 import json
 import re
-import threading
-import time
-from collections import OrderedDict
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from .cache import TtlCache
 
 API_URL = "https://www.googleapis.com/youtube/v3/search"
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MAX_RESULTS = 10  # several candidates: many official videos cannot be embedded
 MAX_REPLY_BYTES = 256 * 1024
 TIMEOUT_S = 8
-CACHE_SIZE = 200
-CACHE_TTL_S = 24 * 3600
 
 
 class VideoSearchError(Exception):
     """The search could not be done (network, quota, bad key…)."""
 
 
-_cache: OrderedDict[str, tuple[float, list[dict]]] = OrderedDict()
-_cache_lock = threading.Lock()
+_cache = TtlCache()
 
 
 def _parse(data: object) -> list[dict]:
@@ -57,12 +53,9 @@ def _parse(data: object) -> list[dict]:
 def search(query: str, api_key: str) -> list[dict]:
     """Top embeddable videos for `query`, cached for a day."""
     key = query.strip().lower()
-    now = time.monotonic()
-    with _cache_lock:
-        cached = _cache.get(key)
-        if cached and now - cached[0] < CACHE_TTL_S:
-            _cache.move_to_end(key)
-            return cached[1]
+    found, cached = _cache.get(key)
+    if found:
+        return cached
     params = urlencode(
         {
             "part": "snippet",
@@ -82,9 +75,5 @@ def search(query: str, api_key: str) -> list[dict]:
         # Never echo the URL: it contains the API key.
         raise VideoSearchError(type(exc).__name__) from None
     results = _parse(data)
-    with _cache_lock:
-        _cache[key] = (now, results)
-        _cache.move_to_end(key)
-        while len(_cache) > CACHE_SIZE:
-            _cache.popitem(last=False)
+    _cache.put(key, results)
     return results

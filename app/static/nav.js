@@ -143,7 +143,7 @@
       installing = false;
       installNote.textContent = T("Não foi possível instalar (sem ligação ao servidor).");
     }
-    loadHealth();
+    loadHealth(true);
   }
 
   function keyForm() {
@@ -188,7 +188,7 @@
           return;
         }
         input.value = "";
-        loadHealth();
+        loadHealth(true);
       } catch {
         note.textContent = T("Não foi possível guardar a chave.");
       } finally {
@@ -198,9 +198,9 @@
     return [open, form];
   }
 
-  function loadHealth() {
-    return fetch("/api/health")
-      .then((response) => (response.ok ? response.json() : Promise.reject(response.status)))
+  // `fresh`: ask the server again (after an install or a new key), not the page's first answer.
+  function loadHealth(fresh = false) {
+    return (fresh ? window.Health.refresh() : window.Health.get())
       .then((health) => {
         dot.className = "dot ok";
         dotText.textContent = T("Servidor ligado · {host}", { host: window.location.host });

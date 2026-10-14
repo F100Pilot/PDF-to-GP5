@@ -154,7 +154,7 @@ The free quota gives about 100 searches per day (each song is searched at most o
 Fields (multipart):
 - `file` (required; PDF, PNG, JPEG or WebP; repeat for several tracks, up to 7, in track order).
 - Per track (one value per PDF, or a single value for all): `track_name`, `tuning`, `instrument`.
-- For the song: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` or `N/D`, e.g. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16), `parentheses` (`tie` = tie, `note` = normal note).
+- For the song: `title`, `artist`, `tempo` (20–400), `time_signature` (`auto` or `N/D`, e.g. `6/8`), `rhythm_mode` (`auto`/`spacing`/`fixed`), `fixed_value` (4/8/16).
 
 Omitted or `auto` fields are detected from the PDFs.
 

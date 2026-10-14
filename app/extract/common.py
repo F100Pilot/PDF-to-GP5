@@ -8,17 +8,6 @@ from statistics import median
 MAX_FRET = 29  # highest fret Guitar Pro 5 accepts on a track
 
 
-def cluster_positions(xs: list[float], tolerance: float) -> list[list[float]]:
-    """Group sorted positions whose successive distance is within ``tolerance``."""
-    clusters: list[list[float]] = []
-    for x in sorted(xs):
-        if clusters and x - clusters[-1][-1] <= tolerance:
-            clusters[-1].append(x)
-        else:
-            clusters.append([x])
-    return clusters
-
-
 def shared_bars(bar_xs_per_string: list[list[float]], tolerance: float) -> list[float]:
     """Keep bar positions present on at least half of the strings."""
     string_count = len(bar_xs_per_string)

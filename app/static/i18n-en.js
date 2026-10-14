@@ -472,5 +472,6 @@
  "volta {n}": "ending {n}",
  "Ouve-se só na passagem da volta {n}.": "Heard only on the pass of ending {n}.",
  "Toca {n} vezes: o ritmo volta a ouvir-se; o leitor abre na primeira.": "Plays {n} times: the rhythm comes round again; the player opens at the first.",
- "Não chega a tocar.": "Is never played."
+ "Não chega a tocar.": "Is never played.",
+ "Usada no modo Duração fixa e, no modo Automático, numa tab sem barras de compasso": "Used in the Fixed duration mode and, in the Automatic mode, for a tab without bar lines"
 };

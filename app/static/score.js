@@ -841,10 +841,9 @@
   }
 
   window.ScoreView = {
-    show, hide, exportGp, describe, muteFor, setNotesVolume, playPause, restart, setTempo, baseTempo,
+    show, hide, exportGp, describe, setNotesVolume, playPause, restart, setTempo,
     stop, stepBar, toggleLoop, setView, goToBar,
     tempoFactor: () => tempoFactor,
-    clicks: () => (api ? { metronome: api.metronomeVolume, countIn: api.countInVolume } : null),
     ready: () => Boolean(api) && !playButton.disabled,
   };
 })();

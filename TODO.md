@@ -11,7 +11,8 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 - [x] **Ler tabs a partir de um print — fase 2: tab gravada em imagem** (PNG/JPEG/WebP, ou PDF só com imagens). `app/extract/raster_tab.py`: linhas das cordas e barras de compasso por morfologia (OpenCV), números pelo reconhecedor do RapidOCR (ONNX Runtime, no computador), e a página resultante vai para a leitura de tab gravada que já existia. Ritmo pelo espaçamento; aviso no relatório para conferir. Nos 12 PDFs de teste desenhados como imagem: 99,9 % das notas encontradas, 99 % com o traste certo.
 - [ ] **Fase 1: tab em texto numa imagem** (`e|--0--3h5--|`): não tem linhas das cordas desenhadas, por isso a fase 2 não a encontra. Precisa da deteção de texto do RapidOCR (posição de cada carácter) e da leitura de tab em texto atual.
 - [x] **Ritmo desenhado numa imagem**: hastes, barras, meias-barras, bandeiras, pontos e pausas na pauta, entregues ao leitor de ritmo dos PDFs vetoriais (96,5 % dos compassos iguais ao PDF nos 13 de teste; 100 % na Jet Lag).
-- [ ] **Fase 3: técnicas desenhadas numa imagem** (bends, slides, ligaduras, vibrato) e quiálteras (o "3" por baixo das barras): trabalho grande, qualidade incerta.
+- [x] **Fase 3: técnicas desenhadas numa imagem**: bends (com release e pre-bend), slides, ligaduras, arcos de legato e vibrato.
+- [ ] **Quiálteras numa imagem** (o "3" por baixo das barras): hoje o compasso fica com ritmo estimado.
 - [ ] **Nomes das secções numa imagem** (Intro, Verse, Chorus… a negrito por cima da pauta).
 - [ ] **Vários prints na mesma track**: hoje uma imagem é uma track; vários prints da mesma parte têm de ir num PDF.
 - [x] **Título, artista e BPM de uma imagem**: lidos do texto por cima da primeira pauta (deteção + reconhecimento de texto do RapidOCR), com a afinação.
@@ -27,5 +28,6 @@ Ideias por fazer. Cada item diz em que projeto se faz: **PDF-to-GP5** (esta apli
 
 ## Aplicação (PDF-to-GP5)
 
-- [ ] **Biblioteca: cópia de segurança.** Exportar e importar a biblioteca inteira num ficheiro, e um botão para abrir a pasta da música.
+- [x] **Biblioteca: levar músicas para outro computador** (exportar e importar num ZIP).
+- [ ] **Biblioteca: botão para abrir a pasta da música.**
 - [ ] **PDFs com linhas de número de cordas diferente** (7 cordas, baixo): hoje essas linhas são ignoradas, com aviso.

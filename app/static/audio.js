@@ -562,8 +562,7 @@
     return typeof body.detail === "string" ? body.detail : fallback;
   }
 
-  fetch("/api/health")
-    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+  window.Health.get()
     .then((health) => {
       if (!health.audio_download) {
         const note = document.getElementById("audio-url-unavailable");

@@ -484,16 +484,9 @@
     await ready;
     try {
       const hadCover = await saveSong({
-        key: currentKey,
-        title: title || "",
-        artist: artist || "",
-        tempo: tempo || null,
-        measures: report.measures,
-        trackNames: report.tracks.map((track) => track.name),
+        ...openRecord,
         savedAt: Date.now(),
-        filename,
         gp5: new Blob([gp5], { type: "application/octet-stream" }),
-        report,
       });
       // The first PDF's file handle (Chrome): the MP3 can be saved in its folder later.
       await putHandle(currentKey, pdfHandle);

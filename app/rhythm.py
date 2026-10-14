@@ -222,7 +222,8 @@ def _quantize(xs: list[float], origin: float, end: float, units: int) -> list[in
     return best[1] if best else _fallback_onsets(xs, origin, end, units)
 
 
-def _rest_bar(units: int) -> ScoreMeasure:
+def rest_bar(units: int) -> ScoreMeasure:
+    """A bar of `units` (32nd notes) of rests."""
     return ScoreMeasure([ScoreBeat(part) for part in split_units(units)])
 
 
@@ -390,7 +391,7 @@ def _segment_measures(
         if any(abs(start - x) <= unit_width for x in system.tied_bars):
             return _sequence([(_TiePrevious(), units)], units)  # a tie runs through the empty bar
         if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
-            return [_rest_bar(units) for _ in range(_bar_span(numbers, index, next_number))]
+            return [rest_bar(units) for _ in range(_bar_span(numbers, index, next_number))]
         return []
     marks = [m for m in system.rhythm if start <= m.x < end]
     notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None

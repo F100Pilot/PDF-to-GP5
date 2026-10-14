@@ -62,7 +62,7 @@ def test_crop_of_one_staff_is_read():
 def test_pdf_of_pictures_is_read_page_by_page():
     result = convert(image_pdf([_picture(staves=STAVES[:1]), _picture(staves=STAVES[1:])]), ConversionOptions())
     assert _frets(result.gp5) == _expected()
-    assert result.report["tracks"][0]["pages"] == [1, 2]
+    assert [s["page"] for s in result.report["tracks"][0]["systems_detail"]] == [1, 2]
 
 
 def test_engraved_pdf_is_not_read_by_ocr():

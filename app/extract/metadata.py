@@ -19,7 +19,6 @@ _METRONOME_NOTES = {
     "": 1.0,  # noteQuarterUp
     "♩": 1.0,  # ♩
 }
-_METRONOME_DOT = ""
 TIME_SIGNATURE_DIGITS = {chr(0xE080 + d): d for d in range(10)}
 COMMON_TIME, CUT_TIME = "", ""
 

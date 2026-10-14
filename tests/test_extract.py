@@ -1,6 +1,6 @@
 from app.extract.ascii_tab import extract_ascii_systems
 from app.extract.engraved_tab import extract_engraved_systems
-from app.extract.pdf_reader import Segment, read_pages
+from app.extract.pdf_reader import Segment, read_document
 from tests.pdf_factory import ascii_tab_pdf, engraved_tab_pdf
 
 STANDARD = [
@@ -14,7 +14,7 @@ STANDARD = [
 
 
 def _systems(pdf: bytes):
-    page = read_pages(pdf, max_pages=5)[0]
+    page = read_document(pdf, max_pages=5)[0][0]
     return extract_ascii_systems(page)
 
 
@@ -64,7 +64,7 @@ def test_ascii_bass_four_strings_and_two_systems():
 
 
 def test_engraved_staff_and_numbers():
-    page = read_pages(engraved_tab_pdf([[(1, 0), (2, 12)], [(6, 3)]]), max_pages=5)[0]
+    page = read_document(engraved_tab_pdf([[(1, 0), (2, 12)], [(6, 3)]]), max_pages=5)[0][0]
     assert extract_ascii_systems(page)[0] == []
     systems = extract_engraved_systems(page)
     assert len(systems) == 1
@@ -75,7 +75,7 @@ def test_engraved_staff_and_numbers():
 
 
 def _engraved(pdf: bytes):
-    return [s for page in read_pages(pdf, max_pages=5) for s in extract_engraved_systems(page)]
+    return [s for page in read_document(pdf, max_pages=5)[0] for s in extract_engraved_systems(page)]
 
 
 def test_engraved_keeps_empty_staves_and_segmented_lines():

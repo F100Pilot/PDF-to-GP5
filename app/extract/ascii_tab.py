@@ -259,15 +259,22 @@ def _effect_ranges(line: TextLine) -> list[tuple[str, float, float]]:
     return ranges
 
 
+def _lines_above(lines: list[TextLine], index: int, depth: int):
+    """The text lines just above lines[index], nearest first, up to `depth` of them, stopping at
+    a gap wider than four line heights (the text there belongs to something else)."""
+    for back in range(1, depth + 1):
+        if index - back < 0:
+            return
+        line, below = lines[index - back], lines[index - back + 1]
+        if below.yc - line.yc > 4 * (line.bottom - line.top):
+            return
+        yield line
+
+
 def _ranges_above(lines: list[TextLine], index: int) -> list[tuple[str, float, float]]:
     """Palm mute / let ring lines just above a tab block (a section label may sit among them)."""
     ranges: list[tuple[str, float, float]] = []
-    for back in (1, 2, 3):
-        if index - back < 0:
-            break
-        line, below = lines[index - back], lines[index - back + 1]
-        if below.yc - line.yc > 4 * (line.bottom - line.top):
-            break
+    for line in _lines_above(lines, index, 3):
         found = _effect_ranges(line)
         if found:
             ranges.extend(found)
@@ -303,12 +310,7 @@ def _marks(chars: list[Char]) -> tuple[list[tuple[float, int]], list[tuple[float
 def _marks_above(lines: list[TextLine], index: int):
     """Tempo and navigation marks on the (up to two) lines just above a tab block."""
     tempos, signs, jumps = [], [], []
-    for back in (1, 2):
-        if index - back < 0:
-            break
-        line, below = lines[index - back], lines[index - back + 1]
-        if below.yc - line.yc > 4 * (line.bottom - line.top):
-            break
+    for line in _lines_above(lines, index, 2):
         found = _marks(line.chars)
         tempos += found[0]
         signs += found[1]

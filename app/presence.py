@@ -14,7 +14,6 @@ import time
 from collections.abc import Callable
 
 PAGE_ID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
-HEARTBEAT_S = 15  # how often a page reports itself (app.js)
 STALE_S = 150  # silent page presumed gone (browsers may run hidden-tab timers once a minute)
 GRACE_S = 8  # a reload closes and reopens the page well within this time
 MAX_PAGES = 64

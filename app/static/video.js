@@ -31,8 +31,7 @@
 
   // The server can search YouTube only when it has an API key (see docs/YOUTUBE_KEY.md).
   let canSearch = false;
-  fetch("/api/health")
-    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+  window.Health.get()
     .then((health) => {
       canSearch = Boolean(health.video_search);
       const reason = document.getElementById("video-manual-reason");

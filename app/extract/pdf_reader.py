@@ -98,11 +98,6 @@ def _normalize(text: str) -> str:
     return "-" if text in _DASHES else text
 
 
-def read_pages(data: bytes, max_pages: int) -> list[Page]:
-    """Load positioned characters and line segments from every page."""
-    return read_document(data, max_pages)[0]
-
-
 # Values PDF producers write when the author left the field empty.
 _PLACEHOLDERS = {"untitled", "anonymous", "unknown", "author", "title", "user", "admin", "none"}
 _GENERATOR_PREFIX = re.compile(r"^\s*microsoft\s+(?:word|excel|powerpoint)\s*-\s*", re.IGNORECASE)
