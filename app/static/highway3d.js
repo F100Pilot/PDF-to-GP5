@@ -249,22 +249,37 @@
     return faceDecal("accent", accentMap, width, height, clipped);
   }
 
-  // A hammer-on / pull-off arrow sits on the gem beside the fret number (not above the note): it
-  // stays readable while the note strikes the string, however fast the passage. Returns the parts.
+  // What is printed on a note's face. As in Rocksmith the note carries no fret number (the
+  // neck's fret number lights up instead, see lightFretNumbers): only X for a dead note, "( )" for
+  // a ghost note and the hammer-on / pull-off arrow — on the face, so it stays readable while the
+  // note strikes the string, however fast the passage. Returns the parts.
   const LEGATO_ICONS = { H: "hammer", P: "pull" };
-  function numberWithArrow(note, text, height, x, y, z, clipped) {
-    const number = faceLabel(text, height, clipped);
+  function noteFace(note, height, x, y, z, clipped) {
+    const parts = [];
+    if (note.dead) parts.push(faceLabel("X", height, clipped));
+    else if (note.ghost) parts.push(faceLabel("( )", height, clipped));
     const kind = LEGATO_ICONS[note.legato];
-    if (!kind) {
-      number.position.set(x, y, z);
-      return [number];
-    }
-    const arrow = faceIcon(kind, height * 0.7, clipped);
-    const gap = 0.02;
-    const total = number.scale.x + gap + arrow.scale.x;
-    number.position.set(x - total / 2 + number.scale.x / 2, y, z);
-    arrow.position.set(x + total / 2 - arrow.scale.x / 2, y, z);
-    return [number, arrow];
+    if (kind) parts.push(faceIcon(kind, height * 0.8, clipped));
+    parts.forEach((part) => part.position.set(x, y, z));
+    return parts;
+  }
+
+  // Amber halo behind a fret number of the neck (Rocksmith's lit fret).
+  function fretGlowMap(text) {
+    const canvas = document.createElement("canvas");
+    canvas.width = text.length > 2 ? 256 : 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.font = "bold 84px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#ff9d00";
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = "#ffb43a";
+    for (let pass = 0; pass < 4; pass += 1) ctx.fillText(text, canvas.width / 2, 68); // stacked: a stronger halo
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 
   // Text that always faces the camera; `height` in highway units.
@@ -355,11 +370,18 @@
         scene.add(dot);
       }
     }
+    const fretNumbers = [];
     for (let fret = 1; fret <= FRETS; fret += 1) {
-      // Just in front of the strike line, so they stay in view at every camera tilt.
+      // Just in front of the strike line, so they stay in view at every camera tilt. Each has its
+      // own material: it turns amber and glows as a note on its fret comes (see lightFretNumbers).
       const number = label(String(fret), 0.4);
+      number.material = number.material.clone();
       number.position.set(fretX(fret), 0.14, 0.3);
-      scene.add(number);
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: fretGlowMap(String(fret)), transparent: true, opacity: 0, depthWrite: false }));
+      glow.position.set(fretX(fret), 0.14, 0.29);
+      glow.scale.set(number.scale.x * 1.15, number.scale.y * 1.15, 1);
+      scene.add(glow, number);
+      fretNumbers[fret] = { number, glow, lit: -1 };
     }
 
     // Region of the neck being played (the "anchor"), lit on the floor.
@@ -371,7 +393,7 @@
     anchor.position.set(0, 0.015, -far / 2 + 2);
     scene.add(anchor);
 
-    return { host, renderer, scene, camera, observer, anchor, strings: [], cameraX: 5, fogNear: far * 0.55, fogFar: far, hud: { position, fill, time, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
+    return { host, renderer, scene, camera, observer, anchor, fretNumbers, strings: [], cameraX: 5, fogNear: far * 0.55, fogFar: far, hud: { position, fill, time, bar: -1, percent: -1, lyrics: lyricsLine, line: -1, sung: -2 }, effects: [], headstock: null };
   }
 
   // Headstock at the left of the strings: wooden head with a rounded tip, a bone nut where the
@@ -996,8 +1018,7 @@
         front = 0.14;
       }
       body.position.set(x, y, z);
-      const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
-      const face = numberWithArrow(note, fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36, x, y, z + front + 0.005, true);
+      const face = noteFace(note, note.fret === 0 && !note.dead ? 0.3 : 0.36, x, y, z + front + 0.005, true);
       if (note.accent) {
         const frame = accentFrame(note.fret === 0 && !note.dead ? anchors[i].open + 0.4 : 1.2, 0.62);
         frame.position.set(x, y, z + front + 0.003);
@@ -1245,7 +1266,7 @@
     }));
     glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
-    const face = numberWithArrow(note, note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, x, y, open ? 0.14 : 0.16, false);
+    const face = noteFace(note, open ? 0.34 : 0.42, x, y, open ? 0.14 : 0.16, false);
     if (note.accent) {
       const frame = accentFrame(open ? anchor.open + 0.6 : 1.3, 0.66, false);
       frame.position.set(x, y, open ? 0.135 : 0.155);
@@ -1385,6 +1406,37 @@
     clearEffects();
   }
 
+  // A fret number of the neck lights up (amber, with a halo; same place and size) as a note on that
+  // fret comes, fully when the note strikes; it stays lit while the note rings, then fades.
+  const FRET_RAMP = 4 * TICKS_PER_QUARTER;
+  const FRET_FADE = TICKS_PER_QUARTER / 2;
+  let fretShades = null; // [white, amber], made once three.js is loaded
+  function lightFretNumbers(tick) {
+    if (!fretShades) fretShades = [new THREE.Color(1, 1, 1), new THREE.Color(1, 0.7, 0.25)];
+    const light = new Array(FRETS + 1).fill(0);
+    const notes = song.notes;
+    const see = (note) => {
+      if (note.dead || note.fret < 1 || note.fret > FRETS) return;
+      let level;
+      if (note.tick > tick) level = (1 - (note.tick - tick) / FRET_RAMP) ** 2;
+      else {
+        const end = note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2);
+        level = tick <= end ? 1 : 1 - (tick - end) / FRET_FADE;
+      }
+      if (level > light[note.fret]) light[note.fret] = level;
+    };
+    for (let i = song.nextHit; i < notes.length && notes[i].tick <= tick + FRET_RAMP; i += 1) see(notes[i]);
+    for (let i = song.nextHit - 1; i >= 0 && i >= song.nextHit - 48; i -= 1) see(notes[i]); // ringing or fading
+    stage.fretNumbers.forEach((fret, f) => {
+      if (!fret) return;
+      const level = Math.max(0, Math.min(1, light[f]));
+      if (Math.abs(level - fret.lit) < 0.005) return;
+      fret.lit = level;
+      fret.number.material.color.lerpColors(fretShades[0], fretShades[1], level);
+      fret.glow.material.opacity = level;
+    });
+  }
+
   function frame() {
     if (!running) return;
     requestAnimationFrame(frame);
@@ -1408,6 +1460,7 @@
       song.nextChord += 1;
     }
     updateEffects(tick);
+    lightFretNumbers(tick);
     for (const bar of stage.strings) {
       if (!bar) continue;
       bar.glow *= 0.9;

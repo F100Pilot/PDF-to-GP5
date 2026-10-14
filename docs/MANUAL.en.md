@@ -218,8 +218,8 @@ To fix a misread number (mostly in tab pictures) without leaving the app:
 Choose **3D highway (Rocksmith)** under View.
 
 - **String colours** as in Rocksmith, with the low E in red at the top.
-- Notes reach the strike line on the right fret.
-- **Techniques** are drawn with Rocksmith's symbols: bends (˄ chevrons above the note: one = half step, two = whole step), slides, hammer-on ▼ and pull-off ▲ (next to the number, also when the note hits the string), palm mute (bow tie), harmonics (ring with a dot; an eye for pinch), vibrato, tremolo picking (zigzag trail), accent (double frame), slap and pop, pre-bend (the note arrives off its string), tapping (wide V) and ghost notes.
+- Notes reach the strike line on the right fret. As in Rocksmith they carry no number: the neck's fret number, at the bottom, turns amber and glows as a note on that fret comes.
+- **Techniques** are drawn with Rocksmith's symbols: bends (˄ chevrons above the note: one = half step, two = whole step), slides, hammer-on ▼ and pull-off ▲ (on the note, also when it hits the string), palm mute (bow tie), harmonics (ring with a dot; an eye for pinch), vibrato, tremolo picking (zigzag trail), accent (double frame), slap and pop, pre-bend (the note arrives off its string), tapping (wide V) and ghost notes ( ).
 - Chord names and the lyrics are shown, with the current syllable highlighted.
 - **Track on the 3D highway**, **Camera tilt** and **Side angle** adjust the view.
 
