@@ -218,7 +218,7 @@ Escolha **Pista 3D (Rocksmith)** em Vista.
 
 - **Cores das cordas** como no Rocksmith: Mi grave a vermelho, em cima.
 - As notas chegam à linha de ataque no traste certo.
-- **Desenho das técnicas**: bends, slides, hammer-on/pull-off (H/P), palm mute (PM), harmónicos, vibrato, tapping e ghost notes.
+- **Desenho das técnicas**, com os símbolos do Rocksmith: bends (chevrons ˄ por cima da nota: um = meio tom, dois = um tom), slides, hammer-on ▼ e pull-off ▲, palm mute (laço), harmónicos (anel com ponto; olho no pinch), vibrato, tapping (V largo) e ghost notes.
 - Mostra o nome dos acordes e a letra, com a sílaba atual.
 - **Track na pista 3D**, **Inclinação da câmara** e **Ângulo lateral** ajustam a vista.
 

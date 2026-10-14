@@ -109,6 +109,68 @@
     return labelCache.get(key);
   }
 
+  // Rocksmith's notehead symbols (its "Notehead and tail guide"), drawn rather than written:
+  // hammer-on ▼, pull-off ▲, palm mute (a bow tie), harmonic (a ring with a dot), pinch harmonic
+  // (an eye), tap (a wide V), and a bend's strength as stacked chevrons (1 half step, 2 a whole
+  // step, 3 more; one pointing down for a release).
+  const ICONS = {
+    hammer: (ctx) => { ctx.moveTo(24, 34); ctx.lineTo(104, 34); ctx.lineTo(64, 100); ctx.closePath(); },
+    pull: (ctx) => { ctx.moveTo(24, 96); ctx.lineTo(104, 96); ctx.lineTo(64, 30); ctx.closePath(); },
+    palmMute: (ctx) => {
+      ctx.moveTo(18, 34); ctx.lineTo(64, 64); ctx.lineTo(18, 94); ctx.closePath();
+      ctx.moveTo(110, 34); ctx.lineTo(64, 64); ctx.lineTo(110, 94); ctx.closePath();
+    },
+    harmonic: (ctx) => { ring(ctx, 42); ring(ctx, 30); ring(ctx, 12); },
+    pinch: (ctx) => {
+      ctx.moveTo(10, 64); ctx.quadraticCurveTo(64, 6, 118, 64); ctx.quadraticCurveTo(64, 122, 10, 64); ctx.closePath();
+      ring(ctx, 22); ring(ctx, 11);
+    },
+    tap: (ctx) => { ctx.moveTo(14, 36); ctx.lineTo(64, 100); ctx.lineTo(114, 36); ctx.lineTo(90, 36); ctx.lineTo(64, 70); ctx.lineTo(38, 36); ctx.closePath(); },
+  };
+  function ring(ctx, radius) {
+    ctx.moveTo(64 + radius, 64);
+    ctx.arc(64, 64, radius, 0, 2 * Math.PI);
+  }
+  // `count` chevrons stacked upwards (or one pointing down), 14 px thick.
+  function chevrons(count, down) {
+    return (ctx) => {
+      const dir = down ? -1 : 1; // the tip is above the arms for up
+      const start = down ? 57 : 104 - (3 - count) * 14; // centre the stack
+      for (let i = 0; i < count; i += 1) {
+        const arms = start - i * 28;
+        const tip = arms - dir * 30;
+        ctx.moveTo(24, arms); ctx.lineTo(64, tip); ctx.lineTo(104, arms);
+        ctx.lineTo(104, arms + dir * 16); ctx.lineTo(64, tip + dir * 16); ctx.lineTo(24, arms + dir * 16);
+        ctx.closePath();
+      }
+    };
+  }
+  const iconCache = new Map();
+  function iconMaterial(kind, color) {
+    const key = `${kind}:${color}`;
+    if (!iconCache.has(key)) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      const [name, count] = kind.split(":");
+      const draw = name === "bend" ? chevrons(Number(count), false) : name === "release" ? chevrons(1, true) : ICONS[name];
+      ctx.beginPath();
+      draw(ctx);
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "#000000";
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fill("evenodd");
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+      material.clippingPlanes = laneClip();
+      iconCache.set(key, material);
+    }
+    return iconCache.get(key);
+  }
+
   // Shared geometries (kept across tracks, never disposed with a song).
   function shared(geometry) {
     geometry.userData.shared = true;
@@ -418,28 +480,17 @@
   const SLIDE_OUT = { shift: 1, legato: 2, outUp: 3, outDown: 4, pickDown: 5, pickUp: 6 };
   const SLIDE_IN = { fromBelow: 1, fromAbove: 2 };
   const BEND = { bend: 2, release: 3, bendRelease: 4, hold: 5, prebend: 6, prebendBend: 7, prebendRelease: 8 };
-  const HARMONIC_TAGS = { 2: "AH", 3: "PH", 4: "TH", 5: "SH", 6: "FB" }; // natural (1) is shown by the shape only
+  const PINCH_HARMONIC = 3; // alphaTab HarmonicType: natural 1, artificial 2, pinch 3, tapped 4, semi 5, feedback 6
   const BRUSH = { up: 1, down: 2 };
 
-  // "½", "1", "1½": bend amount in tones from alphaTab's quarter-tone value.
-  function bendAmount(quarterTones) {
-    const tones = quarterTones / 4;
-    const whole = Math.floor(tones);
-    const rest = { 0: "", 0.25: "¼", 0.5: "½", 0.75: "¾" }[tones - whole] ?? "";
-    return whole ? `${whole}${rest}` : rest || "¼";
-  }
-
-  function bendText(note) {
+  // A bend's notehead mark, as Rocksmith shows its strength: "bend:1" (a half step or less),
+  // "bend:2" (a whole step), "bend:3" (more); "release" for a release alone; "" for none. The
+  // trail shows the rest (rising, held, coming back).
+  function bendMark(note) {
     if (!note.hasBend || note.bendType === BEND.hold) return "";
-    const amount = bendAmount(note.maxBendPoint ? note.maxBendPoint.value : 4);
-    switch (note.bendType) {
-      case BEND.release: return "↓";
-      case BEND.bendRelease: return `↑↓${amount}`;
-      case BEND.prebend: return `PB${amount}`;
-      case BEND.prebendBend: return `PB↑${amount}`;
-      case BEND.prebendRelease: return `PB↓${amount}`;
-      default: return `↑${amount}`;
-    }
+    if (note.bendType === BEND.release) return "release";
+    const quarterTones = note.maxBendPoint ? note.maxBendPoint.value : 4;
+    return `bend:${quarterTones <= 2 ? 1 : quarterTones <= 4 ? 2 : 3}`;
   }
 
   // Bend height along a note and the notes tied to it: [{ tick, value }] in quarter tones, or null
@@ -694,7 +745,7 @@
               harmonic: note.harmonicType,
               vibrato: note.vibrato,
               tap: beat.tap,
-              bend: bendText(note),
+              bend: bendMark(note),
               bendCurve: bendCurve(chain),
               slideOut: note.slideOutType,
               slideIn: note.slideInType,
@@ -789,7 +840,6 @@
     const lane = new THREE.Group();
 
     const gem = roundedBox(0.8, 0.28, 0.28, 0.09);
-    const diamond = new THREE.OctahedronGeometry(0.22);
     const unit = new THREE.BoxGeometry(1, 1, 1);
     const gemMaterials = [];
     const unpickedMaterials = [];
@@ -845,8 +895,9 @@
       const path = new THREE.CatmullRomCurve3(points, false, "centripetal");
       lane.add(new THREE.Mesh(new THREE.TubeGeometry(path, points.length * 2, note.bendCurve ? 0.06 : 0.045, 6), material));
     };
-    const tag = (text, x, y, z, color) => {
-      const sprite = label(text, 0.3, true, color);
+    const icon = (kind, x, y, z, color) => {
+      const sprite = new THREE.Sprite(iconMaterial(kind, color));
+      sprite.scale.set(0.4, 0.4, 1);
       sprite.position.set(x, y, z + 0.2);
       lane.add(sprite);
     };
@@ -866,9 +917,8 @@
         front = 0.11;
       } else {
         x = fretX(note.fret);
-        const harmonic = note.harmonic && !note.dead;
-        body = new THREE.Mesh(harmonic ? diamond : gem, material);
-        front = harmonic ? 0.22 : 0.14;
+        body = new THREE.Mesh(gem, material);
+        front = 0.14;
       }
       body.position.set(x, y, z);
       const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
@@ -877,12 +927,15 @@
       lane.add(body, text);
       note.parts = [body, text]; // hidden when the note reaches the strings (a glowing copy takes over)
 
-      // Technique marks above the note.
-      const marks = [note.legato, note.tap ? "T" : "", HARMONIC_TAGS[note.harmonic] || "", note.palmMute ? "PM" : ""]
-        .filter(Boolean)
-        .join(" ");
-      if (marks) tag(marks, x, y + 0.34, z, "#e6edf3");
-      if (note.bend) tag(note.bend, x, y + (marks ? 0.62 : 0.34), z, "#ffd54f");
+      // Technique symbols on the note, side by side, and a bend's chevrons above them.
+      const marks = [
+        note.legato === "H" ? "hammer" : note.legato === "P" ? "pull" : "",
+        note.tap ? "tap" : "",
+        note.harmonic && !note.dead ? (note.harmonic === PINCH_HARMONIC ? "pinch" : "harmonic") : "",
+        note.palmMute ? "palmMute" : "",
+      ].filter(Boolean);
+      marks.forEach((kind, k) => icon(kind, x + (k - (marks.length - 1) / 2) * 0.42, y + 0.38, z, "#ffffff"));
+      if (note.bend) icon(note.bend, x, y + (marks.length ? 0.78 : 0.38), z, "#ffd54f");
 
       if (note.dead) return;
       const length = Math.max(note.length, note.vibrato ? SUSTAIN_MIN : 0) * Z_PER_TICK;
