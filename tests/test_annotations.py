@@ -246,3 +246,19 @@ def test_line_with_only_technique_marks_is_skipped():
     # Lines not starting with the mark itself, so only the word filter removes them.
     chars = [*_word("-", 40, 170), *_word("Let", 60, 170), *_word("Ring", 90, 170), *_word("PM", 300, 190)]
     assert lyrics(_page(chars), BOTTOM, 50, 550, SPACING) == []
+
+
+def test_hammer_on_and_pull_off_letters_are_not_lyrics():
+    """The "P" of a pull-off (or "H" of a hammer-on) printed over the next staff can sit at the
+    height of this staff's lyrics: "P P In P your P life" is "In your life"."""
+    chars = [
+        *_word("P", 60, 170),
+        *_word("P", 80, 170),
+        *_word("In", 100, 170),
+        *_word("P", 125, 170),
+        *_word("your", 140, 170),
+        *_word("H", 170, 170),
+        *_word("life", 190, 170),
+        *_word("I", 220, 170),  # a one-letter word that is sung stays
+    ]
+    assert [s for _, s, _ in lyrics(_page(chars), BOTTOM, 50, 550, SPACING)] == ["In", "your", "life", "I"]

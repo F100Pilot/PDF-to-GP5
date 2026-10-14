@@ -13,6 +13,9 @@ _NOT_LYRICS = re.compile(r"^\s*(?:let\s*ring|p\.?\s*m\.?|palm\s*mute)\b", re.IGN
 # and pairs of words, compared without dots and case.
 _TECHNIQUE_WORDS = {"letring", "lr", "pm", "palmmute"}
 _TECHNIQUE_PAIRS = {("let", "ring"), ("palm", "mute"), ("p", "m")}
+# A hammer-on / pull-off letter standing alone: printed over the next staff, it can sit at the
+# height of this staff's lyrics ("P P In P your P life"). Never a sung syllable.
+_LEGATO_LETTERS = {"H", "P"}
 _HYPHENS = {"-", "–", "—", "‐"}
 
 # SMuFL dynamics (U+E520 block) and their plain-text spelling.
@@ -119,11 +122,12 @@ def lyrics(page: Page, bottom: float, x0: float, x1: float, spacing: float) -> l
 
 
 def _without_techniques(words: list[list[Char]]) -> list[list[Char]]:
-    """Drop "let ring" / "P.M." / "palm mute" marks printed on the same line as the lyrics."""
+    """Drop "let ring" / "P.M." / "palm mute" marks and lone "H" / "P" (hammer-on, pull-off)
+    printed on the same line as the lyrics."""
     keys = ["".join(c.text for c in word).replace(".", "").replace("-", "").lower() for word in words]
     dropped: set[int] = set()
     for i, key in enumerate(keys):
-        if key in _TECHNIQUE_WORDS:
+        if "".join(c.text for c in words[i]) in _LEGATO_LETTERS or key in _TECHNIQUE_WORDS:
             dropped.add(i)
         elif i + 1 < len(keys) and (key, keys[i + 1]) in _TECHNIQUE_PAIRS:
             dropped.update((i, i + 1))
