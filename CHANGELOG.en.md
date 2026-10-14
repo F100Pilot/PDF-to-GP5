@@ -17,6 +17,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 ### Changed
 - "Fixed duration" is disabled in the "By spacing" mode, which does not use it (in the "Fixed duration" and "Automatic" modes, for a tab without bar lines, it still counts); the audio "Format" selector, which only had MP3 and was always disabled, is gone. Inside: unused code removed, the server status requests when the page opens go from 4 to 1, and repeated parts joined in one place.
 - 3D highway: techniques are no longer letters above the note (H, P, PM, T, AH…, ↑1) but Rocksmith's symbols: ▼ hammer-on and ▲ pull-off next to the number (also when the note hits the string, so it shows in a fast passage), bow tie = palm mute, ring with a dot = harmonic (an eye for pinch), wide V = tapping and ˄ chevrons for the bend's strength (one = half step, two = whole step, three = more; ˅ = release).
+- 3D highway: more Rocksmith techniques — tremolo picking (zigzag trail), accent (glowing double frame), slap and pop (block with a notch / with a peak) and pre-bend (the note arrives off its string, at the bend's height). They show when opening Guitar Pro files that have them.
 
 ### Fixed
 - 3D highway: in fast passages, the number of a note just played stayed on the string (at least an eighth, then fading) on top of the next note on that string; the new note now removes it at once.

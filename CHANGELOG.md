@@ -17,6 +17,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 ### Alterado
 - "Duração fixa" fica desativada no modo "Pelo espaçamento", que não a usa (nos modos "Duração fixa" e "Automático", numa tab sem barras de compasso, continua a contar); o seletor "Formato" do áudio, que só tinha MP3 e estava sempre desativado, sai. Por dentro: código sem uso removido, os pedidos de estado do servidor ao abrir a página passam de 4 para 1, e partes repetidas juntas num só sítio.
 - Pista 3D: as técnicas deixam de ser letras por cima da nota (H, P, PM, T, AH…, ↑1) e passam a ter os símbolos do Rocksmith: ▼ hammer-on e ▲ pull-off ao lado do número (também quando a nota bate na corda, para se ver numa passagem rápida), laço = palm mute, anel com ponto = harmónico (olho no pinch), V largo = tapping e chevrons ˄ para a força do bend (um = meio tom, dois = um tom, três = mais; ˅ = release).
+- Pista 3D: mais técnicas do Rocksmith — tremolo picking (rasto em zigue-zague), acento (moldura dupla a brilhar), slap e pop (bloco com entalhe / com bico) e pre-bend (a nota já vem fora da corda, à altura do bend). Aparecem ao abrir ficheiros Guitar Pro que as tenham.
 
 ### Corrigido
 - Pista 3D: em passagens rápidas, o número de uma nota que acabou de tocar ficava na corda (pelo menos uma colcheia, e depois a desvanecer) por cima da nota seguinte na mesma corda; a nota nova tira-o logo.

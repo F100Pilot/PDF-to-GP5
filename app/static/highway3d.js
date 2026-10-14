@@ -9,6 +9,7 @@
   const Z_PER_TICK = 4 / TICKS_PER_QUARTER; // highway length of a quarter note: 4 units
   const VIEW_AHEAD = 16 * TICKS_PER_QUARTER; // notes shown this far ahead of the strike line
   const SUSTAIN_MIN = TICKS_PER_QUARTER; // shorter notes get no sustain trail
+  const TREMOLO_STEP = 0.25; // highway length of one stroke of a tremolo picking zigzag
   const ANCHOR_BEFORE = TICKS_PER_QUARTER; // fret window that the camera follows
   const ANCHOR_AFTER = 3 * TICKS_PER_QUARTER;
   const MIN_ANCHOR_WIDTH = 4;
@@ -126,6 +127,9 @@
       ring(ctx, 22); ring(ctx, 11);
     },
     tap: (ctx) => { ctx.moveTo(14, 36); ctx.lineTo(64, 100); ctx.lineTo(114, 36); ctx.lineTo(90, 36); ctx.lineTo(64, 70); ctx.lineTo(38, 36); ctx.closePath(); },
+    // Slap: a block with a notch in its top; pop: a block with a peak (the string pulled up).
+    slap: (ctx) => { ctx.moveTo(10, 44); ctx.lineTo(64, 74); ctx.lineTo(118, 44); ctx.lineTo(118, 96); ctx.lineTo(10, 96); ctx.closePath(); },
+    pop: (ctx) => { ctx.moveTo(10, 72); ctx.lineTo(64, 36); ctx.lineTo(118, 72); ctx.lineTo(118, 96); ctx.lineTo(10, 96); ctx.closePath(); },
   };
   function ring(ctx, radius) {
     ctx.moveTo(64 + radius, 64);
@@ -218,6 +222,31 @@
   }
   function faceIcon(kind, size, clipped = true) {
     return faceDecal(`icon:${kind}`, iconMaterial(kind, "#ffffff").map, size, size, clipped);
+  }
+
+  // Accent: a glowing double frame around the note (Rocksmith's), as a decal on its front face.
+  let accentMap = null;
+  function accentFrame(width, height, clipped = true) {
+    if (!accentMap) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.strokeStyle = "#ffffff";
+      ctx.shadowColor = "#ffd54f";
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.roundRect(8, 8, 240, 112, 18);
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(22, 22, 212, 84, 12);
+      ctx.stroke();
+      accentMap = new THREE.CanvasTexture(canvas);
+      accentMap.colorSpace = THREE.SRGBColorSpace;
+    }
+    return faceDecal("accent", accentMap, width, height, clipped);
   }
 
   // A hammer-on / pull-off arrow sits on the gem beside the fret number (not above the note): it
@@ -505,6 +534,7 @@
   const SLIDE_OUT = { shift: 1, legato: 2, outUp: 3, outDown: 4, pickDown: 5, pickUp: 6 };
   const SLIDE_IN = { fromBelow: 1, fromAbove: 2 };
   const BEND = { bend: 2, release: 3, bendRelease: 4, hold: 5, prebend: 6, prebendBend: 7, prebendRelease: 8 };
+  const ACCENTS = [1, 2]; // alphaTab AccentuationType: normal, heavy (tenuto 3 is not an accent)
   const PINCH_HARMONIC = 3; // alphaTab HarmonicType: natural 1, artificial 2, pinch 3, tapped 4, semi 5, feedback 6
   const BRUSH = { up: 1, down: 2 };
 
@@ -770,6 +800,10 @@
               harmonic: note.harmonicType,
               vibrato: note.vibrato,
               tap: beat.tap,
+              slap: beat.slap,
+              pop: beat.pop,
+              tremolo: beat.isTremolo,
+              accent: ACCENTS.includes(note.accentuated),
               bend: bendMark(note),
               bendCurve: bendCurve(chain),
               slideOut: note.slideOutType,
@@ -897,10 +931,24 @@
       lane.add(mesh);
     };
     // Sustain as a tube: rises with the bend curve (Rocksmith style) and wiggles with vibrato.
+    // Tremolo picking makes it a zigzag (straight strokes between the corners).
     const sustainTube = (material, x, y, note, lengthTicks) => {
       const curve = note.bendCurve || [{ tick: note.tick, value: 0 }, { tick: note.tick + lengthTicks, value: 0 }];
       const amplitude = note.vibrato === 2 ? 0.22 : note.vibrato ? 0.12 : 0;
       const points = [];
+      if (note.tremolo) {
+        const start = curve[0].tick;
+        const end = Math.max(curve[curve.length - 1].tick, start + lengthTicks);
+        const corners = Math.max(2, Math.round(((end - start) * Z_PER_TICK) / TREMOLO_STEP));
+        for (let k = 0; k <= corners; k += 1) {
+          const tick = start + ((end - start) * k) / corners;
+          const side = k === 0 ? 0 : k % 2 ? 0.14 : -0.14;
+          points.push(new THREE.Vector3(x + side, y + bendValueAt(curve, tick) * BEND_RISE, -tick * Z_PER_TICK));
+        }
+        const zigzag = new THREE.CatmullRomCurve3(points, false, "catmullrom", 0); // tension 0: straight strokes
+        lane.add(new THREE.Mesh(new THREE.TubeGeometry(zigzag, points.length * 8, 0.05, 6), material));
+        return;
+      }
       for (let i = 0; i + 1 < curve.length; i += 1) {
         const a = curve[i];
         const b = curve[i + 1];
@@ -928,7 +976,9 @@
     };
 
     notes.forEach((note, i) => {
-      const y = stringY(note.string, count);
+      const stringLine = stringY(note.string, count);
+      // A pre-bent note starts already off its string, where the bend holds it (Rocksmith's).
+      const y = stringLine + (note.bendCurve ? note.bendCurve[0].value * BEND_RISE : 0);
       const z = -note.tick * Z_PER_TICK;
       const material = note.dead ? deadMaterial : note.unpicked ? unpickedMaterials[note.string] : gemMaterials[note.string];
       let x;
@@ -948,6 +998,11 @@
       body.position.set(x, y, z);
       const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
       const face = numberWithArrow(note, fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36, x, y, z + front + 0.005, true);
+      if (note.accent) {
+        const frame = accentFrame(note.fret === 0 && !note.dead ? anchors[i].open + 0.4 : 1.2, 0.62);
+        frame.position.set(x, y, z + front + 0.003);
+        face.push(frame);
+      }
       lane.add(body, ...face);
       note.parts = [body, ...face]; // hidden when the note reaches the strings (a glowing copy takes over)
 
@@ -956,13 +1011,15 @@
         note.tap ? "tap" : "",
         note.harmonic && !note.dead ? (note.harmonic === PINCH_HARMONIC ? "pinch" : "harmonic") : "",
         note.palmMute ? "palmMute" : "",
+        note.slap ? "slap" : "",
+        note.pop ? "pop" : "",
       ].filter(Boolean);
       marks.forEach((kind, k) => icon(kind, x + (k - (marks.length - 1) / 2) * 0.42, y + 0.38, z, "#ffffff"));
       if (note.bend) icon(note.bend, x, y + (marks.length ? 0.78 : 0.38), z, "#ffd54f");
 
       if (note.dead) return;
-      const length = Math.max(note.length, note.vibrato ? SUSTAIN_MIN : 0) * Z_PER_TICK;
-      const trailY = y - 0.06;
+      const length = Math.max(note.length, note.vibrato || note.tremolo ? SUSTAIN_MIN : 0) * Z_PER_TICK;
+      const trailY = stringLine - 0.06; // the bend curve lifts the trail itself
       if (note.slideIn === SLIDE_IN.fromBelow || note.slideIn === SLIDE_IN.fromAbove) {
         const from = note.fret + (note.slideIn === SLIDE_IN.fromBelow ? -3 : 3);
         ribbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + 1.2, x, z, trailY);
@@ -974,7 +1031,7 @@
         const up = note.slideOut === SLIDE_OUT.outUp || note.slideOut === SLIDE_OUT.pickUp;
         const to = Math.min(FRETS, Math.max(0, note.fret + (up ? 4 : -4)));
         ribbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY);
-      } else if (note.bendCurve || note.vibrato) {
+      } else if (note.bendCurve || note.vibrato || note.tremolo) {
         sustainTube(trailMaterials[note.string], x, trailY, note, length / Z_PER_TICK);
       } else if (note.length >= SUSTAIN_MIN) {
         ribbon(trailMaterials[note.string], x, z, x, z - length, trailY);
@@ -1189,6 +1246,11 @@
     glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
     const face = numberWithArrow(note, note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, x, y, open ? 0.14 : 0.16, false);
+    if (note.accent) {
+      const frame = accentFrame(open ? anchor.open + 0.6 : 1.3, 0.66, false);
+      frame.position.set(x, y, open ? 0.135 : 0.155);
+      face.push(frame);
+    }
     clearString(note.string);
     addEffect([glow, gem, ...face], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
   }
