@@ -185,16 +185,16 @@
     return roundedCache.get(key);
   }
 
-  // Fret number printed on the front face of a gem (a sprite would cut through the gem when the
-  // camera is tilted). Clipped decals are shared; unclipped ones are copies the caller may fade.
+  // Fret number (or symbol) printed on the front face of a gem (a sprite would cut through the gem
+  // when the camera is tilted). Clipped decals are shared; unclipped ones are copies the caller may fade.
   let decalPlane = null;
   const decalCache = new Map();
-  function faceLabel(text, height, clipped = true) {
+  function faceDecal(key, map, width, height, clipped) {
     if (!decalPlane) decalPlane = shared(new THREE.PlaneGeometry(1, 1));
-    let material = decalCache.get(text);
+    let material = decalCache.get(key);
     if (!material) {
       material = new THREE.MeshBasicMaterial({
-        map: labelMaterial(text, false, "#ffffff").map,
+        map,
         transparent: true,
         depthWrite: false,
         polygonOffset: true,
@@ -202,15 +202,40 @@
         polygonOffsetUnits: -2,
         clippingPlanes: laneClip(),
       });
-      decalCache.set(text, material);
+      decalCache.set(key, material);
     }
     if (!clipped) {
       material = material.clone();
       material.clippingPlanes = null;
     }
     const mesh = new THREE.Mesh(decalPlane, material);
-    mesh.scale.set((height * material.map.image.width) / 128, height, 1);
+    mesh.scale.set(width, height, 1);
     return mesh;
+  }
+  function faceLabel(text, height, clipped = true) {
+    const map = labelMaterial(text, false, "#ffffff").map;
+    return faceDecal(`text:${text}`, map, (height * map.image.width) / 128, height, clipped);
+  }
+  function faceIcon(kind, size, clipped = true) {
+    return faceDecal(`icon:${kind}`, iconMaterial(kind, "#ffffff").map, size, size, clipped);
+  }
+
+  // A hammer-on / pull-off arrow sits on the gem beside the fret number (not above the note): it
+  // stays readable while the note strikes the string, however fast the passage. Returns the parts.
+  const LEGATO_ICONS = { H: "hammer", P: "pull" };
+  function numberWithArrow(note, text, height, x, y, z, clipped) {
+    const number = faceLabel(text, height, clipped);
+    const kind = LEGATO_ICONS[note.legato];
+    if (!kind) {
+      number.position.set(x, y, z);
+      return [number];
+    }
+    const arrow = faceIcon(kind, height * 0.7, clipped);
+    const gap = 0.02;
+    const total = number.scale.x + gap + arrow.scale.x;
+    number.position.set(x - total / 2 + number.scale.x / 2, y, z);
+    arrow.position.set(x + total / 2 - arrow.scale.x / 2, y, z);
+    return [number, arrow];
   }
 
   // Text that always faces the camera; `height` in highway units.
@@ -922,14 +947,12 @@
       }
       body.position.set(x, y, z);
       const fretText = note.dead ? "X" : note.ghost ? `(${note.fret})` : String(note.fret);
-      const text = faceLabel(fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36);
-      text.position.set(x, y, z + front + 0.005);
-      lane.add(body, text);
-      note.parts = [body, text]; // hidden when the note reaches the strings (a glowing copy takes over)
+      const face = numberWithArrow(note, fretText, note.fret === 0 && !note.dead ? 0.3 : 0.36, x, y, z + front + 0.005, true);
+      lane.add(body, ...face);
+      note.parts = [body, ...face]; // hidden when the note reaches the strings (a glowing copy takes over)
 
-      // Technique symbols on the note, side by side, and a bend's chevrons above them.
+      // Other technique symbols above the note, side by side, and a bend's chevrons above them.
       const marks = [
-        note.legato === "H" ? "hammer" : note.legato === "P" ? "pull" : "",
         note.tap ? "tap" : "",
         note.harmonic && !note.dead ? (note.harmonic === PINCH_HARMONIC ? "pinch" : "harmonic") : "",
         note.palmMute ? "palmMute" : "",
@@ -1165,10 +1188,9 @@
     }));
     glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
-    const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
-    text.position.set(x, y, open ? 0.14 : 0.16);
+    const face = numberWithArrow(note, note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, x, y, open ? 0.14 : 0.16, false);
     clearString(note.string);
-    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
+    addEffect([glow, gem, ...face], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
   }
 
   function spawnChordHit(chord) {
