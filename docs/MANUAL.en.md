@@ -162,7 +162,7 @@ The **Result** page shows:
 
 - A summary of the song: title, artist, BPM, time signature, tracks, bars, notes, sections and lyrics.
 - **Warnings**: what was estimated or skipped and should be checked.
-- **Bars with an estimated rhythm**: when the tab prints rhythm but it could not be read in a bar, that bar's rhythm is estimated from the spacing of the notes. Those bars are listed in the warnings and in the track details, numbered as in the player; clicking one opens the player at that bar. They are the first to check before trusting the playback.
+- **Bars with an estimated rhythm**: when the tab prints rhythm but it could not be read in a bar, that bar's rhythm is estimated from the spacing of the notes. Those bars are listed in the warnings and in the track details, numbered as in the player; clicking one opens the player at that bar. With repeats written out, each pass is a bar of its own and that exact pass opens; without them, a repeated bar is listed once and opens at its first pass (it is the same bar on every pass). They are the first to check before trusting the playback.
 - The details of each track: file, strings, tuning, sound, rhythm and the format that was read. Open "Detected tab lines" to see a text preview.
 
 To save the song:
