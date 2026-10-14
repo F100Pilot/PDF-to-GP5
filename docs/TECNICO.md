@@ -174,7 +174,7 @@ curl -F file=@guitarra.pdf -F file=@baixo.pdf -F track_name=Guitarra -F track_na
 - Só responde aos nomes em `ALLOWED_HOSTS` (bloqueia DNS rebinding) e recusa POST de outra origem (`Origin` diferente do `Host`).
 - Cabeçalhos: CSP estrita sem scripts nem estilos inline (os dois blocos de estilo do alphaTab são autorizados pelo hash; workers só do próprio site; só o leitor youtube-nocookie.com pode ser embebido), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` na API; HSTS opcional.
 - Erros internos nunca são expostos ao cliente; nomes de ficheiro e metadados GP5 são sanitizados.
-- Documentação OpenAPI desativada por defeito. `pip-audit` no CI.
+- Documentação OpenAPI desativada por defeito. Todas as dependências da aplicação com versão fixa (uma versão nova só entra de propósito, depois dos testes) e `pip-audit` no CI.
 
 Atrás de um reverse proxy, o rate limiting usa o IP do proxy a menos que se configure `uvicorn --proxy-headers --forwarded-allow-ips=<ip do proxy>`.
 

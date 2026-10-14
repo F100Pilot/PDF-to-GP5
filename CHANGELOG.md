@@ -27,6 +27,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Biblioteca no disco, instalação, chave do YouTube e download pessoal: um pedido que passa por um reverse proxy (cabeçalhos `Forwarded`, `X-Forwarded-*`, `X-Real-IP`) deixa de contar como "este computador"; e `LOCAL_FEATURES=0` desliga-os numa cópia publicada (um proxy que não acrescenta cabeçalhos não se distingue de um pedido local).
 - Áudio de um endereço: a proibição de endereços da rede local passa a valer para cada ligação do download (redirecionamentos, nomes resolvidos de novo, ligações dentro da página), não só para o endereço escrito; o FFmpeg só lê o ficheiro descarregado.
 - Importar biblioteca: um ficheiro que repetia a mesma música muitas vezes fazia o servidor ler o mesmo ficheiro grande vezes sem conta (dezenas de GB de memória a partir de um ZIP de poucos KB); cada ficheiro do ZIP passa a ser lido uma vez e músicas repetidas são recusadas.
+- As dependências do OCR (onnxruntime, OpenCV, NumPy, Pillow…) e as ferramentas de desenvolvimento passam a ter versão fixa, como as outras: uma versão nova (ou uma publicação maliciosa) já não entra sozinha no arranque seguinte.
 
 ## [0.8.0] - 2026-10-13
 ### Adicionado

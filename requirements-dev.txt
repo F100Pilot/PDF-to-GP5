@@ -3,6 +3,6 @@
 pytest==9.1.1
 httpx2==2.13.1
 reportlab==5.0.1
-ruff
-pip-audit
+ruff==0.16.9
+pip-audit==2.10.1
 playwright==1.63.0  # .claude/skills/gp-alphatab-check (alphaTab in headless Chromium)

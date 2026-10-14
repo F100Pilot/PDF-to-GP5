@@ -27,6 +27,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - On-disk library, installing, the YouTube key and personal-use downloads: a request that passes through a reverse proxy (`Forwarded`, `X-Forwarded-*`, `X-Real-IP` headers) no longer counts as "this computer"; and `LOCAL_FEATURES=0` turns them off on a published copy (a proxy that adds no headers cannot be told apart from a local request).
 - Audio from an address: the ban on local-network addresses now holds for every connection of the download (redirects, names resolved again, links inside the page), not only for the address typed; FFmpeg reads only the downloaded file.
 - Importing a library: a file that listed the same song many times made the server read the same big file over and over (tens of GB of memory from a ZIP of a few KB); each file in the ZIP is now read once, and repeated songs are refused.
+- The OCR dependencies (onnxruntime, OpenCV, NumPy, Pillow…) and the development tools are now pinned, like the rest: a new release (or a malicious one) no longer comes in on its own at the next start.
 
 ## [0.8.0] - 2026-10-13
 ### Added

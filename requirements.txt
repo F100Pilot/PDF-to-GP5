@@ -13,12 +13,14 @@ deno==2.9.7
 # Tab images (OCR): RapidOCR's text recogniser on ONNX Runtime. Its package declares Python <3.13
 # only, yet runs on newer ones (the whole test suite passes on 3.13), so it is installed apart from
 # this file: requirements-ocr.txt, with --no-deps --ignore-requires-python. Its dependencies:
-onnxruntime>=1.7.0
-opencv-python>=4.5.1.48
-numpy>=1.19.5,<3.0.0
-pyclipper>=1.2.0
-Shapely>=1.7.1,!=2.0.4
-PyYAML
-Pillow
-six>=1.15.0
-tqdm
+# (pinned like everything else: a new release is taken on purpose, after the tests, never at the
+# next start; each version below has wheels for Windows, macOS and Linux on Python 3.11 to 3.14)
+onnxruntime==1.30.0
+opencv-python==5.0.0.93
+numpy==2.4.6
+pyclipper==1.4.0
+Shapely==2.1.2
+PyYAML==6.0.3
+Pillow==12.3.0
+six==1.17.0
+tqdm==4.70.1
