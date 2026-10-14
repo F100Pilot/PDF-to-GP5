@@ -218,7 +218,7 @@
             </div>
             <div id="score-tracks" class="score-tracks"></div>
             <p id="score-status" class="hint" role="status" aria-live="polite" hidden></p>
-            <p id="note-edit-hint" class="hint" hidden>Corrigir notas: clique num número da tab, escreva o traste certo e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.</p>
+            <p id="note-edit-hint" class="hint" hidden>Corrigir notas: clique num número da tab, mude o traste ou a duração e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.</p>
             <div id="score-stage" class="score-stage">
               <div class="score-main">
                 <div id="highway" class="highway" hidden></div>
@@ -227,6 +227,18 @@
                 <form id="note-editor" class="note-editor" aria-label="Corrigir a nota" hidden>
                   <span id="note-editor-where"></span>
                   <label>Traste <input id="note-editor-fret" type="number" min="0" max="30" step="1" required></label>
+                  <label>Duração
+                    <select id="note-editor-length">
+                      <option value="1">Semibreve (1)</option>
+                      <option value="2">Mínima (1/2)</option>
+                      <option value="4">Semínima (1/4)</option>
+                      <option value="8">Colcheia (1/8)</option>
+                      <option value="16">Semicolcheia (1/16)</option>
+                      <option value="32">Fusa (1/32)</option>
+                    </select>
+                  </label>
+                  <label class="check"><input id="note-editor-dotted" type="checkbox"> Pontuada</label>
+                  <label class="check" title="Três notas no tempo de duas: mude as três"><input id="note-editor-triplet" type="checkbox"> Tercina</label>
                   <button type="submit">OK</button>
                   <button id="note-editor-delete" type="button" class="secondary">Apagar nota</button>
                   <button id="note-editor-close" type="button" class="icon" title="Fechar (Esc)" aria-label="Fechar">✕</button>

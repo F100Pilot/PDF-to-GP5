@@ -456,7 +456,7 @@
  "✎ Corrigir notas": "✎ Correct notes",
  "Desfazer a última correção": "Undo the last correction",
  "↶ Desfazer": "↶ Undo",
- "Corrigir notas: clique num número da tab, escreva o traste certo e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.": "Correct notes: click a number on the tab, type the right fret and press Enter (Esc closes). The corrections go into the file to download and into the library.",
+ "Corrigir notas: clique num número da tab, mude o traste ou a duração e carregue em Enter (Esc fecha). As correções vão para o ficheiro a descarregar e para a biblioteca.": "Correct notes: click a number on the tab, change the fret or the length and press Enter (Esc closes). The corrections go into the file to download and into the library.",
  "Corrigir a nota": "Correct the note",
  "Traste": "Fret",
  "OK": "OK",
@@ -473,5 +473,13 @@
  "Ouve-se só na passagem da volta {n}.": "Heard only on the pass of ending {n}.",
  "Toca {n} vezes: o ritmo volta a ouvir-se; o leitor abre na primeira.": "Plays {n} times: the rhythm comes round again; the player opens at the first.",
  "Não chega a tocar.": "Is never played.",
- "Usada no modo Duração fixa e, no modo Automático, numa tab sem barras de compasso": "Used in the Fixed duration mode and, in the Automatic mode, for a tab without bar lines"
+ "Usada no modo Duração fixa e, no modo Automático, numa tab sem barras de compasso": "Used in the Fixed duration mode and, in the Automatic mode, for a tab without bar lines",
+ "Duração": "Length",
+ "Semibreve (1)": "Whole (1)",
+ "Mínima (1/2)": "Half (1/2)",
+ "Fusa (1/32)": "Thirty-second (1/32)",
+ "Pontuada": "Dotted",
+ "Tercina": "Triplet",
+ "Três notas no tempo de duas: mude as três": "Three notes in the time of two: change all three",
+ "Esta duração não pode ser mudada aqui (quiáltera que não é tercina).": "This length cannot be changed here (a tuplet that is not a triplet)."
 };

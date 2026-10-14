@@ -39,6 +39,9 @@
   const editor = document.getElementById("note-editor");
   const editorWhere = document.getElementById("note-editor-where");
   const editorFret = document.getElementById("note-editor-fret");
+  const editorLength = document.getElementById("note-editor-length");
+  const editorDotted = document.getElementById("note-editor-dotted");
+  const editorTriplet = document.getElementById("note-editor-triplet");
   const editorDelete = document.getElementById("note-editor-delete");
   const editorClose = document.getElementById("note-editor-close");
   const MAX_UNDO = 50;
@@ -634,6 +637,16 @@
       string: staff.tuning.length - note.string + 1, // 1 = the highest string, as in Guitar Pro
     });
     editorFret.value = String(note.fret);
+    const length = beatLength(note.beat);
+    for (const control of [editorLength, editorDotted, editorTriplet]) {
+      control.disabled = !length;
+      control.title = length ? "" : T("Esta duração não pode ser mudada aqui (quiáltera que não é tercina).");
+    }
+    if (length) {
+      editorLength.value = String(length.value);
+      editorDotted.checked = length.dotted;
+      editorTriplet.checked = length.triplet;
+    }
     editor.hidden = false;
     const area = editor.offsetParent.getBoundingClientRect();
     const left = Math.min(Math.max(pointer.x - area.left - 24, 0), Math.max(area.width - editor.offsetWidth, 0));
@@ -662,12 +675,30 @@
     };
   }
 
-  // `fret`: the new fret, or null to remove the note.
-  async function correct(fret) {
-    if (!picked || !lastBytes) return;
+  const LENGTHS = [1, 2, 4, 8, 16, 32];
+
+  // The beat's length as the server sets it (app/gp_edit.py: Length), or null for one it cannot
+  // (a tuplet other than a triplet, a double dot).
+  function beatLength(beat) {
+    const triplet = beat.tupletNumerator === 3 && beat.tupletDenominator === 2;
+    const plain = !beat.hasTuplet;
+    if (!LENGTHS.includes(beat.duration) || beat.dots > 1 || !(triplet || plain)) return null;
+    return { value: beat.duration, dotted: beat.dots === 1, triplet };
+  }
+
+  // A new length for the note's beat: the bar stays whole on the server (rests at its end give
+  // or take the time).
+  function lengthEdit(note, length) {
+    const { track, bar, voice, beat } = noteEdit(note, null);
+    return { track, bar, voice, beat, expected_length: beatLength(note.beat), length };
+  }
+
+  // `edits`: what the server applies, in order (app/gp_edit.py).
+  async function correct(edits) {
+    if (!picked || !lastBytes || !edits.length) return;
     const body = new FormData();
     body.append("file", new Blob([lastBytes], { type: "application/octet-stream" }), "song.gp5");
-    body.append("edits", JSON.stringify([noteEdit(picked, fret)]));
+    body.append("edits", JSON.stringify(edits));
     for (const control of editor.elements) control.disabled = true;
     setStatus(T("A corrigir a nota…"));
     try {
@@ -706,13 +737,24 @@
   });
   editor.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (!picked) return;
+    const edits = [];
     const fret = Number(editorFret.value);
-    if (picked && fret === picked.fret) closeEditor();
-    else correct(fret);
+    if (fret !== picked.fret) edits.push(noteEdit(picked, fret));
+    const now = beatLength(picked.beat);
+    const wanted = { value: Number(editorLength.value), dotted: editorDotted.checked, triplet: editorTriplet.checked };
+    if (now && JSON.stringify(now) !== JSON.stringify(wanted)) edits.push(lengthEdit(picked, wanted));
+    if (edits.length) correct(edits);
+    else closeEditor();
   });
-  editorDelete.addEventListener("click", () => correct(null));
+  editorDelete.addEventListener("click", () => picked && correct([noteEdit(picked, null)]));
   editorClose.addEventListener("click", closeEditor);
   editor.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target === editorLength) {
+      event.preventDefault(); // a select does not submit its form on Enter
+      editor.requestSubmit();
+      return;
+    }
     if (event.key === "Escape") {
       event.stopPropagation();
       closeEditor();

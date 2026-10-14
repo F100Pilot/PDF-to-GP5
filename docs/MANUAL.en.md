@@ -200,14 +200,15 @@ To fix a misread number (mostly in tab pictures) without leaving the app:
 
 1. Press **✎ Correct notes** above the score. The score gets a dashed outline.
 2. Click the wrong number on the tab. A box opens with the bar, the string (1 = the highest) and the fret.
-3. Type the right fret and press **Enter** (or **OK**). To take out a note that should not be there, use **Delete note**. **Esc** closes the box without changing anything.
+3. Type the right fret and/or pick the **Length** (whole to thirty-second, **Dotted**, **Triplet**) and press **Enter** (or **OK**). To take out a note that should not be there, use **Delete note**. **Esc** closes the box without changing anything.
 4. The score is drawn again with the correction, at the same place.
 
 - **↶ Undo** goes back one correction at a time.
 - The corrections go into the file from **Download** and into the song saved in the **Library**.
 - A tied note (in brackets on the tab) is the same sound as the note it comes from: it changes, or is deleted, with it.
 - It works on `.gp5`, `.gp4` and `.gp3` files (every converted song is a `.gp5`). A `.gp` or `.gpx` opened as it is cannot be corrected here.
-- It changes the fret or deletes the note. Moving a note to another string, adding notes or changing the rhythm is done in Guitar Pro or TuxGuitar.
+- **Rhythm:** the length changes that of the whole beat (every note struck with it). The bar always stays right: a shorter note leaves a rest at the end of the bar; a longer one uses the rests at the end of the bar — if there is no free time, the app says how much is missing, and another note of the bar is shortened first. For a triplet, change all three notes.
+- Moving a note to another string or adding notes is done in Guitar Pro or TuxGuitar.
 - It does not work on the 3D highway: pick a view with tab.
 
 ## 7. 3D highway
@@ -351,7 +352,7 @@ Converting the same song again replaces its Guitar Pro file and keeps the audio 
 - Pictures: tuplets and section names are not read, and the techniques that are read should be checked. Text tabs inside a picture are not read either.
 - Rhythm estimated from spacing is an approximation: check it in the notation.
 - One track per PDF, 7 tracks at most.
-- **Correct notes** changes the fret or deletes the note; it does not change the string, add notes or touch the rhythm.
+- **Correct notes** changes the fret and the length, or deletes the note; it does not change the string or add notes, and only makes triplets (no other tuplets).
 
 **Not supported yet** (in any kind of file, or only in part):
 

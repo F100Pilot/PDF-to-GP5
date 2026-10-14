@@ -199,14 +199,15 @@ Para corrigir um número mal lido (sobretudo nas tabs em imagem), sem sair da ap
 
 1. Carregue em **✎ Corrigir notas** por cima da partitura. A partitura fica com um contorno tracejado.
 2. Clique no número da tab que está errado. Abre-se uma caixa com o compasso, a corda (1 = a mais aguda) e o traste.
-3. Escreva o traste certo e carregue em **Enter** (ou **OK**). Para tirar uma nota que não devia lá estar, use **Apagar nota**. **Esc** fecha a caixa sem mudar nada.
+3. Escreva o traste certo e/ou escolha a **Duração** (semibreve a fusa, **Pontuada**, **Tercina**) e carregue em **Enter** (ou **OK**). Para tirar uma nota que não devia lá estar, use **Apagar nota**. **Esc** fecha a caixa sem mudar nada.
 4. A partitura volta a ser desenhada com a correção, no mesmo sítio.
 
 - **↶ Desfazer** volta atrás uma correção de cada vez.
 - As correções vão para o ficheiro de **Descarregar** e para a música guardada na **Biblioteca**.
 - Uma nota ligada (entre parêntesis na tab) é o mesmo som que a nota de onde vem: muda, ou é apagada, com ela.
 - Funciona em ficheiros `.gp5`, `.gp4` e `.gp3` (todas as músicas convertidas são `.gp5`). Um `.gp` ou `.gpx` aberto tal como está não pode ser corrigido aqui.
-- Corrige o traste ou apaga a nota. Mudar a nota de corda, acrescentar notas ou mudar o ritmo faz-se no Guitar Pro ou no TuxGuitar.
+- **Ritmo:** a duração muda a do tempo inteiro (todas as notas tocadas juntas com ela). O compasso fica sempre certo: uma nota mais curta deixa uma pausa no fim do compasso; uma mais longa usa as pausas do fim do compasso — se não houver tempo livre, a aplicação diz quanto falta, e encurta-se primeiro outra nota do compasso. Numa tercina, mude as três notas.
+- Mudar a nota de corda ou acrescentar notas faz-se no Guitar Pro ou no TuxGuitar.
 - Não funciona na pista 3D: escolha uma vista com tab.
 
 ## 7. Pista 3D
@@ -343,7 +344,7 @@ Converter a mesma música outra vez substitui o ficheiro Guitar Pro e mantém o 
 - Nas imagens não são lidos as quiálteras nem os nomes das secções, e as técnicas lidas devem ser conferidas. Tab em texto numa imagem também não é lida.
 - O ritmo estimado pelo espaçamento é uma aproximação: confira-o na partitura.
 - Uma track por PDF, no máximo 7 tracks.
-- **Corrigir notas** muda o traste ou apaga a nota; não muda a corda, não acrescenta notas e não mexe no ritmo.
+- **Corrigir notas** muda o traste e a duração, ou apaga a nota; não muda a corda nem acrescenta notas, e só faz tercinas (não outras quiálteras).
 
 **Ainda não suportado** (em nenhum tipo de ficheiro, ou só em parte):
 

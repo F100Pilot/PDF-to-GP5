@@ -520,7 +520,8 @@ button.mark { justify-self: start; padding: 6px 12px; }
 }
 .note-editor[hidden] { display: none; }
 .note-editor label { flex-direction: row; align-items: center; gap: 6px; }
-.note-editor input { width: 4.5em; }
+.note-editor input[type="number"] { width: 4.5em; }
+.note-editor select { width: auto; }
 .note-editor button { margin: 0; padding: 6px 12px; }
 .note-editor button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 /* minmax(0, 1fr): long result titles must not widen the panel past the screen */

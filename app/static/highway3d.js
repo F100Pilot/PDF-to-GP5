@@ -1056,10 +1056,29 @@
 
   const FADE_MS = 300;
 
-  function addEffect(parts, until, bendCurve = null) {
+  // `string`: the string a struck note's effect sits on (null for a chord frame).
+  function addEffect(parts, until, bendCurve = null, string = null) {
     for (const part of parts) stage.scene.add(part);
     const baseY = parts.map((part) => part.position.y);
-    stage.effects.push({ parts, until, fadeStart: 0, bendCurve, baseY });
+    stage.effects.push({ parts, until, fadeStart: 0, bendCurve, baseY, string });
+  }
+
+  function removeEffect(effect) {
+    for (const part of effect.parts) {
+      stage.scene.remove(part);
+      part.material.dispose(); // own materials; geometries and textures are shared
+    }
+  }
+
+  // A string sounds one note at a time: the note struck now ends the number and glow still
+  // shown there (a short note keeps them at least an eighth, then fades — in a fast passage the
+  // next note on that string would land on top of them).
+  function clearString(string) {
+    stage.effects = stage.effects.filter((effect) => {
+      if (effect.string !== string) return true;
+      removeEffect(effect);
+      return false;
+    });
   }
 
   // Bend height (quarter tones) at `tick` along a bend curve, linear between its points.
@@ -1095,7 +1114,8 @@
     glow.position.set(x, y, 0.1);
     const text = faceLabel(note.dead ? "X" : String(note.fret), open ? 0.34 : 0.42, false);
     text.position.set(x, y, open ? 0.14 : 0.16);
-    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve);
+    clearString(note.string);
+    addEffect([glow, gem, text], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
   }
 
   function spawnChordHit(chord) {
@@ -1126,10 +1146,7 @@
         opacity = 1 - (now - effect.fadeStart) / FADE_MS;
       }
       if (opacity <= 0) {
-        for (const part of effect.parts) {
-          stage.scene.remove(part);
-          part.material.dispose(); // own materials; geometries and textures are shared
-        }
+        removeEffect(effect);
         return false;
       }
       // A bent note rises (and comes back on release) in real time while it rings.

@@ -176,3 +176,78 @@ def test_the_server_refuses_what_it_cannot_correct(client):
     )
     assert wrong.status_code == 422
     assert wrong.json()["detail"] == "Invalid fret: 50 (at most 30)."
+
+
+def _lengths(data: bytes, bar: int = 0) -> list[tuple[int, bool, bool, bool]]:
+    """(value, dotted, triplet, rest) of each beat of voice 0 in `bar`."""
+    song = gp.parse(io.BytesIO(data))
+    return [
+        (b.duration.value, b.duration.isDotted, b.duration.tuplet.enters == 3, not b.notes)
+        for b in song.tracks[0].measures[bar].voices[0].beats
+    ]
+
+
+def _length_edit(beat, expected, length, bar=0):
+    from app.gp_edit import Length, LengthEdit
+
+    return LengthEdit(0, bar, 0, beat, Length(*expected), Length(*length))
+
+
+def test_a_shorter_beat_leaves_a_rest_at_the_end_of_the_bar():
+    edited = apply_edits(_song(), [_length_edit(0, (4,), (8,))])
+    assert _lengths(edited) == [
+        (8, False, False, False),
+        (4, False, False, False),
+        (4, False, False, False),
+        (4, False, False, False),
+        (8, False, False, True),
+    ]
+
+
+def test_a_longer_beat_takes_the_rests_at_the_end_of_the_bar_or_is_refused():
+    # bar 2: [s1 f3 tied], [s4 f0], rest, rest — the half note takes both rests
+    edited = apply_edits(_song(), [_length_edit(1, (4,), (2,), bar=1)])
+    assert _lengths(edited, 1) == [(4, False, False, False), (2, False, False, False), (4, False, False, True)]
+    dotted = apply_edits(_song(), [_length_edit(1, (4,), (4, True), bar=1)])
+    assert _lengths(dotted, 1) == [
+        (4, False, False, False),
+        (4, True, False, False),
+        (4, False, False, True),
+        (8, False, False, True),
+    ]
+    with pytest.raises(ConversionError, match="4 semicolcheia"):
+        apply_edits(_song(), [_length_edit(0, (4,), (2,))])  # bar 1 is full of notes
+
+
+def test_triplets_keep_the_bar_whole_one_beat_at_a_time():
+    """Three quarters made triplet eighths one by one: the bar's end is a triplet's rest while
+    the group is incomplete, and plain rests once the three make a beat."""
+    one = apply_edits(_song(), [_length_edit(0, (4,), (8, False, True))])
+    assert _lengths(one)[-1] == (4, False, True, True)  # a triplet quarter's rest: 2 of 3 missing
+    three = apply_edits(_song(), [_length_edit(i, (4,), (8, False, True)) for i in range(3)])
+    assert _lengths(three) == [(8, False, True, False)] * 3 + [(4, False, False, False), (2, False, False, True)]
+
+
+def test_a_length_edit_checks_the_beat_is_as_shown():
+    with pytest.raises(ConversionError, match="compasso 1"):
+        apply_edits(_song(), [_length_edit(0, (8,), (16,))])  # the score showed another length
+
+
+def test_length_edits_from_the_page_are_checked():
+    good = {
+        "track": 0,
+        "bar": 0,
+        "voice": 0,
+        "beat": 0,
+        "expected_length": {"value": 4, "dotted": False, "triplet": False},
+        "length": {"value": 8, "dotted": True, "triplet": False},
+    }
+    assert len(parse_edits([good])) == 1
+    for bad in (
+        {**good, "length": {"value": 3, "dotted": False, "triplet": False}},
+        {**good, "length": {"value": 8, "dotted": "yes", "triplet": False}},
+        {**good, "length": {"value": True, "dotted": False, "triplet": False}},
+        {**good, "extra": 1},
+    ):
+        with pytest.raises(ConversionError):
+            parse_edits([bad])
