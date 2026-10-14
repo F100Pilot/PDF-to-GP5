@@ -122,22 +122,30 @@ async def _send_413(send: Send) -> None:
 
 
 class SameOriginMiddleware:
-    """Refuse state-changing requests sent by other web sites.
+    """Refuse requests to the API sent by other web sites.
 
     A page on any site can make the browser POST a form to http://127.0.0.1:8021;
-    browsers then send an Origin header naming that site. Requests without an
-    Origin (curl, scripts) are allowed.
+    browsers then send an Origin header naming that site. It can also make it GET an API
+    address (an <img src>): the answer stays hidden from it, but the request is made — a video
+    search spends the YouTube key's quota. Browsers say where such a request comes from in
+    Sec-Fetch-Site. Requests without an Origin or Sec-Fetch-Site (curl, scripts) are allowed.
     """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["method"] not in ("GET", "HEAD", "OPTIONS"):
+        if scope["type"] == "http":
             headers = dict(scope.get("headers", []))
             origin = headers.get(b"origin", b"").decode("latin-1")
             host = headers.get(b"host", b"").decode("latin-1")
-            if origin and (origin == "null" or origin.split("://", 1)[-1].rstrip("/") != host):
+            changes = scope["method"] not in ("GET", "HEAD", "OPTIONS")
+            other_origin = origin and (origin == "null" or origin.split("://", 1)[-1].rstrip("/") != host)
+            other_site = scope["path"].startswith("/api/") and headers.get(b"sec-fetch-site") in (
+                b"cross-site",
+                b"same-site",
+            )
+            if (changes and other_origin) or other_site:
                 detail = tr("Pedido de outra origem recusado.", "Request from another origin refused.")
                 body = json.dumps({"detail": detail}).encode("utf-8")
                 await send(

@@ -28,6 +28,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Áudio de um endereço: a proibição de endereços da rede local passa a valer para cada ligação do download (redirecionamentos, nomes resolvidos de novo, ligações dentro da página), não só para o endereço escrito; o FFmpeg só lê o ficheiro descarregado.
 - Importar biblioteca: um ficheiro que repetia a mesma música muitas vezes fazia o servidor ler o mesmo ficheiro grande vezes sem conta (dezenas de GB de memória a partir de um ZIP de poucos KB); cada ficheiro do ZIP passa a ser lido uma vez e músicas repetidas são recusadas.
 - As dependências do OCR (onnxruntime, OpenCV, NumPy, Pillow…) e as ferramentas de desenvolvimento passam a ter versão fixa, como as outras: uma versão nova (ou uma publicação maliciosa) já não entra sozinha no arranque seguinte.
+- Pedidos à API feitos por outros sites são recusados (uma página alheia podia gastar a quota da chave do YouTube com uma imagem que aponta para a pesquisa de vídeos); a biblioteca, a instalação e a chave recusam um pedido de outro computador antes de ler o que ele envia (até 200 MB); o processo que converte, em Linux, fica sem rede e sem poder ganhar privilégios, em Windows tem também limite de tempo de CPU e de processos, e no macOS a memória dele passa a ser vigiada.
 
 ## [0.8.0] - 2026-10-13
 ### Adicionado

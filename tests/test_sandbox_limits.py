@@ -70,3 +70,61 @@ def test_linux_applies_both_limits(fake, monkeypatch):
         (FakeResource.RLIMIT_AS, (2048 * 1024 * 1024, 2048 * 1024 * 1024)),
         (FakeResource.RLIMIT_CPU, (120, 125)),
     ]
+
+
+def _network_after_isolation(conn):
+    """In a child: give up what the conversion never needs, then try the network."""
+    import socket
+
+    unshared = sandbox._isolate()
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(2)
+            sock.connect(("1.1.1.1", 80))
+        reached = True
+    except OSError:
+        reached = False
+    conn.send((unshared, reached))
+    conn.close()
+
+
+@pytest.mark.skipif(not __import__("sys").platform.startswith("linux"), reason="Linux namespaces")
+def test_the_child_has_no_network_on_linux():
+    """A parser bug exploited by a crafted PDF finds no network to reach (where the system
+    allows user namespaces; elsewhere the resource limits still hold)."""
+    receiver, sender = sandbox._CTX.Pipe(duplex=False)
+    process = sandbox._CTX.Process(target=_network_after_isolation, args=(sender,))
+    process.start()
+    sender.close()
+    unshared, reached = receiver.recv()
+    process.join()
+    if not unshared:
+        pytest.skip("this system refuses unprivileged user namespaces")
+    assert reached is False
+
+
+def test_on_macos_the_parent_stops_a_child_that_uses_too_much_memory(monkeypatch):
+    """macOS enforces no memory limit inside the child: the parent watches its memory."""
+    import sys
+    import time
+
+    from app.converter import ConversionError, ConversionOptions
+
+    def slow_worker(conn, pdfs, options, memory_mb, job, cpu_seconds, lang="pt"):
+        time.sleep(30)
+
+    monkeypatch.setattr(sandbox, "_worker", slow_worker)
+    monkeypatch.setattr(sandbox, "_CTX", sandbox.mp.get_context("fork"))
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(sandbox, "_rss_mb", lambda pid: 5000.0)
+    started = time.monotonic()
+    with pytest.raises(ConversionError, match="memória|memory"):
+        sandbox.run_isolated(b"x", ConversionOptions(), timeout_s=20, memory_mb=1024)
+    assert time.monotonic() - started < 5
+
+
+def test_rss_is_read_from_ps():
+    import os
+
+    rss = sandbox._rss_mb(os.getpid())
+    assert rss is not None and rss > 1

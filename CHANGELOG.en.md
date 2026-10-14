@@ -28,6 +28,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - Audio from an address: the ban on local-network addresses now holds for every connection of the download (redirects, names resolved again, links inside the page), not only for the address typed; FFmpeg reads only the downloaded file.
 - Importing a library: a file that listed the same song many times made the server read the same big file over and over (tens of GB of memory from a ZIP of a few KB); each file in the ZIP is now read once, and repeated songs are refused.
 - The OCR dependencies (onnxruntime, OpenCV, NumPy, Pillow…) and the development tools are now pinned, like the rest: a new release (or a malicious one) no longer comes in on its own at the next start.
+- Requests to the API made by other sites are refused (a foreign page could spend the YouTube key's quota with a picture pointing at the video search); the library, installing and the key refuse a request from another computer before reading what it sends (up to 200 MB); the converting process has no network and cannot gain privileges on Linux, also has CPU-time and process limits on Windows, and has its memory watched on macOS.
 
 ## [0.8.0] - 2026-10-13
 ### Added

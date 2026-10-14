@@ -115,6 +115,23 @@ class AdmissionMiddleware:
         await self.app(scope, receive, send)
 
 
+class LocalOnlyMiddleware:
+    """What only this computer may do is refused to anyone else before the request body is read
+    (the library takes uploads of up to LIBRARY_MAX_AUDIO_MB): same answers as the endpoints."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            path = scope["path"]
+            library = path == "/api/library" or path.startswith("/api/library/")
+            if (library or path in ("/api/install", "/api/youtube-key")) and not _used_on_this_computer(Request(scope)):
+                await _reject(send, 404 if library else 403, _no_library() if library else _not_here())
+                return
+        await self.app(scope, receive, send)
+
+
 # Order matters: the last middleware added runs first.
 # Multipart framing adds a little overhead on top of the files themselves.
 app.add_middleware(
@@ -122,6 +139,7 @@ app.add_middleware(
     max_bytes=settings.max_total_upload_bytes + 256 * 1024,
     path_limits=(("/api/library/", settings.library_max_audio_bytes + 64 * 1024),),
 )
+app.add_middleware(LocalOnlyMiddleware)
 app.add_middleware(AdmissionMiddleware)
 app.add_middleware(SameOriginMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
@@ -159,15 +177,23 @@ async def health(request: Request) -> dict:
     }
 
 
+def _not_here() -> str:
+    return tr(
+        "Só é possível com a aplicação aberta no próprio computador.",
+        "Only possible with the app open on the computer itself.",
+    )
+
+
+def _no_library() -> str:
+    return tr(
+        "A biblioteca no disco só existe com a aplicação aberta no próprio computador.",
+        "The on-disk library only exists when the app is open on the computer itself.",
+    )
+
+
 def _this_computer(request: Request) -> None:
     if not _used_on_this_computer(request):
-        raise HTTPException(
-            status_code=403,
-            detail=tr(
-                "Só é possível com a aplicação aberta no próprio computador.",
-                "Only possible with the app open on the computer itself.",
-            ),
-        )
+        raise HTTPException(status_code=403, detail=_not_here())
 
 
 @app.post("/api/install", status_code=202)
@@ -739,13 +765,7 @@ LibraryFile = Literal["gp5", "audio", "cover"]
 
 def _library(request: Request) -> LibraryStore:
     if not _used_on_this_computer(request):
-        raise HTTPException(
-            status_code=404,
-            detail=tr(
-                "A biblioteca no disco só existe com a aplicação aberta no próprio computador.",
-                "The on-disk library only exists when the app is open on the computer itself.",
-            ),
-        )
+        raise HTTPException(status_code=404, detail=_no_library())
     return library
 
 

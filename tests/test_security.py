@@ -67,3 +67,58 @@ def test_csp_allows_score_viewer_without_unsafe_inline():
     assert "frame-src https://www.youtube-nocookie.com https://www.youtube.com;" in CSP
     assert len(ALPHATAB_STYLE_HASHES) == 2
     assert all(f"'{h}'" in CSP for h in ALPHATAB_STYLE_HASHES)
+
+
+def test_other_sites_cannot_make_the_browser_call_the_api():
+    """An <img src="http://127.0.0.1:8021/api/video-search?q=…"> on another site: the answer
+    would stay hidden from it, but the request would spend the YouTube key's quota."""
+    from fastapi.testclient import TestClient
+
+    from app import main
+
+    client = TestClient(main.app, base_url="http://127.0.0.1:8021")
+    for site in ("cross-site", "same-site"):
+        response = client.get("/api/health", headers={"Sec-Fetch-Site": site})
+        assert response.status_code == 403, site
+    for site in ("same-origin", "none"):  # the page itself; the address typed in the browser
+        assert client.get("/api/health", headers={"Sec-Fetch-Site": site}).status_code == 200
+    assert client.get("/api/health").status_code == 200  # curl, scripts
+    assert client.get("/", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 200  # a link to the app
+
+
+def test_a_request_from_elsewhere_to_the_library_is_refused_before_its_body_is_read():
+    """The library takes uploads of up to LIBRARY_MAX_AUDIO_MB; only this computer may send them."""
+    import asyncio
+
+    from app import main
+
+    async def call(path: str, method: str) -> tuple[int, int]:
+        reads, sent = [], []
+
+        async def receive():
+            reads.append(1)
+            return {"type": "http.request", "body": b"x" * 1024, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": method,
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "root_path": "",
+            "headers": [(b"host", b"127.0.0.1:8021"), (b"content-length", b"1024")],
+            "client": ("203.0.113.9", 50000),
+            "server": ("127.0.0.1", 8021),
+        }
+        await main.app(scope, receive, send)
+        return sent[0]["status"], len(reads)
+
+    assert asyncio.run(call("/api/library/song/audio", "PUT")) == (404, 0)
+    assert asyncio.run(call("/api/library", "POST")) == (404, 0)
+    assert asyncio.run(call("/api/youtube-key", "POST")) == (403, 0)

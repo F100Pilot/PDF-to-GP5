@@ -12,6 +12,8 @@ import base64
 import json
 import logging
 import multiprocessing as mp
+import os
+import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -76,8 +78,46 @@ def _limit_resources(megabytes: int, cpu_seconds: int) -> None:
         logger.warning("CPU limit for the conversion not applied: %s", exc)
 
 
-def _windows_job(process: mp.process.BaseProcess, megabytes: int) -> object | None:
-    """Windows has no RLIMIT_AS: put the child in a Job Object with a per-process memory cap.
+def _isolate() -> bool:
+    """Linux: the child gives up what reading a file never needs — gaining privileges
+    (no_new_privs) and the network (a network namespace of its own, with no interface). Best
+    effort: where the system refuses (no user namespaces), the resource limits still hold.
+    Returns whether the network is gone."""
+    if not sys.platform.startswith("linux"):
+        return False
+    import ctypes
+
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+    except OSError:
+        return False
+    pr_set_no_new_privs, clone_newuser, clone_newnet = 38, 0x10000000, 0x40000000
+    if libc.prctl(pr_set_no_new_privs, 1, 0, 0, 0) != 0:
+        logger.info("no_new_privs not set for the conversion: %s", os.strerror(ctypes.get_errno()))
+    if libc.unshare(clone_newuser | clone_newnet) != 0:
+        logger.info("the conversion keeps the network: %s", os.strerror(ctypes.get_errno()))
+        return False
+    return True
+
+
+def _memory_error() -> str:
+    return i18n.tr("O PDF excede o limite de memória de processamento.", "The PDF exceeds the processing memory limit.")
+
+
+def _rss_mb(pid: int) -> float | None:
+    """Resident memory of process `pid` in MB, from `ps` (macOS, where RLIMIT_AS does nothing)."""
+    try:
+        out = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, timeout=5, check=False
+        )
+        return int(out.stdout.split()[0]) / 1024
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return None
+
+
+def _windows_job(process: mp.process.BaseProcess, megabytes: int, cpu_seconds: int) -> object | None:
+    """Windows has no RLIMIT_AS: put the child in a Job Object with a per-process memory cap,
+    a CPU-time cap and no room for another process (the child never starts one).
 
     Returns the job handle (closed by the caller once the child has ended), or None
     when not on Windows or when the job could not be set up (a warning is logged).
@@ -118,14 +158,25 @@ def _windows_job(process: mp.process.BaseProcess, megabytes: int) -> object | No
             ]
 
         job_object_extended_limit_information = 9
+        job_object_limit_process_time = 0x2
+        job_object_limit_active_process = 0x8
         job_object_limit_process_memory = 0x100
+        job_object_limit_die_on_unhandled_exception = 0x400  # no error dialog left open
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.CreateJobObjectW.restype = wintypes.HANDLE
         job = kernel32.CreateJobObjectW(None, None)
         if not job:
             raise OSError(ctypes.get_last_error(), "CreateJobObjectW")
         limits = ExtendedLimits()
-        limits.BasicLimitInformation.LimitFlags = job_object_limit_process_memory
+        basic = limits.BasicLimitInformation
+        basic.LimitFlags = (
+            job_object_limit_process_memory
+            | job_object_limit_process_time
+            | job_object_limit_active_process
+            | job_object_limit_die_on_unhandled_exception
+        )
+        basic.PerProcessUserTimeLimit = cpu_seconds * 10_000_000  # 100 ns ticks
+        basic.ActiveProcessLimit = 1
         limits.ProcessMemoryLimit = megabytes * 1024 * 1024
         ok = kernel32.SetInformationJobObject(
             job, job_object_extended_limit_information, ctypes.byref(limits), ctypes.sizeof(limits)
@@ -136,7 +187,7 @@ def _windows_job(process: mp.process.BaseProcess, megabytes: int) -> object | No
             raise OSError(ctypes.get_last_error(), "Job Object setup")
         return job
     except Exception:  # never fail the conversion because the limit could not be applied
-        logger.warning("could not apply a memory limit to the worker on Windows", exc_info=True)
+        logger.warning("could not apply the limits to the worker on Windows", exc_info=True)
         return None
 
 
@@ -174,6 +225,7 @@ def _worker(
 
     set_progress(progress)
     try:
+        _isolate()
         _limit_resources(memory_mb, cpu_seconds)
         if job == "inspect":
             _reply(conn, status="ok", gp5="", report=inspect(pdfs[0], options))
@@ -187,13 +239,7 @@ def _worker(
     except ConversionError as exc:
         _reply(conn, status="error", message=str(exc))
     except MemoryError:
-        _reply(
-            conn,
-            status="error",
-            message=i18n.tr(
-                "O PDF excede o limite de memória de processamento.", "The PDF exceeds the processing memory limit."
-            ),
-        )
+        _reply(conn, status="error", message=_memory_error())
     except Exception:  # never leak internals to the client
         logger.exception("conversion failed")
         _reply(conn, status="error", message=generic_error())
@@ -271,14 +317,24 @@ def run_isolated(
         sender.close()
         raise ConversionUnavailable() from exc
     sender.close()
-    windows_job = _windows_job(process, memory_mb)
+    windows_job = _windows_job(process, memory_mb, max(1, int(total_s)) + 5)
+    # macOS enforces no memory limit inside the child: the parent watches it and stops it.
+    watch_memory = sys.platform == "darwin"
     started = time.monotonic()
     deadline = started + timeout_s
     try:
         while True:
             remaining = min(deadline, started + total_s) - time.monotonic()
-            if remaining <= 0 or not receiver.poll(remaining):
+            if remaining <= 0:
                 raise ConversionTimeout()
+            if not receiver.poll(min(remaining, 1.0) if watch_memory else remaining):
+                if not watch_memory or time.monotonic() >= min(deadline, started + total_s):
+                    raise ConversionTimeout()
+                rss = _rss_mb(process.pid) if process.pid else None
+                if rss is not None and rss > memory_mb:
+                    process.kill()
+                    raise ConversionError(_memory_error())
+                continue
             try:
                 raw = receiver.recv_bytes(MAX_REPLY_BYTES)
             except (EOFError, OSError) as exc:  # child died or reply too large
