@@ -21,7 +21,10 @@ if errorlevel 1 (
     echo AVISO: git nao encontrado. Vai ser usada a versao local.
 echo WARNING: git not found. Using the local version.
 ) else (
-    git pull --ff-only
+    rem  Sem limpeza automatica do git - gc - no arranque: no Windows falha com
+    rem  "Unlink of file ... failed. Should I try again? y/n" quando outro programa
+    rem  tem os ficheiros do .git abertos, e fica a perguntar sem fim.
+    git -c gc.auto=0 -c maintenance.auto=false pull --ff-only
     if errorlevel 1 (
         echo AVISO: git pull falhou. Vai ser usada a versao local.
         echo WARNING: git pull failed. Using the local version.
