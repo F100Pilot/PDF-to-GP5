@@ -1,6 +1,6 @@
 """PDF tablature to Guitar Pro 5 converter."""
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 
 def _git_revision() -> str | None:
