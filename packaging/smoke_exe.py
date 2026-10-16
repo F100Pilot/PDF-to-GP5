@@ -49,6 +49,7 @@ def _convert(name: str, data: bytes, content_type: str) -> bytes:
 
 
 def main(exe: Path) -> int:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows' console code page
     log = Path(tempfile.gettempdir()) / "pdf-to-gp5-smoke.log"
     env = {**os.environ, "PDF_TO_GP5_NO_BROWSER": "1"}
     with log.open("w", encoding="utf-8") as out:

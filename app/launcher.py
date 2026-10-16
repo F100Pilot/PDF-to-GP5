@@ -12,6 +12,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -82,6 +83,9 @@ def _open_when_ready(port: int) -> None:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):  # a name the console's code page lacks must not stop it
+        if stream is not None and hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     print(f"{APP_NAME}: a iniciar / starting…", flush=True)
     if _health(PORT):  # already running: show it
         open_page(f"http://{HOST}:{PORT}")
