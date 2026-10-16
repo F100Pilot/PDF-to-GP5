@@ -151,10 +151,12 @@ def _numbers_on_staff(
     events: list[TabEvent] = []
     for string, line in enumerate(staff, start=1):
         on_line = [c for c in candidates if abs(c.yc - line.y) <= 0.4 * spacing]
-        # A grace note is printed small and can overlap the note it leads to ("18" drawn over the
-        # "1" of "16"): small and normal characters are read apart, so their digits never join.
-        small = [c for c in on_line if c.bottom - c.top < 0.8 * typical]
-        normal = [c for c in on_line if c.bottom - c.top >= 0.8 * typical]
+        # A grace note is printed small (about 70 % of the others) and can overlap the note it leads
+        # to ("18" drawn over the "1" of "16"): small and normal characters are read apart, so
+        # their digits never join. 85 %: in a picture a round digit (9, 6) stands a little taller
+        # than a flat one (1, 4), so a small 9 measures more than 80 % of the typical height.
+        small = [c for c in on_line if c.bottom - c.top < 0.85 * typical]
+        normal = [c for c in on_line if c.bottom - c.top >= 0.85 * typical]
         line_events = [
             *_line_numbers(sorted(small, key=lambda c: c.x0), string, True, spacing, curves),
             *_line_numbers(sorted(normal, key=lambda c: c.x0), string, False, spacing, curves),

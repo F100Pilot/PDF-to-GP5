@@ -998,3 +998,29 @@ def test_a_bold_blurred_zero_is_read_again_from_its_darkest_pixels():
         results = ["6"]
         _bold_zeros(results, [(0, gray.shape[1], 0, gray.shape[0])], [gray < 200], gray, 6, cv2, np)
         assert results == [expected]
+
+
+def _graces(gp5: bytes) -> list[tuple[int, int, int | None]]:
+    import guitarpro as gp
+
+    song = gp.parse(io.BytesIO(gp5))
+    return [
+        (note.string, note.value, note.effect.grace.fret if note.effect.grace else None)
+        for measure in song.tracks[0].measures
+        for beat in measure.voices[0].beats
+        for note in beat.notes
+    ]
+
+
+@pytest.mark.parametrize("width", [1300, 1600, 2000])
+def test_small_numbers_in_a_picture_are_grace_notes_as_in_the_pdf(width):
+    """A grace note printed small before its note: in a picture its digits are shorter than the
+    others too (by less than in the PDF's font sizes: a round 9 stands taller than a flat 1)."""
+    staves = [
+        [[(3, 14, "g"), (3, 16), (2, 5)], [(4, 9, "g"), (4, 12), (1, 3)]],
+        [[(2, 7, "g"), (2, 10), (3, 2)], [(5, 3), (5, 5)]],
+    ]
+    pdf = engraved_tab_pdf(staves, knockout=True)
+    expected = _graces(convert(pdf, ConversionOptions()).gp5)
+    assert [g for _, _, g in expected if g] == [14, 9, 7]
+    assert _graces(convert(tab_png(pdf, width=width), ConversionOptions()).gp5) == expected

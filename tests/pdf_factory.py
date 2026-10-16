@@ -58,7 +58,8 @@ def engraved_tab_pdf(
     not see it), "t" a tie from the previous note on the same string (an arc over the string
     between the two numbers; the tied number in parentheses, as editors print it), "s" a slur
     from the previous note on the same string (an arc above both numbers: with "/", a legato
-    slide) and "T" a tie from the note over the next bar line (into an empty bar).
+    slide), "T" a tie from the note over the next bar line (into an empty bar) and "g" a grace
+    note (the number printed small, before the next note on its string).
     ``ranges`` are (staff, text, x_from, x_to): text such as "let ring" under the
     staff followed by a dashed line up to x_to; a harmonic mark ("PH", "AH", "N.H.") is
     printed over the staff instead, above the "H"/"P" letters. Staff lines are drawn one
@@ -110,12 +111,15 @@ def engraved_tab_pdf(
                     flags += "("
                 y = top - (string - 1) * spacing
                 x = start + step * (k + 0.5) + 4
+                size = 5 if "g" in flags else 7  # a grace note is printed small
                 if knockout:  # the gap also takes the parentheses, as editors draw them
-                    half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + (2.4 if "(" in flags else gap)
+                    half = pdf.stringWidth(str(fret), "Helvetica", size) / 2 + (2.4 if "(" in flags else gap)
                     pdf.setFillColorRGB(1, 1, 1)
                     pdf.rect(x - half, y - 3, 2 * half, 6, stroke=0, fill=1)
                     pdf.setFillColorRGB(0, 0, 0)
-                pdf.drawCentredString(x, y - 2.5, str(fret))
+                pdf.setFont("Helvetica", size)
+                pdf.drawCentredString(x, y - size * 2.5 / 7, str(fret))
+                pdf.setFont("Helvetica", 7)
                 if "(" in flags:
                     half = pdf.stringWidth(str(fret), "Helvetica", 7) / 2 + 0.8
                     for side, bulge in ((x - half, -1.2), (x + half, 1.2)):

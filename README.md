@@ -48,7 +48,8 @@ and YouTube video in sync, an A–B loop, a metronome and a library of your song
 Some notation is not converted yet, or only in part:
 
 - **Tuplets** (triplets, quintuplets…): detected, but the rhythm of that bar is estimated.
-- Grace notes, swing feel, pickup bars and key signatures.
+- Grace notes, only in part: read in editors' PDFs and in pictures when the small number stands apart from the note; in a picture, a grace note printed touching its note comes out as separate notes.
+- Swing feel, pickup bars and key signatures.
 - Accents, staccato, fingering, crescendo/decrescendo hairpins, and pick-stroke marks (⊓ / V).
 - Trills, tremolo picking, whammy bar (dips and dives), wide vibrato, volume swells, and bend + release + bend.
 - Slap/pop, rasgueado, and harmonics in PDFs exported by editors (in text tabs, `<12>` works).

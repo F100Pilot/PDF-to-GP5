@@ -349,7 +349,8 @@ Converter a mesma música outra vez substitui o ficheiro Guitar Pro e mantém o 
 **Ainda não suportado** (em nenhum tipo de ficheiro, ou só em parte):
 
 - Quiálteras (tercinas, quintinas…): são detetadas, mas o ritmo desse compasso é estimado.
-- Notas de ornamento (grace notes), swing, compassos de anacruse e armações de clave.
+- Notas de ornamento (grace notes), só em parte: lidas nos PDFs de editores e nas imagens quando o número pequeno está separado da nota; numa imagem, uma grace note impressa colada à nota sai como notas soltas.
+- Swing, compassos de anacruse e armações de clave.
 - Acentos, staccato, dedilhação, crescendo/decrescendo (forquilhas) e marcas de palhetada (⊓ / V).
 - Trilos, tremolo picking, alavanca (dips e dives), vibrato largo, volume swell e bend + release + bend.
 - Slap/pop, rasgueado e harmónicos em PDFs exportados por editores (nas tabs em texto, `<12>` funciona).
