@@ -6,12 +6,11 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
-### Adicionado
-- Programa para Windows: `PDF-to-GP5-<versão>-Setup.exe` (instala por utilizador, sem administrador) e uma versão portátil em ZIP, em cada release. Levam tudo — Python, OCR, FFmpeg (versão LGPL), o runtime JavaScript do YouTube e as DLLs do Visual C++ —, por isso não há nada para instalar à parte; só é preciso o Chrome ou o Edge (e, para a pesquisa automática do vídeo, a chave do YouTube própria). O programa abre a aplicação como o `start.bat`, e fecha quando a página é fechada. É gerado e testado num Windows (converte um PDF e uma imagem antes de ser publicado). O README e o manual explicam como instalar e atualizar.
-- "☕ Pague-me um café" na barra lateral da aplicação: abre a página do PayPal para apoiar o projeto.
 
 ## [0.9.0] - 2026-10-16
 ### Adicionado
+- Programa para Windows: `PDF-to-GP5-<versão>-Setup.exe` (instala por utilizador, sem administrador) e uma versão portátil em ZIP, em cada release. Levam tudo — Python, OCR, FFmpeg (versão LGPL), o runtime JavaScript do YouTube e as DLLs do Visual C++ —, por isso não há nada para instalar à parte; só é preciso o Chrome ou o Edge (e, para a pesquisa automática do vídeo, a chave do YouTube própria). O programa abre a aplicação como o `start.bat`, e fecha quando a página é fechada. É gerado e testado num Windows (converte um PDF e uma imagem antes de ser publicado). O README e o manual explicam como instalar e atualizar.
+- "☕ Pague-me um café" na barra lateral da aplicação: abre a página do PayPal para apoiar o projeto.
 - Corrigir notas: também a duração — semibreve a fusa, pontuada, tercina. O compasso fica sempre certo: uma nota mais curta deixa uma pausa no fim do compasso, uma mais longa usa as pausas do fim (sem tempo livre, a aplicação diz quanto falta).
 - Compassos com o ritmo estimado, quando a música mantém as repetições: o aviso e o botão de cada compasso indicam quantas vezes ele toca ("12 ×2" — o ritmo volta a ouvir-se) e de que volta é ("14 · volta 1" — ouve-se só nessa passagem), contando as repetições, as voltas e os saltos D.C./D.S./To Coda/Fine como o leitor os toca.
 - Compassos com o ritmo estimado pelo espaçamento, numa tab que tem ritmo desenhado (o compasso em que não foi possível lê-lo): o relatório indica-os, com a numeração do leitor (também com as repetições por extenso), num aviso e nos detalhes da track, e um clique num deles abre o leitor nesse compasso — são os primeiros a conferir antes de confiar na reprodução. O modelo de relatório de erro pede também o tipo de problema de ritmo (quiálteras, pausas fora do comum, compasso estimado), um caso por relatório.

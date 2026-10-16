@@ -6,12 +6,11 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
-### Added
-- Windows program: `PDF-to-GP5-<version>-Setup.exe` (a per-user install, no administrator) and a portable ZIP, in every release. They carry everything — Python, the OCR, FFmpeg (an LGPL build), YouTube's JavaScript runtime and the Visual C++ DLLs — so there is nothing to install apart; only Chrome or Edge is needed (and, for automatic video search, your own YouTube key). The program opens the app as `start.bat` does, and closes when the page is closed. It is built and tested on Windows (it converts a PDF and a picture before being published). The README and the manual explain how to install and update it.
-- "☕ Buy me a coffee" in the app's sidebar: opens the PayPal page to support the project.
 
 ## [0.9.0] - 2026-10-16
 ### Added
+- Windows program: `PDF-to-GP5-<version>-Setup.exe` (a per-user install, no administrator) and a portable ZIP, in every release. They carry everything — Python, the OCR, FFmpeg (an LGPL build), YouTube's JavaScript runtime and the Visual C++ DLLs — so there is nothing to install apart; only Chrome or Edge is needed (and, for automatic video search, your own YouTube key). The program opens the app as `start.bat` does, and closes when the page is closed. It is built and tested on Windows (it converts a PDF and a picture before being published). The README and the manual explain how to install and update it.
+- "☕ Buy me a coffee" in the app's sidebar: opens the PayPal page to support the project.
 - Correct notes: the length too — whole to thirty-second, dotted, triplet. The bar always stays right: a shorter note leaves a rest at the end of the bar, a longer one uses the rests at the end (with no free time, the app says how much is missing).
 - Bars with an estimated rhythm, when the song keeps its repeats: the warning and each bar's button say how many times it plays ("12 ×2" — the rhythm comes round again) and which ending it belongs to ("14 · ending 1" — heard only on that pass), counting repeats, endings and D.C./D.S./To Coda/Fine jumps as the player plays them.
 - Bars whose rhythm is estimated from the spacing, in a tab that prints rhythm (the bar where it could not be read): the report lists them, numbered as in the player (also with repeats written out), in a warning and in the track details, and clicking one opens the player at that bar — they are the first to check before trusting the playback. The bug report template also asks for the kind of rhythm problem (tuplets, unusual rests, estimated bar), one case per report.
