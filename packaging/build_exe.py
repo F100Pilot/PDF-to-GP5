@@ -14,6 +14,7 @@ Output:
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -66,6 +67,7 @@ def build() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},  # not Windows' console code page
     ).stdout
     (APP / "THIRD_PARTY_LICENSES.txt").write_text(licences, encoding="utf-8")
 
