@@ -21,6 +21,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - 3D highway: more Rocksmith techniques — tremolo picking (zigzag trail), accent (glowing double frame), slap and pop (block with a notch / with a peak) and pre-bend (the note arrives off its string, at the bend's height). They show when opening Guitar Pro files that have them.
 
 ### Fixed
+- A grace note printed so close to the next note that the numbers overlap (a small "18" over the "1" of "16", as MuseScore does) is no longer read as other frets ("1" stuck to "14") and no longer loses notes: small and normal numbers are read apart.
 - 3D highway: in fast passages, the number of a note just played stayed on the string (at least an eighth, then fading) on top of the next note on that string; the new note now removes it at once.
 - Lyrics: the "P" and "H" of pull-offs and hammer-ons (of the next staff) that sat at the height of the lyrics went into them ("P P In P your P life"); a lone "H" or "P" no longer counts as a syllable.
 - Tab pictures: a bold "0" in a blurred print (the JPEG of a tab book) reached the recogniser nearly filled in, its hole closed by the grey around the strokes, and was read as 4, 5, 6, 8 or 9. Such a digit, its box nearly filled, is read again from its darkest pixels only, and becomes 0 only if that reading is 0. In the two Wild Thing screenshots (a tab book page), frets above 3 — which the page does not have — go from 18 to 1 and from 16 to 2. The 13 test PDFs drawn as pictures are unchanged, at almost no cost in time.

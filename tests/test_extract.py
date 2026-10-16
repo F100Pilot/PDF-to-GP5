@@ -458,6 +458,19 @@ def test_engraved_small_digits_are_grace_notes_of_the_next_note():
     assert (events[0].grace_fret, events[0].grace_hammer, events[0].link) == (14, True, None)
 
 
+def test_a_grace_note_drawn_over_its_note_is_read_apart():
+    """A small "18" printed so close to "16" that its "8" overlaps the "1" (as MuseScore does):
+    the digits of the two sizes do not join ("1816" read as other frets)."""
+    from app.extract.pdf_reader import Char
+
+    grace = [Char("1", 104, 107.5, 117.5, 122.5), Char("8", 107.5, 111, 117.5, 122.5)]  # string 3, small
+    main = [Char("1", 110, 116, 116, 124), Char("6", 116, 122, 116, 124)]
+    systems = extract_engraved_systems(_signs_page(notes=((350, "5"), (400, "7")), chars=[*grace, *main]))
+    events = sorted(systems[0].events, key=lambda e: e.x)
+    assert [(e.string, e.fret) for e in events] == [(3, 16), (3, 5), (3, 7)]
+    assert events[0].grace_fret == 18
+
+
 def test_engraved_staccato_dot_above_the_column():
     systems = extract_engraved_systems(_signs_page(chars=[_glyph("\ue4a2", 99, 90)]))
     assert [(e.fret, e.staccato) for e in sorted(systems[0].events, key=lambda e: e.x)] == [(3, True), (5, False)]

@@ -150,43 +150,55 @@ def _numbers_on_staff(
     typical = heights[3 * len(heights) // 4] if heights else 0.0  # most digits are normal notes, not grace notes
     events: list[TabEvent] = []
     for string, line in enumerate(staff, start=1):
-        on_line = sorted(
-            (c for c in candidates if abs(c.yc - line.y) <= 0.4 * spacing),
-            key=lambda c: c.x0,
-        )
-        i = 0
-        while i < len(on_line):
-            c = on_line[i]
-            if c.text in "xX":
-                events.append(TabEvent(x=c.xc, string=string, fret=None, dead=True))
-                i += 1
-                continue
-            if not c.text.isdigit():
-                i += 1
-                continue
-            j = i
-            width = c.x1 - c.x0
-            while (
-                j + 1 < len(on_line)
-                and on_line[j + 1].text.isdigit()
-                and on_line[j + 1].x0 - on_line[j].x1 < 0.3 * width
-            ):
-                j += 1
-            text = "".join(ch.text for ch in on_line[i : j + 1])
-            paren = (
-                i > 0 and on_line[i - 1].text == "(" and j + 1 < len(on_line) and on_line[j + 1].text == ")"
-            ) or _is_parenthesized(on_line[i].x0, on_line[j].x1, on_line[i].top, on_line[i].bottom, curves, spacing)
-            frets = split_fret_number(text)
-            small = on_line[i].bottom - on_line[i].top < 0.8 * typical  # grace notes are printed small
-            if len(frets) == 1:
-                center = (on_line[i].x0 + on_line[j].x1) / 2
-                events.append(TabEvent(x=center, string=string, fret=frets[0], parenthesized=paren, grace=small))
-            else:
-                events.extend(
-                    TabEvent(x=on_line[i + k].xc, string=string, fret=f, parenthesized=paren, grace=small)
-                    for k, f in enumerate(frets)
-                )
-            i = j + 1
+        on_line = [c for c in candidates if abs(c.yc - line.y) <= 0.4 * spacing]
+        # A grace note is printed small and can overlap the note it leads to ("18" drawn over the
+        # "1" of "16"): small and normal characters are read apart, so their digits never join.
+        small = [c for c in on_line if c.bottom - c.top < 0.8 * typical]
+        normal = [c for c in on_line if c.bottom - c.top >= 0.8 * typical]
+        line_events = [
+            *_line_numbers(sorted(small, key=lambda c: c.x0), string, True, spacing, curves),
+            *_line_numbers(sorted(normal, key=lambda c: c.x0), string, False, spacing, curves),
+        ]
+        events.extend(sorted(line_events, key=lambda e: e.x))
+    return events
+
+
+def _line_numbers(
+    on_line: list[Char], string: int, small: bool, spacing: float, curves: list[Segment]
+) -> list[TabEvent]:
+    """The notes written on one string line by characters of one size, left to right: digits that
+    touch make one number ("12"), or several frets when they cannot be one ("57" → 5, 7)."""
+    events: list[TabEvent] = []
+    i = 0
+    while i < len(on_line):
+        c = on_line[i]
+        if c.text in "xX":
+            events.append(TabEvent(x=c.xc, string=string, fret=None, dead=True))
+            i += 1
+            continue
+        if not c.text.isdigit():
+            i += 1
+            continue
+        j = i
+        width = c.x1 - c.x0
+        while (
+            j + 1 < len(on_line) and on_line[j + 1].text.isdigit() and on_line[j + 1].x0 - on_line[j].x1 < 0.3 * width
+        ):
+            j += 1
+        text = "".join(ch.text for ch in on_line[i : j + 1])
+        paren = (
+            i > 0 and on_line[i - 1].text == "(" and j + 1 < len(on_line) and on_line[j + 1].text == ")"
+        ) or _is_parenthesized(on_line[i].x0, on_line[j].x1, on_line[i].top, on_line[i].bottom, curves, spacing)
+        frets = split_fret_number(text)
+        if len(frets) == 1:
+            center = (on_line[i].x0 + on_line[j].x1) / 2
+            events.append(TabEvent(x=center, string=string, fret=frets[0], parenthesized=paren, grace=small))
+        else:
+            events.extend(
+                TabEvent(x=on_line[i + k].xc, string=string, fret=f, parenthesized=paren, grace=small)
+                for k, f in enumerate(frets)
+            )
+        i = j + 1
     return events
 
 
