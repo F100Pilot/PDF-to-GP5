@@ -54,6 +54,30 @@ O estado de cada nota e técnica está em [`NOTACAO.md`](NOTACAO.md).
 
 ## 2. Instalar e abrir
 
+### Windows: o programa (mais simples)
+
+Em [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest), descarregue
+`PDF-to-GP5-<versão>-Setup.exe` e execute-o: instala para o seu utilizador, sem administrador, com um
+atalho no menu Iniciar (e no ambiente de trabalho, se quiser). Em alternativa, o
+`PDF-to-GP5-<versão>-portable.zip` corre de qualquer pasta, sem instalar: extraia-o e execute
+`PDF-to-GP5.exe`.
+
+- **Inclui tudo**: Python, OCR, FFmpeg e o runtime JavaScript do YouTube. Não há nada para instalar à
+  parte, e o botão **Instalar** das Definições não é preciso.
+- **É preciso à parte**: o Chrome (recomendado) ou o Edge, que vem com o Windows, com a aceleração
+  gráfica ligada para a pista 3D; Windows 10 ou 11 de 64 bits; internet para as capas, o YouTube e o
+  áudio de um endereço; e, para a pesquisa automática do vídeo, a sua chave do YouTube (guarde-a em
+  **Definições**).
+- **Aviso do Windows**: como o programa não tem assinatura digital, o SmartScreen pode dizer que o
+  editor é desconhecido. Escolha **Mais informações → Executar mesmo assim**.
+- Ao abrir, aparece uma janela com as mensagens do servidor e a aplicação abre no Chrome. Fechar a
+  página da aplicação encerra o programa.
+- **Atualizar**: o programa não se atualiza sozinho. Descarregue a versão nova e instale-a por cima. A
+  biblioteca (`%USERPROFILE%\PDF-to-GP5\Biblioteca`) e a chave do YouTube
+  (`%LOCALAPPDATA%\PDF-to-GP5`) ficam fora da pasta do programa e mantêm-se.
+
+O resto desta secção é para correr a aplicação a partir do código-fonte (Windows, macOS, Linux).
+
 ### O que é preciso
 
 - **Python 3.11 ou mais recente** ([python.org](https://www.python.org/downloads/)). No Windows, marque "Add python.exe to PATH" no instalador.

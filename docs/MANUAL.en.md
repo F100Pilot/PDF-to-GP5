@@ -55,6 +55,29 @@ The status of every note and technique is listed in [`NOTATION.md`](NOTATION.md)
 
 ## 2. Install and start
 
+### Windows: the program (simplest)
+
+From [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest), download
+`PDF-to-GP5-<version>-Setup.exe` and run it: it installs for your user, without administrator
+rights, with a Start menu shortcut (and a desktop one, if you want). Or the
+`PDF-to-GP5-<version>-portable.zip` runs from any folder without installing: extract it and run
+`PDF-to-GP5.exe`.
+
+- **It includes everything**: Python, the OCR, FFmpeg and YouTube's JavaScript runtime. Nothing to
+  install apart, and the **Install** button in Settings is not needed.
+- **Needed apart**: Chrome (recommended) or Edge, which comes with Windows, with graphics
+  acceleration on for the 3D highway; Windows 10 or 11, 64-bit; internet for covers, YouTube and
+  audio from a URL; and, for automatic video search, your YouTube key (save it in **Settings**).
+- **Windows warning**: the program is not code-signed, so SmartScreen may say the publisher is
+  unknown. Choose **More info → Run anyway**.
+- On start, a window shows the server's messages and the app opens in Chrome. Closing the app's
+  page stops the program.
+- **Updating**: the program does not update itself. Download the new version and install it over
+  the old one. The library (`%USERPROFILE%\PDF-to-GP5\Biblioteca`) and the YouTube key
+  (`%LOCALAPPDATA%\PDF-to-GP5`) are outside the program folder and stay.
+
+The rest of this section is for running the app from the source code (Windows, macOS, Linux).
+
 ### Requirements
 
 - **Python 3.11 or later** ([python.org](https://www.python.org/downloads/)). On Windows, tick "Add python.exe to PATH" in the installer.

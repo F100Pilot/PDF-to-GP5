@@ -125,7 +125,9 @@ a { color: var(--accent); }
 .rail-song .rail-heading { margin: 0 0 4px; padding: 0; }
 .rail-song strong { font-family: var(--font-display); font-weight: 600; overflow-wrap: anywhere; }
 .rail-status { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 0 8px; font-size: 0.75rem; color: var(--muted); }
-.rail-song[hidden] + .rail-status { margin-top: auto; }
+.rail-song[hidden] + .rail-coffee { margin-top: auto; }
+.rail-coffee { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); color: var(--text); font-size: 0.875rem; text-decoration: none; }
+.rail-coffee:hover, .rail-coffee:focus-visible { background: var(--panel); border-color: var(--accent); }
 .rail-lang { margin-left: auto; flex: none; width: auto; min-width: 4.2em; padding: 2px 4px; font-size: 0.75rem; }
 .lang-field { display: grid; gap: 6px; margin-top: 16px; font-size: 0.875rem; color: var(--muted); }
 .lang-field select { color: var(--text); }
@@ -149,7 +151,7 @@ a { color: var(--accent); }
     border-top: 1px solid var(--border);
     overflow: visible;
   }
-  .brand, .rail-heading, .rail-song, .rail-status { display: none; }
+  .brand, .rail-heading, .rail-song, .rail-status, .rail-coffee { display: none; }
   .rail-links { display: contents; }
   .rail-links li { flex: 1; }
   .rail-links a { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 4px 2px; font-size: 0.6875rem; }

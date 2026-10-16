@@ -41,6 +41,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import getproxies
 
+from .bundled import program
 from .config import settings
 from .i18n import tr
 
@@ -324,7 +325,11 @@ def authorize(info: dict, url: str, personal: bool = False) -> str:
 
 
 def ffmpeg_path() -> str | None:
-    """The FFmpeg program: the one shipped with imageio-ffmpeg, else one on the PATH."""
+    """The FFmpeg program: the one in the Windows build, the one shipped with imageio-ffmpeg, else
+    one on the PATH."""
+    bundled = program("ffmpeg")
+    if bundled:
+        return bundled
     try:
         import imageio_ffmpeg
 
@@ -354,8 +359,12 @@ _JS_RUNTIMES = (("deno", ("deno",)), ("node", ("node",)), ("quickjs", ("qjs", "q
 
 
 def _packaged_deno() -> str | None:
-    """Deno installed in the app's own Python environment (requirements.txt: the "deno" package),
-    which is not on the PATH when the app runs from its virtual environment."""
+    """Deno in the Windows build, or installed in the app's own Python environment
+    (requirements.txt: the "deno" package), which is not on the PATH when the app runs from its
+    virtual environment."""
+    bundled = program("deno")
+    if bundled:
+        return bundled
     try:
         from deno import find_deno_bin
 

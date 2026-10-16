@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .bundled import FROZEN, user_data_dir
 from .i18n import tr
 
 
@@ -26,8 +27,9 @@ def _bool(name: str, default: bool = False) -> bool:
 
 
 # Optional YouTube Data API key, for finding the song's video automatically: the environment
-# variable, else the first line of this file next to the start scripts (never committed).
-YOUTUBE_KEY_FILE = Path(__file__).resolve().parent.parent / "youtube_api_key.txt"
+# variable, else the first line of this file next to the start scripts (never committed) — in the
+# Windows build, in the user's app data (the program folder may be read-only).
+YOUTUBE_KEY_FILE = (user_data_dir() if FROZEN else Path(__file__).resolve().parent.parent) / "youtube_api_key.txt"
 
 
 _KEY_FORMAT = re.compile(r"[A-Za-z0-9_-]{20,80}")
@@ -38,6 +40,8 @@ def _read_key_file() -> tuple[str, str]:
     try:
         raw = YOUTUBE_KEY_FILE.read_bytes()
     except FileNotFoundError:
+        if FROZEN:  # the installed program: the key is only saved from the page
+            return "", tr("ainda não há chave guardada (Definições)", "no key saved yet (Settings)")
         return "", tr(
             f"não existe o ficheiro {YOUTUBE_KEY_FILE.name} na pasta do projeto",
             f"the file {YOUTUBE_KEY_FILE.name} does not exist in the project folder",
@@ -72,6 +76,7 @@ def save_youtube_key(key: str) -> bool:
     key = key.strip()
     if not _KEY_FORMAT.fullmatch(key):
         return False
+    YOUTUBE_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)  # the installed program's app data
     temporary = YOUTUBE_KEY_FILE.with_name(YOUTUBE_KEY_FILE.name + ".tmp")
     temporary.write_text(key + "\n", encoding="utf-8")
     os.replace(temporary, YOUTUBE_KEY_FILE)

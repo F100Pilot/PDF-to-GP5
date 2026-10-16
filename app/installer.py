@@ -16,6 +16,7 @@ import sys
 import threading
 from pathlib import Path
 
+from .bundled import FROZEN
 from .i18n import tr
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,6 +63,18 @@ class Installation:
             self.log.extend(line for line in text.splitlines() if line.strip())
 
     def _run(self) -> None:
+        if FROZEN:  # the Windows build carries every package and has no pip
+            self._note(
+                tr(
+                    "A versão instalada já inclui tudo: não há nada para instalar. Se faltar algo, "
+                    "volte a instalar a aplicação.",
+                    "The installed version already includes everything: there is nothing to install. "
+                    "If something is missing, install the app again.",
+                )
+            )
+            with self._lock:
+                self.state = "failed"
+            return
         ok = True
         for step in STEPS:
             try:

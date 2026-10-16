@@ -63,6 +63,12 @@ Basta fazer duplo clique no script: a aplicação abre no Chrome (no Brave o ví
 
 Para parar, basta fechar a página da aplicação no browser: o servidor encerra cerca de 8 segundos depois de fechada a última página (recarregar a página não o encerra) e a janela do script fecha-se. Também se pode usar Ctrl+C na janela do script.
 
+## Programa para Windows (.exe)
+
+Cada versão publicada em Releases tem também `PDF-to-GP5-<versão>-Setup.exe` (instala por utilizador, sem administrador, em `%LOCALAPPDATA%\Programs\PDF-to-GP5`) e `PDF-to-GP5-<versão>-portable.zip`. Levam tudo: Python 3.11, os pacotes de `requirements.txt` e `requirements-ocr.txt`, o FFmpeg (versão LGPL), o Deno e as DLLs do Visual C++. O `PDF-to-GP5.exe` faz o mesmo que o `start.bat` depois de atualizado: servidor em 127.0.0.1:8021 (ou a porta livre seguinte, até 8040), página no Chrome com o perfil da aplicação ou no browser predefinido, e encerra quando a página é fechada; aberto outra vez, só abre a página. Na versão instalada, a chave do YouTube fica em `%LOCALAPPDATA%\PDF-to-GP5`, o botão Instalar não instala nada e a atualização é instalar a versão nova por cima.
+
+O workflow `.github/workflows/release.yml` gera-o num Windows quando se publica uma release (ou à mão, em Actions): instala as dependências e `requirements-build.txt` (PyInstaller, pip-licenses), descarrega o FFmpeg LGPL (BtbN/FFmpeg-Builds, com a licença e o endereço do código-fonte), corre `packaging/build_exe.py --zip --installer` (receita `packaging/pdf-to-gp5.spec`, instalador `packaging/installer.iss`, Inno Setup 6), arranca o programa e converte com ele um PDF e uma imagem (`packaging/smoke_exe.py`), e só então junta os ficheiros à release, com `SHA256SUMS.txt`. Junto do `.exe` vão `LICENSE`, `THIRD_PARTY_NOTICES.md` e `THIRD_PARTY_LICENSES.txt` (a licença de cada pacote Python, com o texto completo).
+
 ## Executar
 
 ```bash

@@ -74,9 +74,22 @@ A lista completa, técnica a técnica, está em [NOTACAO.md](docs/NOTACAO.md). S
 
 ## Começar
 
-Precisa do **Python 3.11 ou mais recente** ([python.org](https://www.python.org/downloads/)) e do **Google Chrome** (recomendado) ou do Edge.
+**Windows — o programa (mais simples)**
 
-**Windows**
+1. Em [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest), descarregue `PDF-to-GP5-<versão>-Setup.exe` e execute-o (não precisa de administrador). Ou descarregue `PDF-to-GP5-<versão>-portable.zip`, extraia-o onde quiser e execute `PDF-to-GP5.exe`.
+2. Inclui tudo: o Python, o OCR, o FFmpeg e o que o YouTube precisa. Não há mais nada para instalar.
+3. O Windows pode avisar que o editor é desconhecido (o programa não tem assinatura digital): escolha *Mais informações* → *Executar mesmo assim*.
+
+O que não pode ir no programa, e é preciso à parte:
+- Um browser: **Google Chrome** (recomendado) ou **Edge** (vem com o Windows). A pista 3D precisa da aceleração gráfica (WebGL) ligada.
+- Windows 10 ou 11, de 64 bits.
+- Para o vídeo e o áudio do YouTube: ligação à internet e, para a pesquisa automática do vídeo, a sua própria chave do YouTube ([docs/YOUTUBE_KEY.md](docs/YOUTUBE_KEY.md)).
+
+O programa não se atualiza sozinho: instale a versão nova por cima da antiga. As músicas e as definições ficam (não estão na pasta do programa).
+
+**Windows — a partir do código-fonte**
+
+Precisa do **Python 3.11 ou mais recente** ([python.org](https://www.python.org/downloads/)) e do **Google Chrome** (recomendado) ou do Edge.
 
 1. Descarregue a última versão em [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest) (*Source code (zip)*) e extraia-a.
 2. Faça duplo clique em `start.bat`. Num PC de trabalho sem administrador, ou com a pasta no OneDrive, use `start_env.bat`.

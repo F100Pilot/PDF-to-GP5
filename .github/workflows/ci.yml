@@ -17,8 +17,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
       - run: pip install --no-deps --ignore-requires-python -r requirements-ocr.txt
-      - run: ruff check app tests
-      - run: ruff format --check app tests
+      - run: ruff check app tests packaging
+      - run: ruff format --check app tests packaging
       - run: pytest -q
       - name: Audit dependencies for known vulnerabilities
         run: pip-audit -r requirements.txt -r requirements-ocr.txt

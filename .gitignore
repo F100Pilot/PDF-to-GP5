@@ -5,3 +5,6 @@ __pycache__/
 .ruff_cache/
 *.gp5
 youtube_api_key.txt
+build/
+dist/
+packaging/ffmpeg/

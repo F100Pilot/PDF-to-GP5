@@ -6,6 +6,9 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
+### Adicionado
+- Programa para Windows: `PDF-to-GP5-<versão>-Setup.exe` (instala por utilizador, sem administrador) e uma versão portátil em ZIP, em cada release. Levam tudo — Python, OCR, FFmpeg (versão LGPL), o runtime JavaScript do YouTube e as DLLs do Visual C++ —, por isso não há nada para instalar à parte; só é preciso o Chrome ou o Edge (e, para a pesquisa automática do vídeo, a chave do YouTube própria). O programa abre a aplicação como o `start.bat`, e fecha quando a página é fechada. É gerado e testado num Windows (converte um PDF e uma imagem antes de ser publicado). O README e o manual explicam como instalar e atualizar.
+- "☕ Pague-me um café" na barra lateral da aplicação: abre a página do PayPal para apoiar o projeto.
 
 ## [0.9.0] - 2026-10-16
 ### Adicionado

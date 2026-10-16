@@ -112,6 +112,8 @@
  "Criar": "Create",
  "Ctrl": "Ctrl",
  "Ctrl K": "Ctrl K",
+ "Pague-me um café": "Buy me a coffee",
+ "O PDF → GP5 é gratuito. Se lhe poupa tempo, pode apoiá-lo no PayPal.": "PDF → GP5 is free. If it saves you time, you can support it on PayPal.",
  "Definições": "Settings",
  "Descarregar .gp (com áudio)": "Download .gp (with audio)",
  "Descarregar .gp5": "Download .gp5",

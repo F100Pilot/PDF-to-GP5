@@ -6,6 +6,9 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
+### Added
+- Windows program: `PDF-to-GP5-<version>-Setup.exe` (a per-user install, no administrator) and a portable ZIP, in every release. They carry everything — Python, the OCR, FFmpeg (an LGPL build), YouTube's JavaScript runtime and the Visual C++ DLLs — so there is nothing to install apart; only Chrome or Edge is needed (and, for automatic video search, your own YouTube key). The program opens the app as `start.bat` does, and closes when the page is closed. It is built and tested on Windows (it converts a PDF and a picture before being published). The README and the manual explain how to install and update it.
+- "☕ Buy me a coffee" in the app's sidebar: opens the PayPal page to support the project.
 
 ## [0.9.0] - 2026-10-16
 ### Added

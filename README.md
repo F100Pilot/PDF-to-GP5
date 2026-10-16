@@ -60,9 +60,22 @@ The full list, technique by technique, is in [NOTATION.md](docs/NOTATION.md). If
 
 ## Get started
 
-You need **Python 3.11 or later** ([python.org](https://www.python.org/downloads/)) and **Google Chrome** (recommended) or Edge.
+**Windows — the program (simplest)**
 
-**Windows**
+1. From [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest), download `PDF-to-GP5-<version>-Setup.exe` and run it (no administrator rights needed). Or download `PDF-to-GP5-<version>-portable.zip`, extract it anywhere and run `PDF-to-GP5.exe`.
+2. It includes everything: Python, the OCR, FFmpeg and what YouTube needs. Nothing else to install.
+3. Windows may warn that the publisher is unknown (the program is not code-signed): choose *More info* → *Run anyway*.
+
+What it cannot include, and you need apart:
+- A browser: **Google Chrome** (recommended) or **Edge** (comes with Windows). The 3D highway needs graphics acceleration (WebGL) on.
+- Windows 10 or 11, 64-bit.
+- For the YouTube video and audio: an internet connection, and for automatic video search your own YouTube key ([docs/YOUTUBE_KEY.md](docs/YOUTUBE_KEY.md)).
+
+The program does not update itself: install a new version over the old one. Songs and settings stay (they are not in the program folder).
+
+**Windows — from the source code**
+
+You need **Python 3.11 or later** ([python.org](https://www.python.org/downloads/)) and **Google Chrome** (recommended) or Edge.
 
 1. Download the latest version from [Releases](https://github.com/F100Pilot/PDF-to-GP5/releases/latest) (*Source code (zip)*) and extract it.
 2. Double-click `start.bat`. On a work PC without administrator rights, or with the folder on OneDrive, use `start_env.bat`.

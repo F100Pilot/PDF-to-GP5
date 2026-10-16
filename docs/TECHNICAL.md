@@ -62,6 +62,12 @@ Just double-click the script: the app opens in Chrome (in Brave the YouTube vide
 
 To stop, just close the app's page in the browser: the server shuts down about 8 seconds after the last page is closed (reloading the page does not shut it down) and the script window closes. You can also use Ctrl+C in the script window.
 
+## Windows program (.exe)
+
+Each version published in Releases also has `PDF-to-GP5-<version>-Setup.exe` (a per-user install, no administrator, in `%LOCALAPPDATA%\Programs\PDF-to-GP5`) and `PDF-to-GP5-<version>-portable.zip`. They carry everything: Python 3.11, the packages of `requirements.txt` and `requirements-ocr.txt`, FFmpeg (an LGPL build), Deno and the Visual C++ DLLs. `PDF-to-GP5.exe` does what `start.bat` does once up to date: the server on 127.0.0.1:8021 (or the next free port, up to 8040), the page in Chrome with the app's profile or in the default browser, and it stops when the page is closed; opened again, it only opens the page. In the installed version the YouTube key lives in `%LOCALAPPDATA%\PDF-to-GP5`, the Install button installs nothing, and updating means installing the new version over it.
+
+The `.github/workflows/release.yml` workflow builds it on Windows when a release is published (or by hand, in Actions): it installs the dependencies and `requirements-build.txt` (PyInstaller, pip-licenses), downloads the LGPL FFmpeg (BtbN/FFmpeg-Builds, with its licence and where its source is), runs `packaging/build_exe.py --zip --installer` (recipe `packaging/pdf-to-gp5.spec`, installer `packaging/installer.iss`, Inno Setup 6), starts the program and converts a PDF and a picture with it (`packaging/smoke_exe.py`), and only then attaches the files to the release, with `SHA256SUMS.txt`. Next to the `.exe` go `LICENSE`, `THIRD_PARTY_NOTICES.md` and `THIRD_PARTY_LICENSES.txt` (each Python package's licence, in full).
+
 ## Run
 
 ```bash
