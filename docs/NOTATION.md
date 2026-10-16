@@ -66,7 +66,7 @@ Columns:
 | Key signature | ⬜ | ⬜ | ✅ | — | |
 | Repeats `‖: :‖` and "x3" | ✅ `\|: :\|` | ✅ | ✅ | — | Engraved: SMuFL repeat dots and "x3" above; text: `\|:` `:\|` `\|*` `\|o` and "x3" after the line (without signs: the whole line repeats). Without a number: 2 times. "Written out" option (Rocksmith): bars copied in playback order |
 | 1st/2nd endings (volta brackets) | ⬜ | ✅ | ✅ | — | "1.", "2.", "1., 2." above the staff with the bracket line |
-| Coda, Segno, D.C., D.S., Fine | ✅ | ✅ | ✅ | — | Engraved: SMuFL Segno/Coda symbols and text ("D.S. al Coda", "To Coda", "Fine"…); text: above the tab or after the line. Playback order is the same as alphaTab's; GP5 stores each sign once |
+| Coda, Segno, D.C., D.S., Fine | ✅ | ✅ | ✅ | — | Engraved: SMuFL Segno/Coda symbols and text ("D.S. al Coda", "To Coda", "Fine"…); text: above the tab or after the line. Playback order is the same as alphaTab's (written out, only the last ending on the return after the jump); GP5 stores each sign once |
 | Sections (Intro, Verse, Chorus…) → markers | ✅ | ✅ | ✅ | Happen To Me | Engraved: bold text above the staff; text: `[Chorus]`, `Verse 2:` |
 
 ## 3. Notes

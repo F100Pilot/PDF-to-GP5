@@ -129,7 +129,7 @@ Abra **Definições** no menu à esquerda.
      - *Automático*: usa o ritmo desenhado se existir; senão, o espaçamento.
      - *Pelo espaçamento*: estima as durações pela posição das notas no compasso.
      - *Duração fixa*: todas as notas com a mesma figura.
-   - **Escrever as repetições por extenso**: copia os compassos repetidos pela ordem em que se tocam. É útil para o Rocksmith, que não tem repetições.
+   - **Escrever as repetições por extenso**: copia os compassos repetidos pela ordem em que se tocam. É útil para o Rocksmith, que não tem repetições. No regresso de um D.C./D.S. segue a convenção habitual: sem repetições e só a última casa (um aviso di-lo).
 5. Carregue em **Converter**. A barra mostra o progresso. As tabs em imagem demoram mais, porque cada página é lida por OCR.
 
 ### Tabs em imagem (OCR)

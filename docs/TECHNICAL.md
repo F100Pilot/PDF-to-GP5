@@ -112,7 +112,7 @@ In "Song audio" → "Get the audio from an address (URL)": the server gets the a
 
 ## Repeats
 
-Repeat signs, the number of times ("x3"), endings (1st/2nd time) and the D.C./D.S./To Coda/Fine jumps go into the file, as do tempo changes. For Rocksmith, which has no repeats, tick "Write out repeats in full" under Rhythm: the repeated bars are copied in the order they are played (the choice is saved in the browser).
+Repeat signs, the number of times ("x3"), endings (1st/2nd time) and the D.C./D.S./To Coda/Fine jumps go into the file, as do tempo changes. For Rocksmith, which has no repeats, tick "Write out repeats in full" under Rhythm: the repeated bars are copied in the order they are played (the choice is saved in the browser). On the return after a D.C./D.S. repeats are not taken again and only the last ending is played — the usual convention; alphaTab's player plays every ending there, and a score has no sign saying which is meant, so a warning says this is the one assumed.
 
 ## Audio (.gp file)
 

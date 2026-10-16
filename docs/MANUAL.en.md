@@ -130,7 +130,7 @@ Open **Settings** in the menu on the left.
      - *Automatic*: uses the rhythm notation when there is any, otherwise the spacing.
      - *By spacing*: estimates the durations from where the notes are in the bar.
      - *Fixed duration*: gives every note the same value.
-   - **Write out repeats in full**: copies repeated bars in the order they are played. This helps with Rocksmith, which has no repeats.
+   - **Write out repeats in full**: copies repeated bars in the order they are played. This helps with Rocksmith, which has no repeats. On the return after a D.C./D.S. it follows the usual convention: no repeats, the last ending only (a warning says so).
 5. Press **Convert**. The bar shows the progress. Tab pictures take longer, because every page is read by OCR.
 
 ### Tab pictures (OCR)

@@ -21,6 +21,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Pista 3D: mais técnicas do Rocksmith — tremolo picking (rasto em zigue-zague), acento (moldura dupla a brilhar), slap e pop (bloco com entalhe / com bico) e pre-bend (a nota já vem fora da corda, à altura do bend). Aparecem ao abrir ficheiros Guitar Pro que as tenham.
 
 ### Corrigido
+- Repetições por extenso, no regresso de um D.C./D.S.: as repetições já não voltavam a ser tocadas, mas a 1.ª casa tocava outra vez antes da 2.ª (como no leitor alphaTab). Agora segue a convenção habitual — sem repetições e só a última casa — e, como a partitura não diz qual se pretende, um aviso diz que foi essa a assumida. Sem a opção por extenso nada muda: o leitor da página toca o ficheiro como sempre.
 - Imagens (OCR): uma grace note com um algarismo redondo (9, 6, 3…), que numa imagem fica um pouco mais alto que um 1 ou um 4, era lida como nota normal; passa a ser grace note, como nos PDFs de editores. Uma grace note impressa colada à nota ainda sai como notas soltas.
 - Uma grace note impressa tão junta da nota seguinte que os números se sobrepõem ("18" pequeno por cima do "1" de "16", como o MuseScore faz) deixa de ser lida como outros trastes ("1" colado a "14") e de fazer perder notas: os números pequenos e os normais são lidos à parte.
 - Pista 3D: em passagens rápidas, o número de uma nota que acabou de tocar ficava na corda (pelo menos uma colcheia, e depois a desvanecer) por cima da nota seguinte na mesma corda; a nota nova tira-o logo.

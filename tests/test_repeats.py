@@ -49,6 +49,17 @@ def test_repeats_written_out_for_rocksmith():
     assert result.report["measures"] == 4
 
 
+def test_written_out_repeats_say_which_convention_they_assumed_after_a_jump():
+    tab = [TAB[0].replace("   x3", "   D.C."), *TAB[1:]]
+    result = convert(ascii_tab_pdf([tab]), ConversionOptions(expand_repeats=True))
+    measures = gp.parse(io.BytesIO(result.gp5)).tracks[0].measures
+    frets = [[n.value for b in m.voices[0].beats for n in b.notes] for m in measures]
+    assert frets == [[0, 1, 3], [0, 1, 3], [5, 5, 5], [0, 1, 3], [5, 5, 5]]  # the repeat once on the return
+    assert any("D.C./D.S." in w for w in result.report["warnings"])
+    plain = convert(ascii_tab_pdf([TAB]), ConversionOptions(expand_repeats=True))
+    assert not any("D.C./D.S." in w for w in plain.report["warnings"])
+
+
 def test_written_out_repeat_copies_the_lyrics_of_each_pass():
     from app.converter import _expand_repeats
     from app.model import Score, ScoreBeat, ScoreMeasure

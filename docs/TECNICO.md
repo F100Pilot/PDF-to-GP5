@@ -113,7 +113,7 @@ Em "Áudio da música" → "Obter o áudio de um endereço (URL)": o servidor ob
 
 ## Repetições
 
-Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e os saltos D.C./D.S./To Coda/Fine passam para o ficheiro, tal como as mudanças de tempo. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser).
+Os sinais de repetição, o número de vezes ("x3"), as voltas (1.ª/2.ª vez) e os saltos D.C./D.S./To Coda/Fine passam para o ficheiro, tal como as mudanças de tempo. Para o Rocksmith, que não tem repetições, marque em Ritmo "Escrever as repetições por extenso": os compassos repetidos são copiados pela ordem em que se tocam (a escolha fica guardada no browser). No regresso de um D.C./D.S. as repetições não voltam a ser tocadas e só se toca a última casa — a convenção habitual; o leitor alphaTab toca ali todas as casas, e a partitura não tem sinal que diga qual se pretende, por isso um aviso diz que foi esta a assumida.
 
 ## Áudio (ficheiro .gp)
 

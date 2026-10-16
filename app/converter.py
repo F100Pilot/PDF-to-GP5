@@ -19,7 +19,7 @@ from .gp5_writer import MAX_STRINGS, MAX_TRACKS, LyricsInfo, SongInfo, write_gp5
 from .i18n import tr
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
-from .repeats import playback_order
+from .repeats import jump_skips_repeats, playback_order
 from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, rest_bar, signature_units, split_units
 from .tunings import TUNINGS, resolve_tuning
 
@@ -943,7 +943,8 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
     ]
     expanded = False
     if options.expand_repeats and (repeats or navigation or any(m.endings for m in scores[0].measures)):
-        order = playback_order(scores[0].measures, options.max_measures + 1)
+        original_measures = scores[0].measures
+        order = playback_order(original_measures, options.max_measures + 1)
         if len(order) > options.max_measures:
             song_warnings.append(
                 tr(
@@ -957,6 +958,19 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
             _expand_repeats(scores, track_reports, order, tempo)
             total_measures = len(order)
             expanded = True
+            if jump_skips_repeats(original_measures):
+                song_warnings.append(
+                    tr(
+                        "Repetições por extenso: depois do D.C./D.S., as repetições não voltam a ser tocadas "
+                        "e só se toca a última casa (a convenção habitual; a partitura não diz qual se "
+                        "pretende). Se a gravação repete a secção nesse regresso, os compassos daí em "
+                        "diante ficam desencontrados.",
+                        "Repeats written out: after the D.C./D.S., repeats are not taken again and only the "
+                        "last ending is played (the usual convention; the score does not say which is "
+                        "meant). If the recording repeats the section on that return, the bars from there "
+                        "on will not line up.",
+                    )
+                )
     meters = [measure.time_signature or (numerator, denominator) for measure in scores[0].measures]
 
     lyric_candidates = [i for i, r in enumerate(track_reports) if r["_lyrics"]]
@@ -1011,7 +1025,10 @@ def convert_many(pdfs: list[bytes], options: ConversionOptions) -> ConversionRes
 
     # Times each bar is heard, where the file keeps its repeats, voltas and jumps.
     kept = not expanded and (repeats or navigation or any(m.endings for m in scores[0].measures))
-    plays = Counter(playback_order(scores[0].measures, options.max_measures * 4)) if kept else None
+    # The file keeps its repeats: count the passes as the page's player (alphaTab) plays them.
+    plays = (
+        Counter(playback_order(scores[0].measures, options.max_measures * 4, last_ending_only=False)) if kept else None
+    )
     for score, report in zip(scores[: len(track_reports)], track_reports, strict=True):  # not the lyrics track
         _flag_estimated_rhythm(score, report, plays, scores[0].measures)
     gp5 = write_gp5(scores, SongInfo(title=title, artist=artist, tempo=tempo, lyrics=lyrics))

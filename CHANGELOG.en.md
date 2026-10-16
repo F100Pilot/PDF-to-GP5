@@ -21,6 +21,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - 3D highway: more Rocksmith techniques — tremolo picking (zigzag trail), accent (glowing double frame), slap and pop (block with a notch / with a peak) and pre-bend (the note arrives off its string, at the bend's height). They show when opening Guitar Pro files that have them.
 
 ### Fixed
+- Repeats written out, on the return after a D.C./D.S.: repeats were already not taken again, but the 1st ending was played again before the 2nd (as alphaTab's player does). It now follows the usual convention — no repeats, the last ending only — and, since the score does not say which is meant, a warning says that this is the one assumed. Without the written-out option nothing changes: the page's player plays the file as before.
 - Pictures (OCR): a grace note with a round digit (9, 6, 3…), which in a picture stands a little taller than a 1 or a 4, was read as a normal note; it is now a grace note, as in editors' PDFs. A grace note printed touching its note still comes out as separate notes.
 - A grace note printed so close to the next note that the numbers overlap (a small "18" over the "1" of "16", as MuseScore does) is no longer read as other frets ("1" stuck to "14") and no longer loses notes: small and normal numbers are read apart.
 - 3D highway: in fast passages, the number of a note just played stayed on the string (at least an eighth, then fading) on top of the next note on that string; the new note now removes it at once.
