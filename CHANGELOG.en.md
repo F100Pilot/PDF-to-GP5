@@ -8,6 +8,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 ## [Unreleased]
 ### Changed
 - 3D highway: the notes are now transparent, only an outline in the string's colour (as in Rocksmith), and they arrive tilted 60°: over the last 3 seconds they turn slowly clockwise until they lie level at the instant they reach the string. A chord turns whole, with its frame.
+- Pillow (image reading) goes from 12.3.0 to 13.0.0, which fixes the security flaws published for 12.3.0.
 
 ## [0.9.0] - 2026-10-16
 ### Added
