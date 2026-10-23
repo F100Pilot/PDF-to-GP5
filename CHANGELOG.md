@@ -6,6 +6,8 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
+### Alterado
+- Pista 3D: as notas passam a ser transparentes, só com o contorno da cor da corda (como no Rocksmith), e chegam inclinadas 60°: nos últimos 3 segundos rodam devagar, no sentido dos ponteiros do relógio, até ficarem na horizontal no instante em que tocam a corda. Um acorde roda inteiro, com o seu quadro.
 
 ## [0.9.0] - 2026-10-16
 ### Adicionado

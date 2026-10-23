@@ -20,6 +20,12 @@
   const STRING_COLORS = [0xe53935, 0xfdd835, 0x1e88e5, 0xfb8c00, 0x43a047, 0x8e24aa];
   const EXTRA_LOW_COLOR = 0x9e9e9e;
   const INLAYS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+  // A note comes tilted NOTE_ROLL_DEG (its right side up) and, over its last NOTE_ROLL_S of the
+  // song before the strings, turns clockwise at a constant rate to lie level as it strikes. A
+  // chord turns as one piece, around its frame's centre.
+  const NOTE_ROLL_DEG = 60;
+  const NOTE_ROLL_S = 3;
+  const noteRoll = (seconds) => (seconds <= 0 ? 0 : ((NOTE_ROLL_DEG * Math.PI) / 180) * Math.min(1, seconds / NOTE_ROLL_S));
 
   let THREE = null;
   let RoundedBox = null;
@@ -187,6 +193,65 @@
     const key = [width, height, depth, radius].map((value) => value.toFixed(2)).join(":");
     if (!roundedCache.has(key)) roundedCache.set(key, shared(new RoundedBox(width, height, depth, 4, radius)));
     return roundedCache.get(key);
+  }
+
+  // A note is see-through, as in Rocksmith: a glowing outline in the string's colour around a
+  // faint fill. Shapes shared by size (notes, open-string bars and their hit copies).
+  function roundedRect(width, height, radius) {
+    const x = -width / 2;
+    const y = -height / 2;
+    const shape = new THREE.Shape();
+    shape.moveTo(x + radius, y);
+    shape.lineTo(x + width - radius, y);
+    shape.quadraticCurveTo(x + width, y, x + width, y + radius);
+    shape.lineTo(x + width, y + height - radius);
+    shape.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    shape.lineTo(x + radius, y + height);
+    shape.quadraticCurveTo(x, y + height, x, y + height - radius);
+    shape.lineTo(x, y + radius);
+    shape.quadraticCurveTo(x, y, x + radius, y);
+    return shape;
+  }
+  const outlineCache = new Map();
+  function outlineShapes(width, height) {
+    const key = [width, height].map((value) => value.toFixed(2)).join(":");
+    if (!outlineCache.has(key)) {
+      const radius = Math.min(0.11, height / 2 - 0.01);
+      const thick = 0.05;
+      const ring = roundedRect(width, height, radius);
+      ring.holes.push(roundedRect(width - 2 * thick, height - 2 * thick, Math.max(0.02, radius - thick)));
+      const halo = roundedRect(width + 0.14, height + 0.14, radius + 0.07);
+      halo.holes.push(roundedRect(width - 0.02, height - 0.02, radius));
+      outlineCache.set(key, {
+        ring: shared(new THREE.ShapeGeometry(ring, 8)),
+        halo: shared(new THREE.ShapeGeometry(halo, 8)),
+        fill: shared(new THREE.ShapeGeometry(roundedRect(width - thick, height - thick, Math.max(0.02, radius - thick / 2)), 8)),
+      });
+    }
+    return outlineCache.get(key);
+  }
+  // `look`: { ring, halo, fill } opacities. Clipped materials are the lane's; unclipped ones are
+  // copies for a hit, which the caller fades.
+  function outlineMaterials(color, look, clipped = true) {
+    const make = (opacity, glow) => new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity, depthWrite: false,
+      blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+      clippingPlanes: clipped ? laneClip() : null,
+    });
+    return { ring: make(look.ring), halo: make(look.halo, true), fill: make(look.fill) };
+  }
+  const NOTE_LOOK = { ring: 1, halo: 0.3, fill: 0.12 };
+  const UNPICKED_LOOK = { ring: 0.5, halo: 0.12, fill: 0.05 }; // reached by a slide or a hammer-on / pull-off
+  const HIT_LOOK = { ring: 1, halo: 0.55, fill: 0.3 };
+  // The outline's three meshes, centred on (x, y, z).
+  function outlineMeshes(shapes, materials, x, y, z) {
+    const fill = new THREE.Mesh(shapes.fill, materials.fill);
+    const halo = new THREE.Mesh(shapes.halo, materials.halo);
+    const ring = new THREE.Mesh(shapes.ring, materials.ring);
+    fill.position.set(x, y, z - 0.01);
+    halo.position.set(x, y, z - 0.005);
+    ring.position.set(x, y, z);
+    return [fill, halo, ring];
   }
 
   // Fret number (or symbol) printed on the front face of a gem (a sprite would cut through the gem
@@ -776,6 +841,19 @@
         const entry = tempoMap[low];
         return entry.tick + ((time - entry.ms) * entry.tempo * TICKS_PER_QUARTER) / 60000;
       },
+      // The inverse: time (ms from bar 1) of the playback `tick`.
+      tickToMs(tick) {
+        if (!tempoMap.length) return 0;
+        let low = 0;
+        let high = tempoMap.length - 1;
+        while (low < high) {
+          const mid = (low + high + 1) >> 1;
+          if (tempoMap[mid].tick <= tick) low = mid;
+          else high = mid - 1;
+        }
+        const entry = tempoMap[low];
+        return entry.ms + ((tick - entry.tick) * 60000) / (entry.tempo * TICKS_PER_QUARTER);
+      },
       // Copies of `items` ({ tick, … }) for every time their bar is played; `shift(item, offset)`
       // moves an item's other ticks too.
       unroll(items, shift = (item, offset) => ({ ...item, tick: item.tick + offset })) {
@@ -920,24 +998,20 @@
     const anchors = computeAnchors(notes);
     const lane = new THREE.Group();
 
-    const gem = roundedBox(0.8, 0.28, 0.28, 0.09);
+    const noteShapes = outlineShapes(0.8, 0.36);
     const unit = new THREE.BoxGeometry(1, 1, 1);
-    const gemMaterials = [];
+    const noteMaterials = [];
     const unpickedMaterials = [];
     const trailMaterials = [];
     for (let string = 1; string <= count; string += 1) {
       const color = stringColor(string, count);
-      gemMaterials[string] = new THREE.MeshStandardMaterial({
-        color, emissive: color, emissiveIntensity: 0.35, roughness: 0.35, clippingPlanes: laneClip(),
-      });
-      unpickedMaterials[string] = new THREE.MeshStandardMaterial({
-        color, emissive: color, emissiveIntensity: 0.2, transparent: true, opacity: 0.4, clippingPlanes: laneClip(),
-      });
+      noteMaterials[string] = outlineMaterials(color, NOTE_LOOK);
+      unpickedMaterials[string] = outlineMaterials(color, UNPICKED_LOOK);
       trailMaterials[string] = new THREE.MeshBasicMaterial({
         color, transparent: true, opacity: 0.45, depthWrite: false, clippingPlanes: laneClip(),
       });
     }
-    const deadMaterial = new THREE.MeshStandardMaterial({ color: 0x8a8f99, roughness: 0.6, clippingPlanes: laneClip() });
+    const deadMaterials = outlineMaterials(0x8a8f99, NOTE_LOOK);
     const chordMaterial = new THREE.LineBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0.55, clippingPlanes: laneClip(),
     });
@@ -990,42 +1064,47 @@
       const path = new THREE.CatmullRomCurve3(points, false, "centripetal");
       lane.add(new THREE.Mesh(new THREE.TubeGeometry(path, points.length * 2, note.bendCurve ? 0.06 : 0.045, 6), material));
     };
-    const icon = (kind, x, y, z, color) => {
+    const icon = (parent, kind, x, y, z, color) => {
       const sprite = new THREE.Sprite(iconMaterial(kind, color));
       sprite.scale.set(0.4, 0.4, 1);
       sprite.position.set(x, y, z + 0.2);
-      lane.add(sprite);
+      parent.add(sprite);
     };
+    // The frame around a chord's notes spans every string; the chord turns around its centre.
+    const top = stringY(1, count) + 0.2;
+    const bottom = stringY(count, count) - 0.2;
+    const chordAt = new Map();
+    for (const chord of chords) {
+      chord.x = (fretX(chord.low) + fretX(chord.high)) / 2;
+      chordAt.set(chord.tick, chord);
+    }
 
     notes.forEach((note, i) => {
       const stringLine = stringY(note.string, count);
       // A pre-bent note starts already off its string, where the bend holds it (Rocksmith's).
       const y = stringLine + (note.bendCurve ? note.bendCurve[0].value * BEND_RISE : 0);
       const z = -note.tick * Z_PER_TICK;
-      const material = note.dead ? deadMaterial : note.unpicked ? unpickedMaterials[note.string] : gemMaterials[note.string];
-      let x;
-      let body;
-      let front; // distance from the gem centre to its front face
-      if (note.fret === 0 && !note.dead) {
-        // Open string: a bar across the fret window being played.
-        const { low, high, open } = anchors[i];
-        body = new THREE.Mesh(roundedBox(open, 0.18, 0.22, 0.07), material);
-        x = (fretX(low) + fretX(high)) / 2;
-        front = 0.11;
-      } else {
-        x = fretX(note.fret);
-        body = new THREE.Mesh(gem, material);
-        front = 0.14;
-      }
-      body.position.set(x, y, z);
-      const face = noteFace(note, note.fret === 0 && !note.dead ? 0.3 : 0.36, x, y, z + front + 0.005, true);
+      const materials = note.dead ? deadMaterials : note.unpicked ? unpickedMaterials[note.string] : noteMaterials[note.string];
+      const open = note.fret === 0 && !note.dead;
+      // Open string: a bar across the fret window being played.
+      const x = open ? (fretX(anchors[i].low) + fretX(anchors[i].high)) / 2 : fretX(note.fret);
+      // The note itself (outline, face, symbols) turns as it comes, around its own centre or, in a
+      // chord, the chord's; its trail does not.
+      const chord = chordAt.get(note.tick);
+      const pivotX = chord ? chord.x : x;
+      const pivotY = chord ? (top + bottom) / 2 : y;
+      const head = new THREE.Group();
+      head.position.set(pivotX, pivotY, z);
+      const dx = x - pivotX;
+      const dy = y - pivotY;
+      head.add(...outlineMeshes(open ? outlineShapes(anchors[i].open, 0.24) : noteShapes, materials, dx, dy, 0));
+      const face = noteFace(note, open ? 0.2 : 0.28, dx, dy, 0.005, true);
       if (note.accent) {
-        const frame = accentFrame(note.fret === 0 && !note.dead ? anchors[i].open + 0.4 : 1.2, 0.62);
-        frame.position.set(x, y, z + front + 0.003);
+        const frame = accentFrame(open ? anchors[i].open + 0.4 : 1.2, 0.62);
+        frame.position.set(dx, dy, 0.003);
         face.push(frame);
       }
-      lane.add(body, ...face);
-      note.parts = [body, ...face]; // hidden when the note reaches the strings (a glowing copy takes over)
+      if (face.length) head.add(...face);
 
       // Other technique symbols above the note, side by side, and a bend's chevrons above them.
       const marks = [
@@ -1035,8 +1114,13 @@
         note.slap ? "slap" : "",
         note.pop ? "pop" : "",
       ].filter(Boolean);
-      marks.forEach((kind, k) => icon(kind, x + (k - (marks.length - 1) / 2) * 0.42, y + 0.38, z, "#ffffff"));
-      if (note.bend) icon(note.bend, x, y + (marks.length ? 0.78 : 0.38), z, "#ffd54f");
+      marks.forEach((kind, k) => icon(head, kind, dx + (k - (marks.length - 1) / 2) * 0.42, dy + 0.38, 0, "#ffffff"));
+      if (note.bend) icon(head, note.bend, dx, dy + (marks.length ? 0.78 : 0.38), 0, "#ffd54f");
+      head.rotation.z = noteRoll(Infinity);
+      lane.add(head);
+      note.head = head;
+      note.ms = timeline.tickToMs(note.tick);
+      note.parts = [head]; // hidden when the note reaches the strings (a glowing copy takes over)
 
       if (note.dead) return;
       const length = Math.max(note.length, note.vibrato || note.tremolo ? SUSTAIN_MIN : 0) * Z_PER_TICK;
@@ -1089,17 +1173,17 @@
     }
     const endTick = timeline.endTick;
 
-    const top = stringY(1, count) + 0.2;
-    const bottom = stringY(count, count) - 0.2;
     let lastName = "";
     let lastTick = -Infinity;
     for (const chord of chords) {
       const width = chord.high - chord.low + 1;
-      chord.x = (fretX(chord.low) + fretX(chord.high)) / 2;
       chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02));
       const frame = new THREE.LineSegments(chord.frame, chordMaterial);
       frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
+      frame.rotation.z = noteRoll(Infinity);
       lane.add(frame);
+      chord.mesh = frame;
+      chord.ms = timeline.tickToMs(chord.tick);
       // Chord name on top, when it changes (or comes back after more than a bar).
       if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
         const name = label(chord.name, 0.6, true, "#ffffff");
@@ -1119,12 +1203,13 @@
 
     stage.scene.add(lane);
     const materials = [
-      ...gemMaterials, ...unpickedMaterials, ...trailMaterials, deadMaterial, chordMaterial, barMaterial, beatMaterial,
+      ...[...noteMaterials, ...unpickedMaterials, deadMaterials].filter(Boolean).flatMap((set) => [set.ring, set.halo, set.fill]),
+      ...trailMaterials, chordMaterial, barMaterial, beatMaterial,
     ].filter(Boolean);
     clearEffects();
     song = {
       lane, notes, anchors, count, materials, bars, endTick, chords, top, bottom, barCount: score.masterBars.length,
-      msToTick: timeline.msToTick, waveMesh: null,
+      msToTick: timeline.msToTick, tickToMs: timeline.tickToMs, waveMesh: null,
       lyrics: collectLyrics(score, timedLyrics, timeline), nextHit: 0, nextChord: 0,
     };
     stage.hud.bar = -1;
@@ -1255,25 +1340,24 @@
     const anchor = song.anchors[index] || { low: 1, high: MIN_ANCHOR_WIDTH, open: MIN_ANCHOR_WIDTH };
     const open = note.fret === 0 && !note.dead;
     const x = open ? (fretX(anchor.low) + fretX(anchor.high)) / 2 : fretX(note.fret);
-    const shape = open ? roundedBox(anchor.open + 0.2, 0.2, 0.26, 0.08) : roundedBox(0.86, 0.3, 0.3, 0.1);
-    // Opaque while the note rings: a see-through box shows its own back faces and the trail inside.
-    const gem = new THREE.Mesh(shape, new THREE.MeshBasicMaterial({ color }));
-    gem.material.userData.solid = true;
-    gem.position.set(x, y, 0);
+    // The same outline, brighter, with its own materials so it can fade; its ring stays at full
+    // while the note rings.
+    const outline = outlineMeshes(open ? outlineShapes(anchor.open + 0.1, 0.26) : outlineShapes(0.86, 0.4), outlineMaterials(color, HIT_LOOK, false), x, y, 0);
+    outline[2].material.userData.solid = true;
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
       // Soft halo; normal blending so the halos of a chord do not add up to white.
       map: glowMap(), color, transparent: true, opacity: 0.6, depthWrite: false,
     }));
     glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
-    const face = noteFace(note, open ? 0.34 : 0.42, x, y, open ? 0.14 : 0.16, false);
+    const face = noteFace(note, open ? 0.22 : 0.3, x, y, 0.02, false);
     if (note.accent) {
       const frame = accentFrame(open ? anchor.open + 0.6 : 1.3, 0.66, false);
-      frame.position.set(x, y, open ? 0.135 : 0.155);
+      frame.position.set(x, y, 0.015);
       face.push(frame);
     }
     clearString(note.string);
-    addEffect([glow, gem, ...face], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
+    addEffect([glow, ...outline, ...face], note.tick + Math.max(note.length, TICKS_PER_QUARTER / 2), note.bendCurve, note.string);
   }
 
   function spawnChordHit(chord) {
@@ -1402,7 +1486,10 @@
     song.nextChord = indexOf(song.chords, tick);
     song.notes.forEach((note, i) => {
       for (const part of note.parts) part.visible = i >= song.nextHit;
+      note.head.rotation.z = noteRoll(Infinity);
     });
+    for (const chord of song.chords) chord.mesh.rotation.z = noteRoll(Infinity);
+    rollNotes(tick);
     clearEffects();
   }
 
@@ -1437,6 +1524,22 @@
     });
   }
 
+  // Turn the notes (and chord frames) of the next NOTE_ROLL_S of the song towards level; the
+  // ones further ahead keep the full tilt they were built with.
+  function rollNotes(tick) {
+    const now = song.tickToMs(tick);
+    for (let i = song.nextHit; i < song.notes.length; i += 1) {
+      const seconds = (song.notes[i].ms - now) / 1000;
+      if (seconds > NOTE_ROLL_S) break;
+      song.notes[i].head.rotation.z = noteRoll(seconds);
+    }
+    for (let i = song.nextChord; i < song.chords.length; i += 1) {
+      const seconds = (song.chords[i].ms - now) / 1000;
+      if (seconds > NOTE_ROLL_S) break;
+      song.chords[i].mesh.rotation.z = noteRoll(seconds);
+    }
+  }
+
   function frame() {
     if (!running) return;
     requestAnimationFrame(frame);
@@ -1459,6 +1562,7 @@
       if (clock.playing) spawnChordHit(song.chords[song.nextChord]);
       song.nextChord += 1;
     }
+    rollNotes(tick);
     updateEffects(tick);
     lightFretNumbers(tick);
     for (const bar of stage.strings) {

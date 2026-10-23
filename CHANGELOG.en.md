@@ -6,6 +6,8 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
+### Changed
+- 3D highway: the notes are now transparent, only an outline in the string's colour (as in Rocksmith), and they arrive tilted 60°: over the last 3 seconds they turn slowly clockwise until they lie level at the instant they reach the string. A chord turns whole, with its frame.
 
 ## [0.9.0] - 2026-10-16
 ### Added
