@@ -976,8 +976,6 @@
               high: Math.max(...fretted.map((note) => note.fret)),
               brush: beat.brushType === BRUSH.down ? "↓" : beat.brushType === BRUSH.up ? "↑" : "",
               name: chordName(struck.filter((note) => !note.isDead).map((note) => note.realValue)),
-              // With an open string (a level bar across the hand's frets) the chord comes level.
-              rolls: !struck.some((note) => note.fret === 0 && !note.isDead),
             });
           }
         }
@@ -1194,7 +1192,7 @@
       ].filter(Boolean);
       marks.forEach((kind, k) => icon(head, kind, dx + (k - (marks.length - 1) / 2) * 0.42, dy + 0.38, 0, "#ffffff"));
       if (note.bend) icon(head, note.bend, dx, dy + (marks.length ? 0.78 : 0.38), 0, "#ffd54f");
-      note.rolls = !open && (!chord || chord.rolls);
+      note.rolls = !open && !chord; // only single fretted notes turn; chords and open strings come level
       head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
       lane.add(head);
       note.head = head;
@@ -1266,10 +1264,8 @@
       chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02));
       const frame = new THREE.LineSegments(chord.frame, chordMaterial);
       frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
-      frame.rotation.z = chord.rolls ? noteRoll(Infinity) : 0;
       lane.add(frame);
       chord.mesh = frame;
-      chord.ms = timeline.tickToMs(chord.tick);
       // Chord name on top, when it changes (or comes back after more than a bar).
       if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
         const name = label(chord.name, 0.6, true, "#ffffff");
@@ -1581,7 +1577,6 @@
       for (const part of note.parts) part.visible = i >= song.nextHit;
       note.head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
     });
-    for (const chord of song.chords) chord.mesh.rotation.z = chord.rolls ? noteRoll(Infinity) : 0;
     rollNotes(tick);
     clearEffects();
   }
@@ -1617,19 +1612,14 @@
     });
   }
 
-  // Turn the notes (and chord frames) of the next NOTE_ROLL_S of the song towards level; the
-  // ones further ahead keep the full tilt they were built with.
+  // Turn the single notes of the next NOTE_ROLL_S of the song towards level; the ones further
+  // ahead keep the full tilt they were built with.
   function rollNotes(tick) {
     const now = song.tickToMs(tick);
     for (let i = song.nextHit; i < song.notes.length; i += 1) {
       const seconds = (song.notes[i].ms - now) / 1000;
       if (seconds > NOTE_ROLL_S) break;
       if (song.notes[i].rolls) song.notes[i].head.rotation.z = noteRoll(seconds);
-    }
-    for (let i = song.nextChord; i < song.chords.length; i += 1) {
-      const seconds = (song.chords[i].ms - now) / 1000;
-      if (seconds > NOTE_ROLL_S) break;
-      if (song.chords[i].rolls) song.chords[i].mesh.rotation.z = noteRoll(seconds);
     }
   }
 
