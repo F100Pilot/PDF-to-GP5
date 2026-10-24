@@ -11,6 +11,8 @@
   const SUSTAIN_MIN = TICKS_PER_QUARTER; // shorter notes get no sustain trail
   const TREMOLO_STEP = 0.25; // highway length of one stroke of a tremolo picking zigzag
   const SLIDE_IN_RUN = 1.2; // highway length of a slide into a note from nowhere
+  const SLIDE_BLEND = 0.25; // share of a slide's length its curved ends take…
+  const SLIDE_BLEND_MAX = 0.6; // …at most this long on the highway (a small curve)
   const ANCHOR_BEFORE = TICKS_PER_QUARTER; // fret window that the camera follows
   const ANCHOR_AFTER = 3 * TICKS_PER_QUARTER;
   const MIN_ANCHOR_WIDTH = 4;
@@ -23,8 +25,9 @@
   const INLAYS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
   // A note comes tilted NOTE_ROLL_DEG (its right side up) and, over its last NOTE_ROLL_S of the
   // song before the strings, turns clockwise at a constant rate to lie level as it strikes. A
-  // chord turns as one piece, around its frame's centre.
-  const NOTE_ROLL_DEG = 60;
+  // chord turns as one piece, around its frame's centre. An open string (the bar across the hand's
+  // frets) always lies level.
+  const NOTE_ROLL_DEG = 30;
   const NOTE_ROLL_S = 3;
   const noteRoll = (seconds) => (seconds <= 0 ? 0 : ((NOTE_ROLL_DEG * Math.PI) / 180) * Math.min(1, seconds / NOTE_ROLL_S));
 
@@ -1052,6 +1055,22 @@
       mesh.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
       lane.add(mesh);
     };
+    // A slide's trail: straight in the middle, with a small curve where it leaves the trail before
+    // it (``from``) and where it meets the note's own trail after it (``into``), so the trails flow
+    // into one another instead of meeting at a corner. As wide and flat as the other trails (a
+    // tube flattened to their height).
+    const slideRibbon = (material, x0, z0, x1, z1, y, from = true, into = true) => {
+      const start = new THREE.Vector3(x0, 0, z0);
+      const end = new THREE.Vector3(x1, 0, z1);
+      const run = Math.min(SLIDE_BLEND * Math.abs(z1 - z0), SLIDE_BLEND_MAX) * Math.sign(z1 - z0);
+      const leave = from ? new THREE.Vector3(x0, 0, z0 + run) : start.clone().lerp(end, 1 / 3);
+      const meet = into ? new THREE.Vector3(x1, 0, z1 - run) : start.clone().lerp(end, 2 / 3);
+      const curve = new THREE.CubicBezierCurve3(start, leave, meet, end);
+      const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.08, 8), material);
+      mesh.scale.y = 0.06 / 0.16;
+      mesh.position.y = y;
+      lane.add(mesh);
+    };
     // Sustain as a tube: rises with the bend curve (Rocksmith style) and wiggles with vibrato.
     // Tremolo picking makes it a zigzag (straight strokes between the corners).
     const sustainTube = (material, x, y, note, lengthTicks) => {
@@ -1143,7 +1162,8 @@
       ].filter(Boolean);
       marks.forEach((kind, k) => icon(head, kind, dx + (k - (marks.length - 1) / 2) * 0.42, dy + 0.38, 0, "#ffffff"));
       if (note.bend) icon(head, note.bend, dx, dy + (marks.length ? 0.78 : 0.38), 0, "#ffd54f");
-      head.rotation.z = noteRoll(Infinity);
+      note.rolls = !open;
+      head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
       lane.add(head);
       note.head = head;
       note.ms = timeline.tickToMs(note.tick);
@@ -1157,19 +1177,19 @@
       if (note.slideIn === SLIDE_IN.fromBelow || note.slideIn === SLIDE_IN.fromAbove) {
         if (joined && joined.fromFret !== undefined) {
           // From the end of the previous note's trail on this string (cut short to meet it).
-          ribbon(trailMaterials[note.string], fretX(joined.fromFret), z + joined.run * Z_PER_TICK, x, z, trailY);
+          slideRibbon(trailMaterials[note.string], fretX(joined.fromFret), z + joined.run * Z_PER_TICK, x, z, trailY);
         } else {
           const from = note.fret + (note.slideIn === SLIDE_IN.fromBelow ? -3 : 3);
-          ribbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + SLIDE_IN_RUN, x, z, trailY);
+          slideRibbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + SLIDE_IN_RUN, x, z, trailY, false);
         }
       }
       if ((note.slideOut === SLIDE_OUT.shift || note.slideOut === SLIDE_OUT.legato) && note.slideTo) {
         // Slide to the next note: the trail runs to the target fret at the target's time.
-        ribbon(trailMaterials[note.string], x, z, fretX(note.slideTo.fret), -note.slideTo.tick * Z_PER_TICK, trailY);
+        slideRibbon(trailMaterials[note.string], x, z, fretX(note.slideTo.fret), -note.slideTo.tick * Z_PER_TICK, trailY);
       } else if (note.slideOut >= SLIDE_OUT.outUp) {
         const up = note.slideOut === SLIDE_OUT.outUp || note.slideOut === SLIDE_OUT.pickUp;
         const to = Math.min(FRETS, Math.max(0, note.fret + (up ? 4 : -4)));
-        ribbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY);
+        slideRibbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY, true, false);
       } else if (note.bendCurve || note.vibrato || note.tremolo) {
         sustainTube(trailMaterials[note.string], x, trailY, note, length / Z_PER_TICK);
       } else if (note.length >= SUSTAIN_MIN && length > 0) {
@@ -1520,7 +1540,7 @@
     song.nextChord = indexOf(song.chords, tick);
     song.notes.forEach((note, i) => {
       for (const part of note.parts) part.visible = i >= song.nextHit;
-      note.head.rotation.z = noteRoll(Infinity);
+      note.head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
     });
     for (const chord of song.chords) chord.mesh.rotation.z = noteRoll(Infinity);
     rollNotes(tick);
@@ -1565,7 +1585,7 @@
     for (let i = song.nextHit; i < song.notes.length; i += 1) {
       const seconds = (song.notes[i].ms - now) / 1000;
       if (seconds > NOTE_ROLL_S) break;
-      song.notes[i].head.rotation.z = noteRoll(seconds);
+      if (song.notes[i].rolls) song.notes[i].head.rotation.z = noteRoll(seconds);
     }
     for (let i = song.nextChord; i < song.chords.length; i += 1) {
       const seconds = (song.chords[i].ms - now) / 1000;
