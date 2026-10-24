@@ -242,8 +242,8 @@ Escolha **Pista 3D (Rocksmith)** em Vista.
 
 - **Cores das cordas** como no Rocksmith: Mi grave a vermelho, em cima.
 - As notas chegam à linha de ataque no traste certo. Como no Rocksmith, não têm número: o número do traste no braço, em baixo, passa a âmbar e brilha à medida que se aproxima uma nota desse traste.
-- Como no Rocksmith, as notas são transparentes, só com o contorno da cor da corda, e chegam inclinadas 30° (as cordas soltas vêm sempre na horizontal): nos últimos 3 segundos rodam no sentido dos ponteiros do relógio até ficarem direitas quando tocam a corda (um acorde roda inteiro, com o quadro).
-- **Desenho das técnicas**, com os símbolos do Rocksmith: bends (chevrons ˄ por cima da nota: um = meio tom, dois = um tom), slides, hammer-on ▼ e pull-off ▲ (na nota, também quando ela bate na corda), palm mute (laço), harmónicos (anel com ponto; olho no pinch), vibrato, tremolo picking (rasto em zigue-zague), acento (moldura dupla), slap e pop, pre-bend (a nota já vem fora da corda), tapping (V largo) e ghost notes ( ).
+- Como no Rocksmith, as notas são transparentes, só com o contorno da cor da corda, e chegam inclinadas 30° (as cordas soltas, e um acorde com uma, vêm sempre na horizontal): nos últimos 3 segundos rodam no sentido dos ponteiros do relógio até ficarem direitas quando tocam a corda (um acorde roda inteiro, com o quadro).
+- **Desenho das técnicas**, com os símbolos do Rocksmith: bends (chevrons ˄ por cima da nota: um = meio tom, dois = um tom), slides, hammer-on ▼ e pull-off ▲ (na nota, também quando ela bate na corda), palm mute (cruz translúcida dentro da nota), harmónicos (anel com ponto; olho no pinch), vibrato, tremolo picking (rasto em zigue-zague), acento (moldura dupla), slap e pop, pre-bend (a nota já vem fora da corda), tapping (V largo) e ghost notes ( ).
 - Mostra o nome dos acordes e a letra, com a sílaba atual.
 - **Track na pista 3D**, **Inclinação da câmara** e **Ângulo lateral** ajustam a vista.
 

@@ -7,7 +7,8 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 
 ## [Unreleased]
 ### Alterado
-- Pista 3D: as notas passam a ser transparentes, só com o contorno da cor da corda (como no Rocksmith), e chegam inclinadas 30°: nos últimos 3 segundos rodam devagar, no sentido dos ponteiros do relógio, até ficarem na horizontal no instante em que tocam a corda. Um acorde roda inteiro, com o seu quadro. As cordas soltas (a barra ao longo dos trastes da mão) vêm sempre na horizontal.
+- Pista 3D: o palm mute deixa de ser o laço por cima da nota e passa a uma cruz translúcida, da cor da corda, de canto a canto dentro da nota (também na nota que fica na corda e na barra de uma corda solta).
+- Pista 3D: as notas passam a ser transparentes, só com o contorno da cor da corda (como no Rocksmith), e chegam inclinadas 30°: nos últimos 3 segundos rodam devagar, no sentido dos ponteiros do relógio, até ficarem na horizontal no instante em que tocam a corda. Um acorde roda inteiro, com o seu quadro. As cordas soltas (a barra ao longo dos trastes da mão), e um acorde com uma, vêm sempre na horizontal.
 - Pista 3D: os rastos dos slides passam a ter uma curva pequena onde saem do rasto da nota anterior e onde entram no da nota seguinte, em vez de uma esquina.
 ### Corrigido
 - Pista 3D: um slide para dentro de uma nota (vindo de baixo ou de cima) enquanto a nota anterior na mesma corda ainda soa parte agora do rasto dessa nota, no traste dela, em vez de começar solto três trastes ao lado; o rasto anterior acaba onde o slide sai. Sem nota a soar antes, continua a vir "do nada", como no Rocksmith.

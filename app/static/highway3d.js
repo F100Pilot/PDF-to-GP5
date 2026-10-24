@@ -26,7 +26,7 @@
   // A note comes tilted NOTE_ROLL_DEG (its right side up) and, over its last NOTE_ROLL_S of the
   // song before the strings, turns clockwise at a constant rate to lie level as it strikes. A
   // chord turns as one piece, around its frame's centre. An open string (the bar across the hand's
-  // frets) always lies level.
+  // frets) always lies level, and so does a chord with one.
   const NOTE_ROLL_DEG = 30;
   const NOTE_ROLL_S = 3;
   const noteRoll = (seconds) => (seconds <= 0 ? 0 : ((NOTE_ROLL_DEG * Math.PI) / 180) * Math.min(1, seconds / NOTE_ROLL_S));
@@ -121,16 +121,13 @@
   }
 
   // Rocksmith's notehead symbols (its "Notehead and tail guide"), drawn rather than written:
-  // hammer-on ▼, pull-off ▲, palm mute (a bow tie), harmonic (a ring with a dot), pinch harmonic
+  // hammer-on ▼, pull-off ▲, harmonic (a ring with a dot), pinch harmonic (palm mute is a cross
+  // inside the note: palmMuteCross)
   // (an eye), tap (a wide V), and a bend's strength as stacked chevrons (1 half step, 2 a whole
   // step, 3 more; one pointing down for a release).
   const ICONS = {
     hammer: (ctx) => { ctx.moveTo(24, 34); ctx.lineTo(104, 34); ctx.lineTo(64, 100); ctx.closePath(); },
     pull: (ctx) => { ctx.moveTo(24, 96); ctx.lineTo(104, 96); ctx.lineTo(64, 30); ctx.closePath(); },
-    palmMute: (ctx) => {
-      ctx.moveTo(18, 34); ctx.lineTo(64, 64); ctx.lineTo(18, 94); ctx.closePath();
-      ctx.moveTo(110, 34); ctx.lineTo(64, 64); ctx.lineTo(110, 94); ctx.closePath();
-    },
     harmonic: (ctx) => { ring(ctx, 42); ring(ctx, 30); ring(ctx, 12); },
     pinch: (ctx) => {
       ctx.moveTo(10, 64); ctx.quadraticCurveTo(64, 6, 118, 64); ctx.quadraticCurveTo(64, 122, 10, 64); ctx.closePath();
@@ -234,6 +231,34 @@
     }
     return outlineCache.get(key);
   }
+  // Palm mute: a translucent cross from corner to corner inside the note's outline, in the string's
+  // colour. Two bars, each clipped to the inner rectangle; cached per size.
+  const crossCache = new Map();
+  function palmMuteCross(width, height, material, z) {
+    const key = [width, height].map((value) => value.toFixed(2)).join(":");
+    if (!crossCache.has(key)) {
+      const a = width / 2 - 0.05; // inside the ring
+      const b = height / 2 - 0.05;
+      const slope = b / a;
+      const dx = (0.03 * Math.hypot(1, slope)) / slope; // half a bar 0.06 wide, measured along x
+      const bar = (sign) => {
+        const shape = new THREE.Shape();
+        shape.moveTo(-a, -sign * b);
+        shape.lineTo(-a + dx, -sign * b);
+        shape.lineTo(a, sign * (b - dx * slope));
+        shape.lineTo(a, sign * b);
+        shape.lineTo(a - dx, sign * b);
+        shape.lineTo(-a, -sign * (b - dx * slope));
+        shape.closePath();
+        return shape;
+      };
+      crossCache.set(key, shared(new THREE.ShapeGeometry([bar(1), bar(-1)])));
+    }
+    const mesh = new THREE.Mesh(crossCache.get(key), material);
+    mesh.position.z = z;
+    return mesh;
+  }
+
   // `look`: { ring, halo, fill } opacities. Clipped materials are the lane's; unclipped ones are
   // copies for a hit, which the caller fades.
   function outlineMaterials(color, look, clipped = true) {
@@ -951,6 +976,8 @@
               high: Math.max(...fretted.map((note) => note.fret)),
               brush: beat.brushType === BRUSH.down ? "↓" : beat.brushType === BRUSH.up ? "↑" : "",
               name: chordName(struck.filter((note) => !note.isDead).map((note) => note.realValue)),
+              // With an open string (a level bar across the hand's frets) the chord comes level.
+              rolls: !struck.some((note) => note.fret === 0 && !note.isDead),
             });
           }
         }
@@ -1144,6 +1171,12 @@
       const dx = x - pivotX;
       const dy = y - pivotY;
       head.add(...outlineMeshes(open ? outlineShapes(anchors[i].open, 0.24) : noteShapes, materials, dx, dy, 0));
+      if (note.palmMute && !note.dead) {
+        const cross = palmMuteCross(open ? anchors[i].open : 0.8, open ? 0.24 : 0.36, trailMaterials[note.string], 0.002);
+        cross.position.x = dx;
+        cross.position.y = dy;
+        head.add(cross);
+      }
       const face = noteFace(note, open ? 0.2 : 0.28, dx, dy, 0.005, true);
       if (note.accent) {
         const frame = accentFrame(open ? anchors[i].open + 0.4 : 1.2, 0.62);
@@ -1156,13 +1189,12 @@
       const marks = [
         note.tap ? "tap" : "",
         note.harmonic && !note.dead ? (note.harmonic === PINCH_HARMONIC ? "pinch" : "harmonic") : "",
-        note.palmMute ? "palmMute" : "",
         note.slap ? "slap" : "",
         note.pop ? "pop" : "",
       ].filter(Boolean);
       marks.forEach((kind, k) => icon(head, kind, dx + (k - (marks.length - 1) / 2) * 0.42, dy + 0.38, 0, "#ffffff"));
       if (note.bend) icon(head, note.bend, dx, dy + (marks.length ? 0.78 : 0.38), 0, "#ffd54f");
-      note.rolls = !open;
+      note.rolls = !open && (!chord || chord.rolls);
       head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
       lane.add(head);
       note.head = head;
@@ -1234,7 +1266,7 @@
       chord.frame = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, top - bottom, 0.02));
       const frame = new THREE.LineSegments(chord.frame, chordMaterial);
       frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
-      frame.rotation.z = noteRoll(Infinity);
+      frame.rotation.z = chord.rolls ? noteRoll(Infinity) : 0;
       lane.add(frame);
       chord.mesh = frame;
       chord.ms = timeline.tickToMs(chord.tick);
@@ -1405,6 +1437,13 @@
     glow.scale.set(open ? anchor.open + 1.2 : 1.8, 1, 1);
     glow.position.set(x, y, 0.1);
     const face = noteFace(note, open ? 0.22 : 0.3, x, y, 0.02, false);
+    if (note.palmMute && !note.dead) {
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false });
+      const cross = palmMuteCross(open ? anchor.open + 0.1 : 0.86, open ? 0.26 : 0.4, material, 0.01);
+      cross.position.x = x;
+      cross.position.y = y;
+      face.push(cross);
+    }
     if (note.accent) {
       const frame = accentFrame(open ? anchor.open + 0.6 : 1.3, 0.66, false);
       frame.position.set(x, y, 0.015);
@@ -1542,7 +1581,7 @@
       for (const part of note.parts) part.visible = i >= song.nextHit;
       note.head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
     });
-    for (const chord of song.chords) chord.mesh.rotation.z = noteRoll(Infinity);
+    for (const chord of song.chords) chord.mesh.rotation.z = chord.rolls ? noteRoll(Infinity) : 0;
     rollNotes(tick);
     clearEffects();
   }
@@ -1590,7 +1629,7 @@
     for (let i = song.nextChord; i < song.chords.length; i += 1) {
       const seconds = (song.chords[i].ms - now) / 1000;
       if (seconds > NOTE_ROLL_S) break;
-      song.chords[i].mesh.rotation.z = noteRoll(seconds);
+      if (song.chords[i].rolls) song.chords[i].mesh.rotation.z = noteRoll(seconds);
     }
   }
 
