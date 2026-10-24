@@ -10,6 +10,7 @@
   const VIEW_AHEAD = 16 * TICKS_PER_QUARTER; // notes shown this far ahead of the strike line
   const SUSTAIN_MIN = TICKS_PER_QUARTER; // shorter notes get no sustain trail
   const TREMOLO_STEP = 0.25; // highway length of one stroke of a tremolo picking zigzag
+  const SLIDE_IN_RUN = 1.2; // highway length of a slide into a note from nowhere
   const ANCHOR_BEFORE = TICKS_PER_QUARTER; // fret window that the camera follows
   const ANCHOR_AFTER = 3 * TICKS_PER_QUARTER;
   const MIN_ANCHOR_WIDTH = 4;
@@ -625,6 +626,31 @@
   const PINCH_HARMONIC = 3; // alphaTab HarmonicType: natural 1, artificial 2, pinch 3, tapped 4, semi 5, feedback 6
   const BRUSH = { up: 1, down: 2 };
 
+  // A slide into a note while the note before it on the same string is still sounding starts from
+  // that note's trail, at its fret, instead of from nowhere three frets away; that trail is cut
+  // where the slide leaves it. Only when the earlier note lies on the side the slide comes from
+  // (below for a slide up), is fretted, has a trail, no bend and no slide of its own. Returns, per
+  // note, what changes: { fromFret, run } (run in ticks) for the sliding one and { cutTicks } (its
+  // trail's new length) for the one it leaves.
+  function joinedSlidesIn(notes) {
+    const out = new Map();
+    const last = new Map(); // string -> the latest note on it so far
+    const gap = TICKS_PER_QUARTER / 2; // a sustain ending this close before the note still meets it
+    for (const note of [...notes].sort((a, b) => a.tick - b.tick)) {
+      const before = last.get(note.string);
+      last.set(note.string, note);
+      const up = note.slideIn === SLIDE_IN.fromBelow;
+      if (!before || !(up || note.slideIn === SLIDE_IN.fromAbove)) continue;
+      const usable = !before.dead && before.fret > 0 && !before.bendCurve && !before.slideOut && before.tick < note.tick;
+      const side = up ? before.fret < note.fret : before.fret > note.fret;
+      if (!usable || !side || before.length < SUSTAIN_MIN || before.tick + before.length < note.tick - gap) continue;
+      const run = Math.min(SLIDE_IN_RUN / Z_PER_TICK, (note.tick - before.tick) / 2);
+      out.set(note, { ...out.get(note), fromFret: before.fret, run });
+      out.set(before, { ...out.get(before), cutTicks: note.tick - run - before.tick });
+    }
+    return out;
+  }
+
   // A bend's notehead mark, as Rocksmith shows its strength: "bend:1" (a half step or less),
   // "bend:2" (a whole step), "bend:3" (more); "release" for a release alone; "" for none. The
   // trail shows the rest (rising, held, coming back).
@@ -1079,6 +1105,7 @@
       chordAt.set(chord.tick, chord);
     }
 
+    const slidesIn = joinedSlidesIn(notes);
     notes.forEach((note, i) => {
       const stringLine = stringY(note.string, count);
       // A pre-bent note starts already off its string, where the bend holds it (Rocksmith's).
@@ -1123,11 +1150,18 @@
       note.parts = [head]; // hidden when the note reaches the strings (a glowing copy takes over)
 
       if (note.dead) return;
-      const length = Math.max(note.length, note.vibrato || note.tremolo ? SUSTAIN_MIN : 0) * Z_PER_TICK;
+      let length = Math.max(note.length, note.vibrato || note.tremolo ? SUSTAIN_MIN : 0) * Z_PER_TICK;
+      const joined = slidesIn.get(note);
+      if (joined && joined.cutTicks !== undefined) length = Math.min(length, joined.cutTicks * Z_PER_TICK);
       const trailY = stringLine - 0.06; // the bend curve lifts the trail itself
       if (note.slideIn === SLIDE_IN.fromBelow || note.slideIn === SLIDE_IN.fromAbove) {
-        const from = note.fret + (note.slideIn === SLIDE_IN.fromBelow ? -3 : 3);
-        ribbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + 1.2, x, z, trailY);
+        if (joined && joined.fromFret !== undefined) {
+          // From the end of the previous note's trail on this string (cut short to meet it).
+          ribbon(trailMaterials[note.string], fretX(joined.fromFret), z + joined.run * Z_PER_TICK, x, z, trailY);
+        } else {
+          const from = note.fret + (note.slideIn === SLIDE_IN.fromBelow ? -3 : 3);
+          ribbon(trailMaterials[note.string], fretX(Math.max(0, from)), z + SLIDE_IN_RUN, x, z, trailY);
+        }
       }
       if ((note.slideOut === SLIDE_OUT.shift || note.slideOut === SLIDE_OUT.legato) && note.slideTo) {
         // Slide to the next note: the trail runs to the target fret at the target's time.
@@ -1138,7 +1172,7 @@
         ribbon(trailMaterials[note.string], x, z, fretX(to), z - Math.max(length, 2), trailY);
       } else if (note.bendCurve || note.vibrato || note.tremolo) {
         sustainTube(trailMaterials[note.string], x, trailY, note, length / Z_PER_TICK);
-      } else if (note.length >= SUSTAIN_MIN) {
+      } else if (note.length >= SUSTAIN_MIN && length > 0) {
         ribbon(trailMaterials[note.string], x, z, x, z - length, trailY);
       }
     });

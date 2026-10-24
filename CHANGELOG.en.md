@@ -6,9 +6,8 @@ While the version is `0.x`, the API and the reading heuristics may change betwee
 Changes accumulate under `[Unreleased]`; the version only goes up when several are released together.
 
 ## [Unreleased]
-### Changed
-- 3D highway: the notes are now transparent, only an outline in the string's colour (as in Rocksmith), and they arrive tilted 60°: over the last 3 seconds they turn slowly clockwise until they lie level at the instant they reach the string. A chord turns whole, with its frame.
-- Pillow (image reading) goes from 12.3.0 to 13.0.0, which fixes the security flaws published for 12.3.0.
+### Fixed
+- 3D highway: a slide into a note (from below or above) while the previous note on the same string still sounds now leaves from that note's trail, at its fret, instead of starting on its own three frets away; the earlier trail ends where the slide leaves it. With no note sounding before, it still comes "from nowhere", as in Rocksmith.
 
 ## [0.9.0] - 2026-10-16
 ### Added

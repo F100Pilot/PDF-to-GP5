@@ -6,9 +6,8 @@ Enquanto a versão for `0.x`, a API e as heurísticas de leitura podem mudar ent
 As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias são publicadas em conjunto.
 
 ## [Unreleased]
-### Alterado
-- Pista 3D: as notas passam a ser transparentes, só com o contorno da cor da corda (como no Rocksmith), e chegam inclinadas 60°: nos últimos 3 segundos rodam devagar, no sentido dos ponteiros do relógio, até ficarem na horizontal no instante em que tocam a corda. Um acorde roda inteiro, com o seu quadro.
-- Pillow (leitura das imagens) passa de 12.3.0 para 13.0.0, que corrige as falhas de segurança publicadas para a 12.3.0.
+### Corrigido
+- Pista 3D: um slide para dentro de uma nota (vindo de baixo ou de cima) enquanto a nota anterior na mesma corda ainda soa parte agora do rasto dessa nota, no traste dela, em vez de começar solto três trastes ao lado; o rasto anterior acaba onde o slide sai. Sem nota a soar antes, continua a vir "do nada", como no Rocksmith.
 
 ## [0.9.0] - 2026-10-16
 ### Adicionado
