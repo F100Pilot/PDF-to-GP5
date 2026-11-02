@@ -7,6 +7,7 @@ and plain text (repeat counts "x3", volta numbers "1." over a bracket line).
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 
 from .common import repeat_count
 from .metadata import COMMON_TIME, CUT_TIME, TIME_SIGNATURE_DIGITS, line_text, tempo_from_text
@@ -133,8 +134,14 @@ def _texts_above(page: Page, top: float, x0: float, x1: float, spacing: float, h
 
 
 def rest_counts(
-    page: Page, top: float, x0: float, x1: float, spacing: float, bars: list[float],
-    note_xs: list[float], ends: list[float],
+    page: Page,
+    top: float,
+    x0: float,
+    x1: float,
+    spacing: float,
+    bars: list[float],
+    note_xs: list[float],
+    ends: list[float],
 ) -> list[tuple[float, int]]:
     """Empty bars with "xN" printed over them, as (x of the bar's first line, N).
 
@@ -148,7 +155,7 @@ def rest_counts(
     ]
     found: list[tuple[float, int]] = []
     edges = sorted(bars)
-    for start, end in zip(edges, edges[1:], strict=False):
+    for start, end in pairwise(edges):
         if any(start <= x < end for x in note_xs) or any(abs(end - e) <= spacing for e in ends):
             continue
         inside = [count for x, count in counts if start <= x < end]
