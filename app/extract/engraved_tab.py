@@ -12,7 +12,15 @@ from dataclasses import dataclass, replace
 
 from ..model import Link, TabEvent, TabSystem
 from .annotations import dynamics, hairpins, lyrics, section_labels
-from .bar_signs import navigation_marks, repeat_counts, repeat_signs, tempo_marks, time_signatures, voltas
+from .bar_signs import (
+    navigation_marks,
+    repeat_counts,
+    repeat_signs,
+    rest_counts,
+    tempo_marks,
+    time_signatures,
+    voltas,
+)
 from .common import shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
 from .rhythm_marks import glyph_ys, read_rhythm
@@ -760,6 +768,7 @@ def extract_engraved_systems(page: Page) -> list[TabSystem]:
             time_signatures=signatures,
             repeat_starts=starts,
             repeat_ends=repeat_counts(page, top, x0, x1, spacing, ends),
+            rest_counts=rest_counts(page, top, x0, x1, spacing, bars, [e.x for e in events], ends),
             endings=voltas(page, top, x0, x1, spacing, bars),
             tempos=tempo_marks(page, top, x0, x1, spacing),
             signs=signs,

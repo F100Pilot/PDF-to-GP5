@@ -46,6 +46,7 @@ Colunas:
 | Pausa pontuada | ⛔ | ✅ | ✅ | — | Implementado sem exemplo real |
 | Compasso vazio (pausa de compasso) | ✅ | ✅ | ✅ | Happen To Me | |
 | Pausa de vários compassos (barra grossa + número) | ⬜ | ✅ | ✅ | Happen To Me | Pelos números de compasso |
+| Pausa de vários compassos (um compasso vazio com "x19" por cima) | ⬜ | ✅ | ✅ | — | PDF com texto; sem exemplo real. Num compasso que acaba numa repetição, o número é o das vezes da repetição |
 | Ligadura de prolongamento (tie) | 🟡 | ✅ | ✅ | Happen To Me | Texto: só `(n)` |
 | Nota ligada só com haste (traste oculto) | ⛔ | ✅ | ✅ | Happen To Me (Guitar 2) | |
 | Duração fixa (tabs sem ritmo) | ✅ | ✅ | ✅ | — | Opção "Duração fixa" |

@@ -11,6 +11,7 @@ Changes accumulate under `[Unreleased]`; the version only goes up when several a
 - 3D highway: the notes are now transparent, only an outline in the string's colour (as in Rocksmith), and they arrive tilted 30°: over the last 3 seconds they turn slowly clockwise until they lie level at the instant they reach the string. Only single notes turn: chords (notes and frame) and open strings (the bar across the hand's frets) always come level.
 - 3D highway: a slide's trail now has a small curve where it leaves the previous note's trail and where it meets the next note's, instead of a corner.
 ### Fixed
+- A long rest written as a single empty bar with "x19" over it (in a text PDF) now counts as 19 bars of rest; it used to count as one, and every note after it came that many bars early. Over a bar that ends in a repeat, the number is still the repeat's count. In a scanned PDF (a picture) it is not read yet.
 - 3D highway: a slide into a note (from below or above) while the previous note on the same string still sounds now leaves from that note's trail, at its fret, instead of starting on its own three frets away; the earlier trail ends where the slide leaves it. With no note sounding before, it still comes "from nowhere", as in Rocksmith.
 
 ## [0.9.0] - 2026-10-16

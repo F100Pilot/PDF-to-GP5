@@ -46,6 +46,7 @@ Columns:
 | Dotted rest | ⛔ | ✅ | ✅ | — | Implemented without a real example |
 | Empty bar (bar rest) | ✅ | ✅ | ✅ | Happen To Me | |
 | Multi-bar rest (thick bar + number) | ⬜ | ✅ | ✅ | Happen To Me | From the bar numbers |
+| Multi-bar rest (an empty bar with "x19" over it) | ⬜ | ✅ | ✅ | — | Text PDFs; no real example. Over a bar that ends in a repeat, the number is the repeat's count |
 | Tie | 🟡 | ✅ | ✅ | Happen To Me | Text: only `(n)` |
 | Tied note with stem only (hidden fret) | ⛔ | ✅ | ✅ | Happen To Me (Guitar 2) | |
 | Fixed duration (tabs without rhythm) | ✅ | ✅ | ✅ | — | "Fixed duration" option |

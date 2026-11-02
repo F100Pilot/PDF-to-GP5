@@ -549,3 +549,23 @@ def test_a_pull_off_and_a_hammer_on_are_not_a_pinch_harmonic():
     chars = [*_text("P", 120, 80), *_text("H", 320, 80)]
     systems = extract_engraved_systems(_signs_page(notes=((100, "3"), (150, "5"), (300, "7"), (350, "9")), chars=chars))
     assert [e.harmonic for e in systems[0].events] == [None] * 4
+
+
+def test_an_empty_bar_with_a_count_over_it_is_that_many_bars_of_rest():
+    """A long silence printed as one bar and "x19" over it (RockForge issue #19): read as one
+    bar, every note after it came 18 bars early. The count over a bar holding notes, or the
+    count a repeat sign carries, is not a rest."""
+    from app.converter import ConversionOptions, convert
+
+    riff = [(1, 3), (2, 5), (3, 5), (4, 7)]
+    staves = [[[], riff, riff]]
+    plain = engraved_tab_pdf(staves)
+    counted = engraved_tab_pdf(staves, words=[(0, 70.0, "x19", "Helvetica", 9)])
+    over_notes = engraved_tab_pdf(staves, words=[(0, 230.0, "x3", "Helvetica", 9)])
+
+    def bars(pdf: bytes) -> int:
+        return convert(pdf, ConversionOptions()).report["measures"]
+
+    assert bars(plain) == 3
+    assert bars(counted) == 21  # 19 bars of rest, then the two with notes
+    assert bars(over_notes) == 3

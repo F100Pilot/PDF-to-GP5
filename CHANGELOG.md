@@ -11,6 +11,7 @@ As alterações acumulam-se em `[Unreleased]`; a versão só sobe quando várias
 - Pista 3D: as notas passam a ser transparentes, só com o contorno da cor da corda (como no Rocksmith), e chegam inclinadas 30°: nos últimos 3 segundos rodam devagar, no sentido dos ponteiros do relógio, até ficarem na horizontal no instante em que tocam a corda. Só as notas soltas rodam: os acordes (notas e quadro) e as cordas soltas (a barra ao longo dos trastes da mão) vêm sempre na horizontal.
 - Pista 3D: os rastos dos slides passam a ter uma curva pequena onde saem do rasto da nota anterior e onde entram no da nota seguinte, em vez de uma esquina.
 ### Corrigido
+- Uma pausa longa escrita como um só compasso vazio com "x19" por cima (em PDF com texto) passa a contar como 19 compassos de pausa; antes contava como um, e todas as notas depois dela ficavam esses compassos mais cedo. Num compasso que acaba numa repetição, o número continua a ser o das vezes da repetição. Num PDF digitalizado (imagem) ainda não é lido.
 - Pista 3D: um slide para dentro de uma nota (vindo de baixo ou de cima) enquanto a nota anterior na mesma corda ainda soa parte agora do rasto dessa nota, no traste dela, em vez de começar solto três trastes ao lado; o rasto anterior acaba onde o slide sai. Sem nota a soar antes, continua a vir "do nada", como no Rocksmith.
 
 ## [0.9.0] - 2026-10-16

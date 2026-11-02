@@ -236,6 +236,12 @@ def _bar_span(numbers: list[int | None], index: int, next_number: int | None) ->
     return 1
 
 
+def rest_count_at(system: TabSystem, start: float) -> int:
+    """Bars an empty bar starting at ``start`` stands for when "xN" is printed over it, else 1."""
+    tolerance = system.char_width
+    return next((n for x, n in system.rest_counts if abs(x - start) <= tolerance), 1)
+
+
 def _notated_items(
     cols: list[_Column], marks: list[RhythmMark], units: int, tolerance: float
 ) -> list[tuple[list[ScoreNote], int, bool]] | None:
@@ -391,7 +397,10 @@ def _segment_measures(
         if any(abs(start - x) <= unit_width for x in system.tied_bars):
             return _sequence([(_TiePrevious(), units)], units)  # a tie runs through the empty bar
         if end - start >= 3 * unit_width:  # an explicit empty bar is a full-bar rest
-            return [rest_bar(units) for _ in range(_bar_span(numbers, index, next_number))]
+            span = _bar_span(numbers, index, next_number)
+            if span == 1:
+                span = rest_count_at(system, start)
+            return [rest_bar(units) for _ in range(span)]
         return []
     marks = [m for m in system.rhythm if start <= m.x < end]
     notated = _notated_items(cols, marks, units, 0.6 * unit_width) if system.rhythm else None

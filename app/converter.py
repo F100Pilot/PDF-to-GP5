@@ -20,7 +20,16 @@ from .i18n import tr
 from .model import Score, ScoreBeat, ScoreMeasure, ScoreNote, TabSystem
 from .preview import render_preview
 from .repeats import jump_skips_repeats, playback_order
-from .rhythm import RhythmMode, RhythmOptions, RhythmStats, build_measures, rest_bar, signature_units, split_units
+from .rhythm import (
+    RhythmMode,
+    RhythmOptions,
+    RhythmStats,
+    build_measures,
+    rest_bar,
+    rest_count_at,
+    signature_units,
+    split_units,
+)
 from .tunings import TUNINGS, resolve_tuning
 
 # MIDI velocities of the dynamic marks (ppp … fff); f is Guitar Pro's default.
@@ -355,10 +364,11 @@ def _bar_of(system: TabSystem, x: float, previous: int) -> int:
     """Printed bar number of the bar containing ``x`` (counting on from ``previous`` when unknown)."""
     bounds = sorted(system.bars)
     numbers = system.bar_numbers if len(system.bar_numbers) == len(bounds) - 1 else []
-    number = previous
+    number, span = previous, 1
     for index, (start, end) in enumerate(itertools.pairwise(bounds)):
         known = numbers[index] if index < len(numbers) else None
-        number = known if known is not None else number + 1
+        number = known if known is not None else number + span
+        span = rest_count_at(system, start)  # "x19" over an empty bar: the next is 19 bars on
         if x < end:
             return number
     return max(number, previous)

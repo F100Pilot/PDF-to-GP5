@@ -99,6 +99,9 @@ class TabSystem:
     jumps: list[tuple[float, str]] = field(default_factory=list)  # (x, "Da Segno al Coda"…) at the end of a bar
     repeat_starts: list[float] = field(default_factory=list)  # x of bar lines opening a repeat ("|:")
     repeat_ends: list[tuple[float, int]] = field(default_factory=list)  # (x of the ":|" bar line, times played)
+    # Empty bars with "xN" printed over them, as (x of the bar's first line, N): a multi-bar rest
+    # written as one bar and a count, the way some editors print a long silence.
+    rest_counts: list[tuple[float, int]] = field(default_factory=list)
     endings: list[tuple[float, float, tuple[int, ...]]] = field(default_factory=list)  # volta (x0, x1, passes)
 
 

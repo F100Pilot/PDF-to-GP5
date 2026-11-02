@@ -132,6 +132,31 @@ def _texts_above(page: Page, top: float, x0: float, x1: float, spacing: float, h
     return words
 
 
+def rest_counts(
+    page: Page, top: float, x0: float, x1: float, spacing: float, bars: list[float],
+    note_xs: list[float], ends: list[float],
+) -> list[tuple[float, int]]:
+    """Empty bars with "xN" printed over them, as (x of the bar's first line, N).
+
+    A long silence printed as one bar holding a whole rest and "x19" above it stands for 19
+    bars; read as one, every bar after it came that many bars early. A count over a bar that
+    ends in a repeat sign is that repeat's count (``repeat_counts``), not this."""
+    counts = [
+        (first.x0, count)
+        for first, text in _texts_above(page, top, x0, x1, spacing, 6)
+        if (count := repeat_count(text)) is not None
+    ]
+    found: list[tuple[float, int]] = []
+    edges = sorted(bars)
+    for start, end in zip(edges, edges[1:], strict=False):
+        if any(start <= x < end for x in note_xs) or any(abs(end - e) <= spacing for e in ends):
+            continue
+        inside = [count for x, count in counts if start <= x < end]
+        if len(inside) == 1:
+            found.append((start, inside[0]))
+    return found
+
+
 def repeat_counts(
     page: Page, top: float, x0: float, x1: float, spacing: float, ends: list[float]
 ) -> list[tuple[float, int]]:
