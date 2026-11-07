@@ -166,6 +166,18 @@ def test_lyrics_go_on_the_note_where_printed_and_skip_the_others():
     assert line == (1, "one  two-three  four")
 
 
+
+def test_a_word_going_on_past_the_last_note_is_dropped():
+    """The rest of a word ("a-" on the last note) in a bar with no note: dropped, not a crash."""
+    from app.model import Score
+
+    score = Score(6, list(TUNINGS["standard"]), _measures(True, False), 4, 4)
+    syllables = [(1, 0.9, "a", True), (2, 0.0, "b", False)]
+    line, dropped = _lyrics_text(syllables, score)
+    assert dropped == [2]
+    assert line == (1, "   a-")  # skips the first three notes
+
+
 def test_written_tuning_and_custom_octaves():
     assert _detect_tuning(["Tuning : D A D G B E"]) == ("E", "B", "G", "D", "A", "D")
     assert _detect_tuning(["Afinação: Drop D"]) == ("E", "B", "G", "D", "A", "D")

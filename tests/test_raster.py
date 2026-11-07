@@ -1024,3 +1024,25 @@ def test_small_numbers_in_a_picture_are_grace_notes_as_in_the_pdf(width):
     expected = _graces(convert(pdf, ConversionOptions()).gp5)
     assert [g for _, _, g in expected if g] == [14, 9, 7]
     assert _graces(convert(tab_png(pdf, width=width), ConversionOptions()).gp5) == expected
+
+
+def test_digits_that_are_not_ascii_are_not_frets():
+    """"²" and "①" pass str.isdigit() but int() refuses them: one such glyph aborted the conversion."""
+    from app.extract.common import split_fret_number
+    from app.extract.raster_tab import _clean
+
+    assert split_fret_number("²") == [] and split_fret_number("①") == []
+    assert _clean("①5") == "5"
+
+
+def test_a_16_bit_grey_picture_keeps_its_greys():
+    """Pillow's convert("L") clips 16-bit values to white instead of scaling them."""
+    import numpy as np
+
+    from app.extract.raster_tab import decode_image
+
+    pixels = np.full((8, 8), 30000, np.uint16)
+    pixels[2:4] = 0
+    buffer = io.BytesIO()
+    Image.fromarray(pixels).save(buffer, "PNG")
+    assert sorted(np.unique(decode_image(buffer.getvalue(), 10**6))) == [0, 117]

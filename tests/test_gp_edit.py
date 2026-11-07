@@ -251,3 +251,15 @@ def test_length_edits_from_the_page_are_checked():
     ):
         with pytest.raises(ConversionError):
             parse_edits([bad])
+
+
+def test_a_length_no_rests_add_up_to_is_refused_quickly():
+    """A bar holding a quintuplet leaves a length no rest adds up to: the search must not retry
+    every combination (it ran for minutes)."""
+    import time
+
+    from app.gp_edit import _split
+
+    start = time.monotonic()
+    assert _split(3840 - 96 * 3) is None
+    assert time.monotonic() - start < 1

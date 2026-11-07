@@ -436,10 +436,11 @@ def _lyrics_text(
         text = _LYRIC_SYNTAX.sub("", text)
         if not text:
             continue
-        if bar not in first_in_bar and not previous_joins:
+        follows = previous_joins and previous + 1 < len(beats)  # the rest of a word: the next note
+        if bar not in first_in_bar and not follows:
             dropped.add(bar)
             continue
-        if previous_joins and previous + 1 < len(beats):
+        if follows:
             target = previous + 1
         else:
             first = first_in_bar[bar]
@@ -561,7 +562,6 @@ def _build_track(parsed: _ParsedPdf, track: TrackOptions, rhythm: RhythmOptions,
         measures=measures,
         numerator=rhythm.numerator,
         denominator=rhythm.denominator,
-        warnings=warnings,
         name=name,
         instrument=INSTRUMENTS[instrument],
     )
@@ -602,7 +602,7 @@ def _track_name(index: int, track: TrackOptions, parsed: _ParsedPdf, song: SongM
 
 
 def _rest_bar(score: Score) -> ScoreMeasure:
-    return rest_bar(score.numerator * 32 // score.denominator)
+    return rest_bar(signature_units((score.numerator, score.denominator)))
 
 
 def _ranges(numbers: list[int]) -> str:

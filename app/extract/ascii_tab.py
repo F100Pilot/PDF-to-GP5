@@ -8,7 +8,7 @@ from statistics import median
 from ..i18n import tr
 from ..model import Link, TabEvent, TabSystem
 from .bar_signs import navigation
-from .common import repeat_count, shared_bars, split_fret_number
+from .common import is_digit, repeat_count, shared_bars, split_fret_number
 from .metadata import line_text, tempo_from_text
 from .pdf_reader import Char, Page, TextLine, group_lines
 
@@ -65,17 +65,17 @@ def _split_tab_line(line: TextLine) -> tuple[str, list[Char]] | None:
 def _read_number(chars: list[Char], i: int, unit: float) -> tuple[str, int]:
     """Read adjacent digits starting at ``i``; return (text, next index)."""
     j = i
-    while j + 1 < len(chars) and chars[j + 1].text.isdigit() and chars[j + 1].x0 - chars[j].x1 < 0.3 * unit:
+    while j + 1 < len(chars) and is_digit(chars[j + 1].text) and chars[j + 1].x0 - chars[j].x1 < 0.3 * unit:
         j += 1
     return "".join(c.text for c in chars[i : j + 1]), j + 1
 
 
 def _ends_note(chars: list[Char], i: int) -> bool:
-    return i >= 0 and (chars[i].text.isdigit() or chars[i].text in ")>")
+    return i >= 0 and (is_digit(chars[i].text) or chars[i].text in ")>")
 
 
 def _starts_note(chars: list[Char], i: int) -> bool:
-    return i < len(chars) and (chars[i].text.isdigit() or chars[i].text in "(<")
+    return i < len(chars) and (is_digit(chars[i].text) or chars[i].text in "(<")
 
 
 def _parse_string(
@@ -94,7 +94,7 @@ def _parse_string(
         char = chars[i]
         t = char.text
         after_note = bool(events) and events[-1].fret is not None and _ends_note(chars, i - 1)
-        if t.isdigit():
+        if is_digit(t):
             text, nxt = _read_number(chars, i, unit)
             paren = i > 0 and chars[i - 1].text == "(" and nxt < len(chars) and chars[nxt].text == ")"
             harmonic = i > 0 and chars[i - 1].text == "<" and nxt < len(chars) and chars[nxt].text == ">"
@@ -129,7 +129,7 @@ def _parse_string(
             slide_in = _SLIDE_ENDS[t][1]  # "-/5"
         elif t in _LINKS:
             pending = _LINKS[t]
-        elif t in "tT" and i + 1 < len(chars) and chars[i + 1].text.isdigit():
+        elif t in "tT" and i + 1 < len(chars) and is_digit(chars[i + 1].text):
             tapped = True
         elif t == "b" and events and events[-1].fret is not None and i > 0 and chars[i - 1].text in "0123456789)":
             i = _parse_bend(chars, i + 1, events[-1], unit)
@@ -152,7 +152,7 @@ def _parse_bend(chars: list[Char], i: int, event: TabEvent, unit: float) -> int:
     semitones = 2
     if i < len(chars) and chars[i].text == "(":
         i += 1
-    if i < len(chars) and chars[i].text.isdigit():
+    if i < len(chars) and is_digit(chars[i].text):
         text, i = _read_number(chars, i, unit)
         delta = int(text) - (event.fret or 0)
         if 1 <= delta <= 4:
@@ -162,7 +162,7 @@ def _parse_bend(chars: list[Char], i: int, event: TabEvent, unit: float) -> int:
     if i < len(chars) and chars[i].text == "r":
         event.bend_release = True
         i += 1
-        if i < len(chars) and chars[i].text.isdigit():
+        if i < len(chars) and is_digit(chars[i].text):
             _, i = _read_number(chars, i, unit)
     event.bend_semitones = semitones
     return i

@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from ..i18n import tr
+from .common import is_digit
 from .pdf_reader import Char, Page, PdfReadError, Segment
 
 # Staff spacing (pixels) the line and digit thresholds below were tuned at; a picture is
@@ -324,7 +325,7 @@ def _clean(text: str) -> str:
     text = text.strip().translate(
         str.maketrans({"O": "0", "o": "0", "。": "0", "〇": "0", "○": "0", "l": "1", "I": "1", "|": "1"})
     )
-    return "".join(ch for ch in text if ch.isdigit() or ch in "()xX")
+    return "".join(ch for ch in text if is_digit(ch) or ch in "()xX")
 
 
 def _read_page(gray, number: int, heading: bool = False, frets: bool = True) -> tuple[Page, Page | None]:
@@ -708,13 +709,8 @@ def _tuning_labels(dark, groups, spacing: float, k: float) -> list[Char]:
             boxes.append((left + int(cols[0]), left + int(cols[-1]) + 1, top + int(rows[0]), top + int(rows[-1]) + 1))
         if len(boxes) != len(group):
             continue
-        crops = []
-        for bx0, bx1, by0, by1 in boxes:
-            pad = round(spacing * 0.3)
-            crop = np.full((by1 - by0 + 2 * pad, bx1 - bx0 + 2 * pad), 255, np.uint8)
-            crop[pad : pad + by1 - by0, pad : pad + bx1 - bx0][dark[by0:by1, bx0:bx1]] = 0
-            crop = cv2.resize(crop, None, fx=48 / crop.shape[0], fy=48 / crop.shape[0], interpolation=cv2.INTER_AREA)
-            crops.append(cv2.cvtColor(crop, cv2.COLOR_GRAY2BGR))
+        pad = round(spacing * 0.3)
+        crops = [_digit_crop(dark[by0:by1, bx0:bx1], pad, cv2, np) for bx0, bx1, by0, by1 in boxes]
         texts = _recognize(crops, "ABCDEFGabcdefg#")
         if not all(texts) or any(t[0].upper() not in "ABCDEFG" for t in texts):
             continue
@@ -1882,7 +1878,7 @@ def _recognize(crops, alphabet: str | None = None) -> list[str]:
 
 
 def _vote(texts: list[str]) -> str:
-    digits = [text for text in texts if text.isdigit()]
+    digits = [text for text in texts if is_digit(text)]
     counts = sorted((digits.count(text) for text in set(digits)), reverse=True)
     if not counts or (len(counts) > 1 and counts[0] == counts[1]):
         return ""  # nothing read, or a tie
@@ -1952,11 +1948,11 @@ def _time_signatures(gray, glyph, groups, bars: list[list[float]], spacing: floa
         # chord's notes, in Songsterr, came out as 8/8); a real one is a digit either way
         free = _recognize(crops[::n])
         texts = [
-            text if any(ch.isdigit() for ch in _clean(other)) else "" for text, other in zip(texts, free, strict=True)
+            text if any(is_digit(ch) for ch in _clean(other)) else "" for text, other in zip(texts, free, strict=True)
         ]
         for i in range(0, len(texts) - 1, 2):
             numerator, denominator = texts[i], texts[i + 1]
-            if not (numerator.isdigit() and denominator.isdigit()):
+            if not (is_digit(numerator) and is_digit(denominator)):
                 continue
             if not (1 <= int(numerator) <= 32 and int(denominator) in _DENOMINATORS):
                 continue
@@ -2017,7 +2013,7 @@ def _with_spaces(text: str, info, crop, np) -> str:
     cuts = set()
     for gap, width in gaps:
         cut = next((i for i in range(1, len(text)) if xs[i - 1] < gap < xs[i]), None)
-        digits = cut and text[cut - 1].isdigit() and text[cut].isdigit()
+        digits = cut and is_digit(text[cut - 1]) and is_digit(text[cut])
         if cut and " " not in text[cut - 1 : cut + 1] and (not digits or width > 0.3 * height):
             cuts.add(cut)
     return "".join(f" {ch}" if i in cuts else ch for i, ch in enumerate(text))
@@ -2128,6 +2124,9 @@ def decode_image(data: bytes, max_pixels: int):
             flat = Image.new("RGB", image.size, "white")  # transparent screenshot background: white
             flat.paste(image, mask=image.convert("RGBA").getchannel("A"))
             image = flat
+        if image.mode in ("I", "I;16", "I;16B", "I;16L"):  # 16-bit grey: convert("L") clips, not scales
+            wide = np.asarray(image, dtype=np.float32)
+            return np.clip(wide / 256, 0, 255).astype(np.uint8)
         return np.asarray(image.convert("L"))
     except PdfReadError:
         raise

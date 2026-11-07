@@ -12,6 +12,7 @@ missing, when there are not enough (another beat of the bar is shortened first).
 
 from __future__ import annotations
 
+import functools
 import io
 from dataclasses import dataclass
 
@@ -194,7 +195,8 @@ def _apply(song: gp.Song, edit: NoteEdit) -> None:
             beat.status = gp.BeatStatus.rest
 
 
-def _split(ticks: int) -> list[Length] | None:
+@functools.cache  # a length nothing adds up to would otherwise retry every combination
+def _split(ticks: int) -> tuple[Length, ...] | None:
     """Rest lengths adding up to `ticks`, longest first; triplets only for what plain lengths
     cannot make (a triplet beat leaves a triplet's worth). None when nothing adds up."""
     plain_ok = ticks % Length(32).duration().time == 0
@@ -202,9 +204,9 @@ def _split(ticks: int) -> list[Length] | None:
     for filler in fillers:
         size = filler.duration().time
         if size <= ticks:
-            rest = [] if size == ticks else _split(ticks - size)
+            rest = () if size == ticks else _split(ticks - size)
             if rest is not None:
-                return [filler, *rest]
+                return (filler, *rest)
     return None
 
 

@@ -28,8 +28,15 @@ def shared_bars(bar_xs_per_string: list[list[float]], tolerance: float) -> list[
     return bars
 
 
+def is_digit(text: str) -> bool:
+    """ASCII digits only: str.isdigit() is also true for "²" or "①", which int() refuses."""
+    return text.isascii() and text.isdigit()
+
+
 def split_fret_number(text: str) -> list[int]:
     """Parse a run of digits as one fret, or as single frets if out of range."""
+    if not is_digit(text):
+        return []
     value = int(text)
     if value <= MAX_FRET:
         return [value]

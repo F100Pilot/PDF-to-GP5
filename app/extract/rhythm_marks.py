@@ -12,6 +12,7 @@ from collections import Counter
 from statistics import median
 
 from ..model import RhythmMark
+from .common import is_digit
 from .pdf_reader import Char, Page, Segment
 
 # SMuFL code points (https://w3c.github.io/smufl/latest/) mapped to 32nd-note units.
@@ -171,7 +172,7 @@ def read_rhythm(page: Page, top: float, bottom: float, x0: float, x1: float, spa
     tuplet_digits = [
         c
         for c in page.chars
-        if c.text.isdigit()
+        if is_digit(c.text)
         and x0 < c.xc < x1
         and (
             _overlaps(c, zone_high, zone_high + 1.2 * spacing)

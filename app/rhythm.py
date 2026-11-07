@@ -36,7 +36,7 @@ class RhythmOptions:
 
     @property
     def measure_units(self) -> int:
-        return self.numerator * 32 // self.denominator
+        return signature_units((self.numerator, self.denominator))
 
 
 @dataclass

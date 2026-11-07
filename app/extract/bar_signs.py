@@ -133,6 +133,15 @@ def _texts_above(page: Page, top: float, x0: float, x1: float, spacing: float, h
     return words
 
 
+def _counts_above(page: Page, top: float, x0: float, x1: float, spacing: float) -> list[tuple[float, int]]:
+    """Counts ("x3", "3x"…) printed above the staff, as (x of the first char, count)."""
+    return [
+        (first.x0, count)
+        for first, text in _texts_above(page, top, x0, x1, spacing, 6)
+        if (count := repeat_count(text)) is not None
+    ]
+
+
 def rest_counts(
     page: Page,
     top: float,
@@ -148,11 +157,7 @@ def rest_counts(
     A long silence printed as one bar holding a whole rest and "x19" above it stands for 19
     bars; read as one, every bar after it came that many bars early. A count over a bar that
     ends in a repeat sign is that repeat's count (``repeat_counts``), not this."""
-    counts = [
-        (first.x0, count)
-        for first, text in _texts_above(page, top, x0, x1, spacing, 6)
-        if (count := repeat_count(text)) is not None
-    ]
+    counts = _counts_above(page, top, x0, x1, spacing)
     found: list[tuple[float, int]] = []
     edges = sorted(bars)
     for start, end in pairwise(edges):
@@ -168,11 +173,7 @@ def repeat_counts(
     page: Page, top: float, x0: float, x1: float, spacing: float, ends: list[float]
 ) -> list[tuple[float, int]]:
     """Each repeat end with how many times it is played: "x3" printed near it, else twice."""
-    counts = [
-        (first.x0, count)
-        for first, text in _texts_above(page, top, x0, x1, spacing, 6)
-        if (count := repeat_count(text)) is not None
-    ]
+    counts = _counts_above(page, top, x0, x1, spacing)
     result: list[tuple[float, int]] = []
     for end in ends:
         near = [count for x, count in counts if end - 8 * spacing <= x <= end + 2 * spacing]

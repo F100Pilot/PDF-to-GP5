@@ -21,7 +21,7 @@ from .bar_signs import (
     time_signatures,
     voltas,
 )
-from .common import shared_bars, split_fret_number
+from .common import is_digit, shared_bars, split_fret_number
 from .pdf_reader import Char, Page, Segment, group_lines
 from .rhythm_marks import glyph_ys, read_rhythm
 
@@ -152,9 +152,9 @@ def _numbers_on_staff(
     candidates = [
         c
         for c in chars
-        if x0 <= c.xc <= x1 and (c.text.isdigit() or c.text in "xX()") and (c.bottom - c.top) <= 1.6 * spacing
+        if x0 <= c.xc <= x1 and (is_digit(c.text) or c.text in "xX()") and (c.bottom - c.top) <= 1.6 * spacing
     ]
-    heights = sorted(c.bottom - c.top for c in candidates if c.text.isdigit())
+    heights = sorted(c.bottom - c.top for c in candidates if is_digit(c.text))
     typical = heights[3 * len(heights) // 4] if heights else 0.0  # most digits are normal notes, not grace notes
     events: list[TabEvent] = []
     for string, line in enumerate(staff, start=1):
@@ -186,13 +186,13 @@ def _line_numbers(
             events.append(TabEvent(x=c.xc, string=string, fret=None, dead=True))
             i += 1
             continue
-        if not c.text.isdigit():
+        if not is_digit(c.text):
             i += 1
             continue
         j = i
         width = c.x1 - c.x0
         while (
-            j + 1 < len(on_line) and on_line[j + 1].text.isdigit() and on_line[j + 1].x0 - on_line[j].x1 < 0.3 * width
+            j + 1 < len(on_line) and is_digit(on_line[j + 1].text) and on_line[j + 1].x0 - on_line[j].x1 < 0.3 * width
         ):
             j += 1
         text = "".join(ch.text for ch in on_line[i : j + 1])
@@ -658,7 +658,7 @@ def _measure_numbers(chars: list[Char], staff: list[_StaffLine], spacing: float,
     """Read the bar numbers printed just above the staff at the start of each bar."""
     top = staff[0].y
     digits = sorted(
-        (c for c in chars if c.text.isdigit() and top - 1.5 * spacing <= c.yc < top - 0.2 * spacing),
+        (c for c in chars if is_digit(c.text) and top - 1.5 * spacing <= c.yc < top - 0.2 * spacing),
         key=lambda c: c.x0,
     )
     numbers: list[tuple[float, int]] = []
