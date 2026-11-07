@@ -145,7 +145,12 @@ def read_export(data: bytes) -> list[ImportedSong]:
                 if not isinstance(folder, str) or not folder or "/" in folder:
                     raise _not_ours()
                 meta = json.loads(_read(archive, entries, f"{folder}/{META}", MAX_META_BYTES) or b"null")
-                if not isinstance(meta, dict) or not isinstance(meta.get("key"), str) or meta["key"] in keys:
+                if (
+                    not isinstance(meta, dict)
+                    or not isinstance(meta.get("key"), str)
+                    or meta["key"] in keys
+                    or not isinstance(meta.get("report"), dict)  # store.save would refuse it mid-import
+                ):
                     raise _not_ours()
                 keys.add(meta["key"])
                 files = meta.get("files") if isinstance(meta.get("files"), dict) else {}
@@ -177,13 +182,15 @@ def preview(store: LibraryStore, songs: list[ImportedSong]) -> list[dict]:
     for song in songs:
         meta = song.meta
         here = existing.get(meta["key"])
+        names = meta.get("trackNames") if isinstance(meta.get("trackNames"), list) else []
+        saved_at = meta.get("savedAt")
         out.append(
             {
                 "key": meta["key"],
                 "title": meta.get("title", "") if isinstance(meta.get("title"), str) else "",
                 "artist": meta.get("artist", "") if isinstance(meta.get("artist"), str) else "",
-                "savedAt": meta.get("savedAt") if isinstance(meta.get("savedAt"), (int, float)) else 0,
-                "trackNames": [n for n in meta.get("trackNames") or [] if isinstance(n, str)][:64],
+                "savedAt": saved_at if isinstance(saved_at, (int, float)) and math.isfinite(saved_at) else 0,
+                "trackNames": [n for n in names if isinstance(n, str)][:64],
                 "measures": meta.get("measures") if isinstance(meta.get("measures"), int) else 0,
                 "cover": song.cover is not None,
                 "existing": {"id": here["id"], "savedAt": here["savedAt"]} if here else None,

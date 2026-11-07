@@ -264,3 +264,28 @@ def test_import_reads_each_file_of_the_zip_once(store, local):
             data = json.dumps(manifest) if name == "pdf-to-gp5-biblioteca.json" else exported.read(name)
             archive.writestr(name, data)
     assert _import(local, buffer.getvalue()).status_code == 422
+
+
+def test_numbers_that_are_not_finite_are_dropped(store, local):
+    """JSON allows Infinity and NaN; int() of them raises."""
+    meta = json.dumps(_meta(tempo=float("inf"), savedAt=float("nan")))
+    response = local.post("/api/library", data={"meta": meta}, files={"gp5": ("x.gp5", GP5)})
+    assert response.status_code == 200
+    assert response.json()["tempo"] is None
+
+
+def test_an_export_with_a_damaged_song_is_refused_before_anything_is_stored(store, local):
+    import io
+    import zipfile
+
+    exported = zipfile.ZipFile(io.BytesIO(_export(local, [_save(local).json()["id"]]).content))
+    local.delete(f"/api/library/{store.songs()[0]['id']}")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name in exported.namelist():
+            data = exported.read(name)
+            if name.endswith("/musica.json"):
+                data = json.dumps({**json.loads(data), "report": None, "trackNames": 3})
+            archive.writestr(name, data)
+    assert _import(local, buffer.getvalue()).status_code == 422
+    assert store.songs() == []

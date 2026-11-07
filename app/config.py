@@ -112,9 +112,7 @@ class Settings:
     max_concurrent: int = _int("MAX_CONCURRENT_CONVERSIONS", 2)
     rate_limit_per_minute: int = _int("RATE_LIMIT_PER_MINUTE", 20)
     inspect_rate_limit_per_minute: int = _int("INSPECT_RATE_LIMIT_PER_MINUTE", 60)
-    max_job_timeout_s: int = _int(
-        "MAX_JOB_TIMEOUT_S", 900
-    )  # whole job, however it advances  # whole request, however many PDFs
+    max_job_timeout_s: int = _int("MAX_JOB_TIMEOUT_S", 900)  # whole request, however many PDFs
     max_measures: int = _int("MAX_MEASURES", 2000)
     # Host names the server answers to (blocks DNS rebinding); comma separated.
     allowed_hosts: tuple[str, ...] = tuple(

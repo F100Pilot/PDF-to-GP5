@@ -157,6 +157,9 @@ async def changelog() -> dict:
 
 @app.get("/api/health")
 async def health(request: Request) -> dict:
+    download, download_problem = audio_download.available()
+    youtube, youtube_problem = audio_download.youtube_ready()
+    ocr, ocr_problem = ocr_ready()
     return {
         "status": "ok",
         "version": __version__,
@@ -166,12 +169,12 @@ async def health(request: Request) -> dict:
         # Why automatic video search is off (shown in the video panel); never the key itself.
         "video_search_problem": "" if settings.youtube_api_key else youtube_key_status()[1],
         # Audio from a URL (yt-dlp + FFmpeg), or why it is unavailable.
-        "audio_download": audio_download.available()[0],
-        "audio_download_problem": audio_download.available()[1],
-        "audio_youtube": audio_download.youtube_ready()[0],
-        "audio_youtube_problem": audio_download.youtube_ready()[1],
-        "ocr": ocr_ready()[0],
-        "ocr_problem": ocr_ready()[1],
+        "audio_download": download,
+        "audio_download_problem": download_problem,
+        "audio_youtube": youtube,
+        "audio_youtube_problem": youtube_problem,
+        "ocr": ocr,
+        "ocr_problem": ocr_problem,
         # What is missing can be installed (and the key saved) from the page on this computer.
         "can_install": _used_on_this_computer(request),
     }
@@ -396,7 +399,7 @@ def _per_track(values: list[str], count: int, default: str, field: str) -> list[
 
 def _options(form: ConvertForm, filenames: list[str]) -> ConversionOptions:
     count = len(filenames)
-    names = _per_track(form.track_names, count, "", "track_name") if form.track_names else [""] * count
+    names = _per_track(form.track_names, count, "", "track_name")
     tunings = _per_track(form.tunings, count, "auto", "tuning")
     instruments = _per_track(form.instruments, count, "auto", "instrument")
     if any(len(name) > 40 for name in names):
@@ -807,10 +810,9 @@ async def library_songs(request: Request) -> dict:
 
 
 @app.post("/api/library")
-async def library_save(
-    request: Request, meta: Annotated[str, Form(max_length=4 * 1024 * 1024)], gp5: UploadFile
-) -> dict:
-    """Store a converted song: `meta` (JSON: key, title, artist, report…) and its GP5 file."""
+async def library_save(request: Request, meta: Annotated[str, Form(max_length=1024 * 1024)], gp5: UploadFile) -> dict:
+    """Store a converted song: `meta` (JSON: key, title, artist, report…; at most 1 MB, Starlette's limit
+    for a form field) and its GP5 file."""
     store = _library(request)
     try:
         data = json.loads(meta)

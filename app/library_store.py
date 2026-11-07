@@ -15,6 +15,7 @@ written to a temporary name first and then renamed, so a stopped server leaves n
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import tempfile
@@ -99,7 +100,8 @@ def _text(value: object, limit: int) -> str:
 
 
 def _number(value: object) -> int | None:
-    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0 else None
+    number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    return int(value) if number and math.isfinite(value) and value >= 0 else None
 
 
 class LibraryStore:
@@ -240,8 +242,7 @@ class LibraryStore:
             files = dict(previous.get("files") or {})
             stem = re.sub(r"\.(?:gp[345x]?)$", "", filename, flags=re.IGNORECASE)
             gp5_name = safe_name(stem or title, "musica") + extension
-            if files.get("gp5") and files["gp5"] != gp5_name:
-                (folder / files["gp5"]).unlink(missing_ok=True)
+            old_gp5 = files.get("gp5")
             _write(folder / gp5_name, gp5)
             files["gp5"] = gp5_name
             stored = {
@@ -258,6 +259,8 @@ class LibraryStore:
                 "coverVersion": previous.get("coverVersion") or 0,
             }
             _write(folder / META, json.dumps(stored, ensure_ascii=False, indent=1).encode("utf-8"))
+            if old_gp5 and old_gp5 != gp5_name:  # only once the new file is in place
+                (folder / old_gp5).unlink(missing_ok=True)
             return self._summary(folder, stored)
 
     def _update(self, song_id: str, change) -> bool:
@@ -275,10 +278,10 @@ class LibraryStore:
     @staticmethod
     def _replace(folder: Path, files: dict, kind: str, file_name: str | None, data: bytes | None) -> None:
         old = files.get(kind)
+        if data is not None and file_name:
+            _write(folder / file_name, data)  # first: a failed write keeps the old file
         if isinstance(old, dict) and old.get("file") and old.get("file") != file_name:
             (folder / old["file"]).unlink(missing_ok=True)
-        if data is not None and file_name:
-            _write(folder / file_name, data)
 
     def set_audio(self, song_id: str, name: str, data: bytes | None) -> bool:
         """The song's audio file (None: remove it). Returns False when there is no such song."""
