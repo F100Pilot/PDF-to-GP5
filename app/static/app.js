@@ -25,6 +25,7 @@
   let maxTracks = 7;
   let trackColors = []; // one per track position, same as in the GP5 file
   let inspecting = false;
+  let converting = false; // a conversion is running: the button stays off until it ends
   let tunings = ["auto"];
   let instruments = ["auto"];
   let tracks = []; // { file, name, tuning, instrument, info }
@@ -289,19 +290,25 @@
       return;
     }
     showStatus(T("A abrir {name}…", { name: file.name }), false);
+    const token = inspection;
+    let bytes;
+    let report;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const report = await window.ScoreView.describe(bytes, file.name);
-      openSong(bytes, file.name, report, false, handle);
+      bytes = new Uint8Array(await file.arrayBuffer());
+      report = await window.ScoreView.describe(bytes, file.name);
     } catch {
-      showStatus(T("Não foi possível abrir {name}: não é um ficheiro Guitar Pro que o leitor conheça.", { name: file.name }), true);
+      if (token === inspection) {
+        showStatus(T("Não foi possível abrir {name}: não é um ficheiro Guitar Pro que o leitor conheça.", { name: file.name }), true);
+      }
+      return;
     }
+    if (token === inspection) openSong(bytes, file.name, report, false, handle); // not replaced meanwhile
   }
 
   // Converting while PDFs are still being inspected would compete for the same server slots.
   function setInspecting(active) {
     inspecting = active;
-    submit.disabled = active;
+    submit.disabled = active || converting;
   }
 
   async function selectFiles(fileList, handle = null) {
@@ -377,7 +384,10 @@
     meta.hidden = false;
   }
 
-  fileInput.addEventListener("change", () => selectFiles(fileInput.files));
+  fileInput.addEventListener("change", () => {
+    selectFiles([...fileInput.files]);
+    fileInput.value = ""; // the same file chosen again must fire "change" again
+  });
   // Chrome: choose the PDFs with the File System Access picker to know their folder (nothing
   // is read from it but the chosen files); elsewhere the plain file input.
   let nativePicker = false; // falling back to the plain file input (its click reaches this label too)
@@ -648,6 +658,7 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (converting) return undefined;
     if (inspecting) return showStatus(T("Aguarde o fim da análise dos PDFs."), false);
     if (!tracks.length) return showStatus(T("Escolha pelo menos um ficheiro PDF."), true);
     if (!form.reportValidity()) return undefined;
@@ -662,6 +673,8 @@
       body.append("tuning", track.tuning);
       body.append("instrument", track.instrument);
     }
+    const handle = selectionHandle; // the PDFs being converted, whatever is chosen meanwhile
+    converting = true;
     submit.disabled = true;
     result.hidden = true;
     if (window.ScoreView) window.ScoreView.hide();
@@ -684,11 +697,12 @@
       if (!response.ok) {
         throw new Error(typeof payload.detail === "string" ? payload.detail : T("Pedido inválido."));
       }
-      openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report, false, selectionHandle);
+      openSong(base64ToBytes(payload.gp5_base64), payload.filename, payload.report, false, handle);
     } catch (error) {
       showStatus(error instanceof Error ? error.message : T("Erro inesperado."), true);
     } finally {
-      submit.disabled = false;
+      converting = false;
+      submit.disabled = inspecting;
     }
     return undefined;
   });

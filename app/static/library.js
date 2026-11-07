@@ -21,6 +21,7 @@
   let songs = []; // summaries (no file contents), newest first
   let currentKey = null; // the song open now
   let restoring = false; // reopening a song: its audio is already stored
+  let opening = 0; // the latest openSong call: an older one still loading must not apply its audio
   let database = null;
   let folder = null; // the library folder on disk, or null: kept in the browser
   let ready = null; // resolves once the storage is known (and browser songs moved to disk)
@@ -89,7 +90,7 @@
     const response = await fetch(path, options);
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(body.detail || `HTTP ${response.status}`);
+      throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${response.status}`);
     }
     return response;
   }
@@ -200,9 +201,10 @@
     if (folder !== null) {
       const id = diskId(key);
       if (id) await request(songPath(id), { method: "DELETE" });
-      return;
+    } else {
+      await browserDelete(key);
     }
-    await browserDelete(key);
+    await transaction(HANDLES, "readwrite", (store) => store.delete(key)).catch(() => {}); // its PDF's folder
   }
 
   // Songs kept in this browser (before the folder existed, or at another address) go to the
@@ -437,8 +439,10 @@
   // settings are remembered per song and must apply to this one).
   // `keepPage`: stay on the page shown (reopened after a language switch), not go to Tocar.
   async function openSong(key, keepPage = false) {
+    const token = ++opening;
     await ready;
     const song = await loadSong(key).catch(() => null);
+    if (token !== opening) return;
     if (!song) {
       setStatus(T("Não foi possível abrir a música."));
       return;
@@ -453,12 +457,12 @@
       if (!keepPage) window.location.hash = "#/tocar";
       if (song.audio) {
         await loaded;
-        await window.AudioSync.useFile(song.audio);
+        if (token === opening) await window.AudioSync.useFile(song.audio);
       }
     } catch {
-      setStatus(T("Não foi possível abrir a música."));
+      if (token === opening) setStatus(T("Não foi possível abrir a música."));
     } finally {
-      restoring = false;
+      if (token === opening) restoring = false;
     }
   }
 

@@ -152,5 +152,5 @@
     }
   }
 
-  window.GpZip = { nameBackingTrack, audioExtension };
+  window.GpZip = { nameBackingTrack };
 })();

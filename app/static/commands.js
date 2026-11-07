@@ -210,7 +210,7 @@
       else openPalette();
       return;
     }
-    if (dialog.open || event.ctrlKey || event.metaKey || event.altKey || typing(event.target)) return;
+    if (document.querySelector("dialog[open]") || event.ctrlKey || event.metaKey || event.altKey || typing(event.target)) return;
     // Space and Enter keep their own meaning on buttons and links.
     const onControl = event.target instanceof HTMLElement && ["BUTTON", "A", "SUMMARY"].includes(event.target.tagName);
     const key = event.key;
