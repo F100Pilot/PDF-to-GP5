@@ -4,7 +4,6 @@
   "use strict";
 
   const THREE_URL = "/vendor/three/three.module.js";
-  const ROUNDED_BOX_URL = "/vendor/three/RoundedBoxGeometry.js";
   const TICKS_PER_QUARTER = 960; // alphaTab MIDI resolution
   const Z_PER_TICK = 4 / TICKS_PER_QUARTER; // highway length of a quarter note: 4 units
   const VIEW_AHEAD = 16 * TICKS_PER_QUARTER; // notes shown this far ahead of the strike line
@@ -24,15 +23,13 @@
   const EXTRA_LOW_COLOR = 0x9e9e9e;
   const INLAYS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
   // A note comes tilted NOTE_ROLL_DEG (its right side up) and, over its last NOTE_ROLL_S of the
-  // song before the strings, turns clockwise at a constant rate to lie level as it strikes. A
-  // chord turns as one piece, around its frame's centre. An open string (the bar across the hand's
-  // frets) always lies level, and so does a chord with one.
+  // song before the strings, turns clockwise at a constant rate to lie level as it strikes. Only
+  // single fretted notes turn: chords and open strings (the bar across the hand's frets) lie level.
   const NOTE_ROLL_DEG = 30;
   const NOTE_ROLL_S = 3;
   const noteRoll = (seconds) => (seconds <= 0 ? 0 : ((NOTE_ROLL_DEG * Math.PI) / 180) * Math.min(1, seconds / NOTE_ROLL_S));
 
   let THREE = null;
-  let RoundedBox = null;
   let loading = null;
   let stage = null; // renderer, scene, camera and the static parts of the highway
   let song = null; // the current track: notes, anchors and the moving lane
@@ -58,9 +55,8 @@
   function loadThree() {
     if (THREE) return Promise.resolve(THREE);
     if (!loading) {
-      loading = Promise.all([import(THREE_URL), import(ROUNDED_BOX_URL)]).then(([module, rounded]) => {
+      loading = import(THREE_URL).then((module) => {
         THREE = module;
-        RoundedBox = rounded.RoundedBoxGeometry;
         return THREE;
       }, (error) => {
         loading = null;
@@ -186,14 +182,6 @@
   function shared(geometry) {
     geometry.userData.shared = true;
     return geometry;
-  }
-
-  const roundedCache = new Map();
-  // Box with rounded edges, shared by size (gems, open-string bars and their hit copies).
-  function roundedBox(width, height, depth, radius) {
-    const key = [width, height, depth, radius].map((value) => value.toFixed(2)).join(":");
-    if (!roundedCache.has(key)) roundedCache.set(key, shared(new RoundedBox(width, height, depth, 4, radius)));
-    return roundedCache.get(key);
   }
 
   // A note is see-through, as in Rocksmith: a glowing outline in the string's colour around a
@@ -587,7 +575,7 @@
     group.add(head);
 
     const nut = new THREE.Mesh(
-      roundedBox(0.1, top - bottom - 0.2, 0.14, 0.03).clone(),
+      new THREE.BoxGeometry(0.1, top - bottom - 0.2, 0.14),
       new THREE.MeshStandardMaterial({ color: 0xe9e2cc, roughness: 0.4 }),
     );
     nut.position.set(0, middle, -0.05);
@@ -1032,7 +1020,7 @@
     clearEffects(); // effects share the chord frame geometry disposed below
     stage.scene.remove(song.lane);
     song.lane.traverse((object) => {
-      // Sprites share one geometry; rounded boxes and decal planes are shared too.
+      // Sprites share one geometry; outline shapes and decal planes are shared too.
       if (object.geometry && !object.isSprite && !object.geometry.userData.shared) object.geometry.dispose();
     });
     for (const material of song.materials) material.dispose();
@@ -1159,26 +1147,20 @@
       const open = note.fret === 0 && !note.dead;
       // Open string: a bar across the fret window being played.
       const x = open ? (fretX(anchors[i].low) + fretX(anchors[i].high)) / 2 : fretX(note.fret);
-      // The note itself (outline, face, symbols) turns as it comes, around its own centre or, in a
-      // chord, the chord's; its trail does not.
-      const chord = chordAt.get(note.tick);
-      const pivotX = chord ? chord.x : x;
-      const pivotY = chord ? (top + bottom) / 2 : y;
+      // The note itself (outline, face, symbols), centred on its place so it turns around its own
+      // centre; its trail does not turn.
+      const inChord = chordAt.has(note.tick);
       const head = new THREE.Group();
-      head.position.set(pivotX, pivotY, z);
-      const dx = x - pivotX;
-      const dy = y - pivotY;
-      head.add(...outlineMeshes(open ? outlineShapes(anchors[i].open, 0.24) : noteShapes, materials, dx, dy, 0));
+      head.position.set(x, y, z);
+      head.add(...outlineMeshes(open ? outlineShapes(anchors[i].open, 0.24) : noteShapes, materials, 0, 0, 0));
       if (note.palmMute && !note.dead) {
         const cross = palmMuteCross(open ? anchors[i].open : 0.8, open ? 0.24 : 0.36, trailMaterials[note.string], 0.002);
-        cross.position.x = dx;
-        cross.position.y = dy;
         head.add(cross);
       }
-      const face = noteFace(note, open ? 0.2 : 0.28, dx, dy, 0.005, true);
+      const face = noteFace(note, open ? 0.2 : 0.28, 0, 0, 0.005, true);
       if (note.accent) {
         const frame = accentFrame(open ? anchors[i].open + 0.4 : 1.2, 0.62);
-        frame.position.set(dx, dy, 0.003);
+        frame.position.set(0, 0, 0.003);
         face.push(frame);
       }
       if (face.length) head.add(...face);
@@ -1190,9 +1172,9 @@
         note.slap ? "slap" : "",
         note.pop ? "pop" : "",
       ].filter(Boolean);
-      marks.forEach((kind, k) => icon(head, kind, dx + (k - (marks.length - 1) / 2) * 0.42, dy + 0.38, 0, "#ffffff"));
-      if (note.bend) icon(head, note.bend, dx, dy + (marks.length ? 0.78 : 0.38), 0, "#ffd54f");
-      note.rolls = !open && !chord; // only single fretted notes turn; chords and open strings come level
+      marks.forEach((kind, k) => icon(head, kind, (k - (marks.length - 1) / 2) * 0.42, 0.38, 0, "#ffffff"));
+      if (note.bend) icon(head, note.bend, 0, marks.length ? 0.78 : 0.38, 0, "#ffd54f");
+      note.rolls = !open && !inChord; // only single fretted notes turn; chords and open strings come level
       head.rotation.z = note.rolls ? noteRoll(Infinity) : 0;
       lane.add(head);
       note.head = head;
@@ -1265,7 +1247,6 @@
       const frame = new THREE.LineSegments(chord.frame, chordMaterial);
       frame.position.set(chord.x, (top + bottom) / 2, -chord.tick * Z_PER_TICK);
       lane.add(frame);
-      chord.mesh = frame;
       // Chord name on top, when it changes (or comes back after more than a bar).
       if (chord.name && (chord.name !== lastName || chord.tick - lastTick > 4 * TICKS_PER_QUARTER)) {
         const name = label(chord.name, 0.6, true, "#ffffff");
@@ -1466,14 +1447,7 @@
     stage.effects = stage.effects.filter((effect) => {
       let opacity = 0.75 + 0.25 * Math.sin(now / 90); // gentle pulse (glow and frames) while the note rings
       if (tick >= effect.until) {
-        if (!effect.fadeStart) {
-          effect.fadeStart = now;
-          for (const part of effect.parts) {
-            if (!part.material.userData.solid) continue;
-            part.material.transparent = true; // only now, to fade out
-            part.material.needsUpdate = true;
-          }
-        }
+        if (!effect.fadeStart) effect.fadeStart = now;
         opacity = 1 - (now - effect.fadeStart) / FADE_MS;
       }
       if (opacity <= 0) {
@@ -1626,23 +1600,22 @@
   function frame() {
     if (!running) return;
     requestAnimationFrame(frame);
-    if (!song) return;
+    if (!song || !stage.host.offsetParent) return; // nothing to draw, or its page is not shown
     const tick = currentTick();
     song.lane.position.z = tick * Z_PER_TICK;
 
     // Notes reaching the strike line: light their string, keep their number there with a glow.
-    while (song.nextHit < song.notes.length && song.notes[song.nextHit].tick <= tick) {
+    // Paused, a note at the position waits for Play (a seek sets nextHit again).
+    while (clock.playing && song.nextHit < song.notes.length && song.notes[song.nextHit].tick <= tick) {
       const note = song.notes[song.nextHit];
       const bar = stage.strings[note.string];
-      if (clock.playing) {
-        if (bar) bar.glow = 1;
-        spawnNoteHit(note, song.nextHit);
-        for (const part of note.parts) part.visible = false;
-      }
+      if (bar) bar.glow = 1;
+      spawnNoteHit(note, song.nextHit);
+      for (const part of note.parts) part.visible = false;
       song.nextHit += 1;
     }
-    while (song.nextChord < song.chords.length && song.chords[song.nextChord].tick <= tick) {
-      if (clock.playing) spawnChordHit(song.chords[song.nextChord]);
+    while (clock.playing && song.nextChord < song.chords.length && song.chords[song.nextChord].tick <= tick) {
+      spawnChordHit(song.chords[song.nextChord]);
       song.nextChord += 1;
     }
     rollNotes(tick);
@@ -1715,8 +1688,11 @@
 
   // Show `trackIndex` of an alphaTab score inside `host` (with the PDF's timed lyrics, if any).
   // Rejects when WebGL is unavailable.
+  let showing = 0; // the latest show(): a hide() while three.js loads cancels it
   async function show(host, score, trackIndex, timedLyrics = null) {
+    const ticket = ++showing;
     await loadThree();
+    if (ticket !== showing) return;
     if (!stage || stage.host !== host) stage = createStage(host);
     buildSong(score, trackIndex, timedLyrics);
     if (!running) {
@@ -1726,6 +1702,7 @@
   }
 
   function hide() {
+    showing += 1;
     running = false;
   }
 
@@ -1740,6 +1717,10 @@
   function setPlaying(playing) {
     clock.tick = currentTick();
     clock.time = performance.now();
+    if (playing && !clock.playing && song) { // notes passed while paused do not strike on Play
+      song.nextHit = Math.max(song.nextHit, indexAt(clock.tick));
+      song.nextChord = Math.max(song.nextChord, indexOf(song.chords, clock.tick));
+    }
     clock.playing = playing;
   }
 

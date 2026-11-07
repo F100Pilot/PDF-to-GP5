@@ -76,7 +76,7 @@ def test_3d_highway_files_are_served(client):
     )
     assert client.get("/highway3d.js").status_code == 200
     # ES modules are refused by browsers unless served with a JavaScript MIME type (nosniff).
-    for path in ("/vendor/three/three.module.js", "/vendor/three/three.core.js", "/vendor/three/RoundedBoxGeometry.js"):
+    for path in ("/vendor/three/three.module.js", "/vendor/three/three.core.js"):
         response = client.get(path)
         assert response.status_code == 200 and "javascript" in response.headers["content-type"]
 

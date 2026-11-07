@@ -281,6 +281,7 @@
     }
     player.pause();
     audio = bytes;
+    window.Highway3D.setWaveform(null); // the old file's, until this one is drawn
     if (playerUrl) URL.revokeObjectURL(playerUrl);
     playerUrl = URL.createObjectURL(file);
     player.src = playerUrl;

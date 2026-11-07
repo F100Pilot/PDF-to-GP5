@@ -148,6 +148,17 @@
     offerOpenOnYouTube(true);
   }
 
+  // No video for this song: the previous song's must not stay (sync would drive it).
+  function clearPlayer() {
+    clearTimeout(readyTimer);
+    current = null;
+    video = null;
+    ready = false;
+    frame = null;
+    frameBox.replaceChildren();
+    urlInput.value = "";
+  }
+
   function showPlayer(id, host) {
     clearTimeout(readyTimer);
     current = { id, host };
@@ -281,6 +292,7 @@
   // Reuse the video chosen for this song before, else search YouTube for "artist title".
   async function loadSongVideo() {
     songPending = false;
+    const key = songKey;
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem(`pdf-to-gp5.video.${songKey}`) || "null");
@@ -293,6 +305,8 @@
     } else if (await findVideo(songQuery)) {
       offsetInput.value = "0";
       showPanel(true);
+    } else if (key === songKey) {
+      clearPlayer();
     }
   }
 
@@ -322,9 +336,11 @@
     tried.clear();
     if (!canSearch || !query) return false;
     setStatus(T("A procurar o vídeo no YouTube…"));
+    const key = songKey;
     try {
       const response = await fetch(`/api/video-search?${new URLSearchParams({ q: query })}`);
       const payload = await response.json().catch(() => ({}));
+      if (key !== songKey) return false; // another song was opened meanwhile
       if (!response.ok) throw new Error(typeof payload.detail === "string" ? payload.detail : T("Pesquisa falhou."));
       const results = Array.isArray(payload.results) ? payload.results.filter((r) => ID_RE.test(r.id)) : [];
       if (!results.length) {
